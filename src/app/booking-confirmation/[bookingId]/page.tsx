@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CheckCircle, Download, CalendarPlus, Ticket, MapPin, CalendarDays } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function BookingConfirmationPage({ params }: { params: { bookingId: string } }) {
-  const booking = await getBookingById(params.bookingId);
+export default async function BookingConfirmationPage({ params: { bookingId } }: { params: { bookingId: string } }) {
+  const booking = await getBookingById(bookingId);
 
   if (!booking) {
     return <div className="container mx-auto py-12 text-center">Booking not found or has expired.</div>;

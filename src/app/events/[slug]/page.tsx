@@ -1,3 +1,4 @@
+
 import { getEventBySlug } from '@/lib/mockData';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -15,8 +16,8 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function EventDetailsPage({ params }: { params: { slug: string } }) {
-  const event = await getEventBySlug(params.slug);
+export default async function EventDetailsPage({ params: { slug } }: { params: { slug: string } }) {
+  const event = await getEventBySlug(slug);
 
   if (!event) {
     return <div className="container mx-auto py-12 text-center">Event not found.</div>;

@@ -1,3 +1,4 @@
+
 import { getEventBySlug } from '@/lib/mockData';
 import TicketSelector from '@/components/events/TicketSelector';
 import { Button } from '@/components/ui/button';
@@ -13,8 +14,8 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function BookEventPage({ params }: { params: { slug: string } }) {
-  const event = await getEventBySlug(params.slug);
+export default async function BookEventPage({ params: { slug } }: { params: { slug: string } }) {
+  const event = await getEventBySlug(slug);
 
   if (!event) {
     return <div className="container mx-auto py-12 text-center">Event not found.</div>;
