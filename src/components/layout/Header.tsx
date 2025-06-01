@@ -7,9 +7,9 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 
@@ -128,53 +128,58 @@ const Header = () => {
                    <span className="sr-only">Open menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[280px]">
-                <div className="flex flex-col space-y-4 p-4">
-                  <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
-                     <span className="text-xl font-bold font-headline">MyPass<span className="text-primary">.</span><span className="text-accent">lk</span></span>
-                  </Link>
-                  <form onSubmit={handleSearch} className="flex items-center relative w-full">
-                    <Input
-                      type="search"
-                      placeholder="Search events..."
-                      className="h-9 pr-8 w-full"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                     <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9">
-                       <Search className="h-4 w-4" />
-                       <span className="sr-only">Search</span>
-                     </Button>
-                  </form>
-                  <nav className="flex flex-col space-y-2 text-base">
-                    <NavLinks inSheet />
-                  </nav>
-                  <div className="mt-auto border-t pt-4">
-                    {user ? (
-                      <>
-                        <div className="flex items-center mb-3">
-                            <Avatar className="h-10 w-10 mr-2">
-                                <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
-                                <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="text-sm font-medium leading-none">{user.name || 'User'}</p>
-                                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                            </div>
+              <SheetContent side="right" className="w-[280px]"> {/* Default p-6 from sheetVariants */}
+                <SheetHeader> {/* No explicit padding, uses SheetContent's padding */}
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6"> {/* Add margin after header */}
+                  <div className="flex flex-col space-y-4">
+                    <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
+                       <span className="text-xl font-bold font-headline">MyPass<span className="text-primary">.</span><span className="text-accent">lk</span></span>
+                    </Link>
+                    <form onSubmit={handleSearch} className="flex items-center relative w-full">
+                      <Input
+                        type="search"
+                        placeholder="Search events..."
+                        className="h-9 pr-8 w-full"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                       <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9">
+                         <Search className="h-4 w-4" />
+                         <span className="sr-only">Search</span>
+                       </Button>
+                    </form>
+                    <nav className="flex flex-col space-y-2 text-base">
+                      <NavLinks inSheet />
+                    </nav>
+                    <div className="mt-auto border-t pt-4">
+                      {user ? (
+                        <>
+                          <div className="flex items-center mb-3">
+                              <Avatar className="h-10 w-10 mr-2">
+                                  <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
+                                  <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                  <p className="text-sm font-medium leading-none">{user.name || 'User'}</p>
+                                  <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                              </div>
+                          </div>
+                          <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}>
+                            <Ticket className="mr-2 h-4 w-4" /> My Bookings
+                          </Button>
+                          <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
+                            <LogOut className="mr-2 h-4 w-4" /> Logout
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col space-y-2">
+                          <Button variant="outline" className="w-full" onClick={() => { router.push('/login'); setIsMobileMenuOpen(false); }}>Login</Button>
+                          <Button className="w-full" onClick={() => { router.push('/signup'); setIsMobileMenuOpen(false); }}>Sign Up</Button>
                         </div>
-                        <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}>
-                          <Ticket className="mr-2 h-4 w-4" /> My Bookings
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
-                          <LogOut className="mr-2 h-4 w-4" /> Logout
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="flex flex-col space-y-2">
-                        <Button variant="outline" className="w-full" onClick={() => { router.push('/login'); setIsMobileMenuOpen(false); }}>Login</Button>
-                        <Button className="w-full" onClick={() => { router.push('/signup'); setIsMobileMenuOpen(false); }}>Sign Up</Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </SheetContent>
