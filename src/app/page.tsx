@@ -5,9 +5,23 @@ import EventFilters from '@/components/events/EventFilters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import Link from 'next/link';
-import { Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare } from 'lucide-react';
+import {
+  Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket // Added new icons
+} from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
+const categoryIcons: Record<string, React.ElementType> = {
+  Technology: Cpu,
+  Music: Music2,
+  'Arts & Culture': Palette,
+  Charity: Heart,
+  Sports: Trophy,
+  Theater: Drama,
+  Future: Rocket,
+  Default: Zap, // Fallback icon
+};
 
 export default async function HomePage() {
   const upcomingEvents = await getUpcomingEvents(3); // Keep upcoming to 3 for balance
@@ -74,18 +88,22 @@ export default async function HomePage() {
       {/* Categories Section */}
       <section id="categories" className="container mx-auto px-4">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Explore by Category</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-          {categories.map((category) => (
-            <Link href={`/search?category=${encodeURIComponent(category)}`} key={category}>
-              <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
-                <CardHeader className="p-2">
-                  {/* Placeholder for category icons - could use a mapping */}
-                  <Zap className="h-10 w-10 text-primary mx-auto mb-2" />
-                  <CardTitle className="text-lg font-semibold">{category}</CardTitle>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-5 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
+          {categories.map((category) => {
+            const IconComponent = categoryIcons[category] || categoryIcons.Default;
+            return (
+              <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[28vw] md:w-full pb-1">
+                <Link href={`/search?category=${encodeURIComponent(category)}`}>
+                  <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
+                    <CardHeader className="p-2 flex flex-col items-center justify-center">
+                      <IconComponent className="h-10 w-10 text-primary mb-2" />
+                      <CardTitle className="text-base font-semibold leading-tight">{category}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                </Link>
+              </div>
+            );
+          })}
         </div>
       </section>
 
