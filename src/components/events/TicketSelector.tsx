@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MinusCircle, PlusCircle, ShoppingCart } from 'lucide-react';
+import { MinusCircle, PlusCircle } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,7 +18,6 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
   const { cart, addToCart, updateQuantity } = useCart();
   const { toast } = useToast();
   
-  // Initialize local quantities based on cart or defaults to 0
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
     const initialQuantities: Record<string, number> = {};
     event.ticketTypes.forEach(tt => {
@@ -28,7 +27,6 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
     return initialQuantities;
   });
 
-  // Sync local state if cart changes from elsewhere (e.g. page navigation)
   useEffect(() => {
     setQuantities(prevQuantities => {
       const newQuantities = { ...prevQuantities };
@@ -46,61 +44,55 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
   }, [cart, event.id, event.ticketTypes]);
 
 
-  const handleQuantityChange = (ticketTypeId: string, change: number) => {
-    setQuantities(prev => {
-      const currentQuantity = prev[ticketTypeId] || 0;
-      const newQuantity = Math.max(0, currentQuantity + change);
-      // Find ticket type to check availability
-      const ticketType = event.ticketTypes.find(tt => tt.id === ticketTypeId);
-      if (ticketType && newQuantity > ticketType.availability) {
-         toast({
-          title: "Limit Reached",
-          description: `Only ${ticketType.availability} tickets available for ${ticketType.name}.`,
-          variant: "destructive",
-        });
-        return { ...prev, [ticketTypeId]: ticketType.availability };
-      }
-      return { ...prev, [ticketTypeId]: newQuantity };
-    });
-  };
+  const handleQuantityChange = (ticketType: TicketType, change: number) => {
+    const ticketTypeId = ticketType.id;
+    const currentLocalQuantity = quantities[ticketTypeId] || 0;
+    let newQuantity = Math.max(0, currentLocalQuantity + change);
 
-  const handleAddToCart = (ticketType: TicketType) => {
-    const quantity = quantities[ticketType.id] || 0;
-    if (quantity > 0) {
-      // Check if item is already in cart to decide between addToCart (new item / new quantity logic) vs updateQuantity
-      const cartItem = cart.find(item => item.ticketTypeId === ticketType.id && item.eventId === event.id);
-      if (cartItem) {
-        // If item exists and quantity changed, update it
-        if (cartItem.quantity !== quantity) {
-          updateQuantity(ticketType.id, quantity);
-           toast({
-            title: "Cart Updated",
-            description: `${quantity} x ${ticketType.name} tickets for ${event.name} in your cart.`,
-          });
-        } else {
-          // No change, do nothing or inform user
-        }
-      } else {
-        // New item for the cart
-        addToCart(event, ticketType, quantity);
-         toast({
-          title: "Added to Cart",
-          description: `${quantity} x ${ticketType.name} tickets for ${event.name} added.`,
+    if (newQuantity > ticketType.availability) {
+        toast({
+            title: "Limit Reached",
+            description: `Only ${ticketType.availability} tickets available for ${ticketType.name}.`,
+            variant: "destructive",
         });
-      }
-    } else {
-      // If quantity is 0, attempt to remove from cart if it was there
-      const cartItem = cart.find(item => item.ticketTypeId === ticketType.id && item.eventId === event.id);
-      if (cartItem) {
-        updateQuantity(ticketType.id, 0); // This will filter it out in CartContext
-         toast({
-            title: "Removed from Cart",
-            description: `${ticketType.name} tickets for ${event.name} removed.`,
-          });
-      }
+        newQuantity = ticketType.availability; // Cap at availability
+    }
+
+    // Update local state first to reflect UI change immediately
+    setQuantities(prev => ({ ...prev, [ticketTypeId]: newQuantity }));
+
+    // Now, update the cart context
+    const cartItem = cart.find(item => item.ticketTypeId === ticketTypeId && item.eventId === event.id);
+
+    if (newQuantity > 0) {
+        if (cartItem) {
+            // Item exists, and new quantity is different
+            if (cartItem.quantity !== newQuantity) {
+                updateQuantity(ticketTypeId, newQuantity);
+                toast({
+                    title: "Cart Updated",
+                    description: `${newQuantity} x ${ticketType.name} for ${event.name} in your cart.`,
+                });
+            }
+        } else {
+            // New item for the cart
+            addToCart(event, ticketType, newQuantity);
+            toast({
+                title: "Added to Cart",
+                description: `${newQuantity} x ${ticketType.name} for ${event.name} added.`,
+            });
+        }
+    } else { // newQuantity is 0
+        if (cartItem) {
+            // Item was in cart, now quantity is 0, so remove
+            updateQuantity(ticketTypeId, 0); // This will filter it out in CartContext
+            toast({
+                title: "Removed from Cart",
+                description: `${ticketType.name} for ${event.name} removed.`,
+            });
+        }
     }
   };
-
 
   const currentTotal = event.ticketTypes.reduce((acc, tt) => {
     const quantity = quantities[tt.id] || 0;
@@ -111,7 +103,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Select Your Tickets</CardTitle>
-        <CardDescription>Choose the number of tickets for each type.</CardDescription>
+        <CardDescription>Choose the number of tickets for each type. Your cart will update automatically.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {event.ticketTypes.map((ticketType) => (
@@ -127,7 +119,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => handleQuantityChange(ticketType.id, -1)}
+                  onClick={() => handleQuantityChange(ticketType, -1)}
                   disabled={(quantities[ticketType.id] || 0) === 0}
                   aria-label={`Decrease quantity for ${ticketType.name}`}
                 >
@@ -137,26 +129,17 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
                   type="number"
                   className="w-16 h-10 text-center"
                   value={quantities[ticketType.id] || 0}
-                  readOnly // User interacts via buttons
+                  readOnly 
                   aria-label={`Quantity for ${ticketType.name}`}
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => handleQuantityChange(ticketType.id, 1)}
+                  onClick={() => handleQuantityChange(ticketType, 1)}
                   disabled={(quantities[ticketType.id] || 0) >= ticketType.availability}
                   aria-label={`Increase quantity for ${ticketType.name}`}
                 >
                   <PlusCircle className="h-5 w-5" />
-                </Button>
-                 <Button 
-                    onClick={() => handleAddToCart(ticketType)} 
-                    disabled={(quantities[ticketType.id] || 0) === 0 && !cart.find(item => item.ticketTypeId === ticketType.id && item.eventId === event.id)}
-                    variant={(quantities[ticketType.id] || 0) > 0 ? "default" : "outline"}
-                    className="ml-4"
-                  >
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  {(quantities[ticketType.id] || 0) > 0 ? 'Update Cart' : (cart.find(item => item.ticketTypeId === ticketType.id && item.eventId === event.id) ? 'Remove' : 'Add')}
                 </Button>
               </div>
             </div>
@@ -167,7 +150,6 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
         <div className="text-xl font-semibold">
           Current Selection Total: ${currentTotal.toFixed(2)}
         </div>
-        {/* The "Proceed to Checkout" button is typically on the page using this component, not part of it */}
       </CardFooter>
     </Card>
   );
