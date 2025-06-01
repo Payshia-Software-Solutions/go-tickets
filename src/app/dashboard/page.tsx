@@ -9,14 +9,29 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Ticket, CalendarDays, MapPin, Loader2, AlertCircle } from 'lucide-react';
 import type { Booking } from '@/lib/types';
 import Link from 'next/link';
-// In a real app, you'd fetch bookings for the user:
-// import { getUserBookings } from '@/lib/mockData'; 
+import type { Metadata } from 'next';
+
+// Client component - static metadata export will not work here.
+// Dynamic title set via useEffect.
+// export const metadata: Metadata = {
+//   title: 'My Dashboard - Bookings',
+//   robots: {
+//     index: false,
+//     follow: true,
+//   },
+// };
 
 const DashboardPage = () => {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'My Dashboard | MyPass.lk';
+    }
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -111,7 +126,7 @@ const DashboardPage = () => {
                         ))}
                         </ul>
                       </div>
-                      <p><span className="font-semibold">Total Paid:</span> ${booking.totalPrice.toFixed(2)}</p>
+                      <p><span className="font-semibold">Total Paid:</span> LKR {booking.totalPrice.toFixed(2)}</p>
                     </CardContent>
                     <CardFooter>
                       <Button variant="outline" asChild>

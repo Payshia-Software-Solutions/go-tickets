@@ -4,8 +4,51 @@ import TicketSelector from '@/components/events/TicketSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { ArrowRight, ShoppingCart } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
+import type { Metadata, ResolvingMetadata } from 'next';
+
+interface BookEventPageProps {
+  params: { slug: string };
+}
+
+export async function generateMetadata(
+  { params }: BookEventPageProps,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const event = await getEventBySlug(params.slug);
+
+  if (!event) {
+    return {
+      title: 'Book Event Not Found',
+    };
+  }
+  
+  const previousImages = (await parent).openGraph?.images || [];
+
+  return {
+    title: `Book Tickets for ${event.name}`,
+    description: `Select and book your tickets for ${event.name}. ${event.description.substring(0, 100)}...`,
+    openGraph: {
+      title: `Book Tickets for ${event.name}`,
+      description: `Secure your spot for ${event.name}.`,
+      images: [
+        {
+          url: event.imageUrl,
+          width: 800,
+          height: 450,
+          alt: `Book tickets for ${event.name}`,
+        },
+        ...previousImages,
+      ],
+    },
+     robots: { // Typically booking pages might not need to be indexed as prime content
+      index: false,
+      follow: true,
+    },
+  };
+}
+
 
 export async function generateStaticParams() {
   const mockEventSlugs = ['tech-conference-2024', 'summer-music-fest', 'art-exhibition-modern', 'charity-gala-night', 'sports-championship-final', 'local-theater-play'];
@@ -14,7 +57,7 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function BookEventPage({ params: { slug } }: { params: { slug: string } }) {
+export default async function BookEventPage({ params: { slug } }: BookEventPageProps) {
   const event = await getEventBySlug(slug);
 
   if (!event) {
@@ -61,7 +104,6 @@ export default async function BookEventPage({ params: { slug } }: { params: { sl
                 className="rounded-md object-cover w-full aspect-video"
                 data-ai-hint="event poster"
               />
-              {/* Potentially show a mini cart summary here if useCart provides necessary details */}
             </CardContent>
           </Card>
         </div>

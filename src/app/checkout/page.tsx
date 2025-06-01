@@ -16,6 +16,17 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Trash2, ShoppingCart } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+// Client component - static metadata export will not work here.
+// export const metadata: Metadata = {
+//   title: 'Checkout - MyPass.lk',
+//   description: 'Complete your ticket purchase securely. Review your order and payment details.',
+//   robots: {
+//     index: false,
+//     follow: true,
+//   },
+// };
 
 
 const CheckoutPage = () => {
@@ -25,6 +36,12 @@ const CheckoutPage = () => {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [eventDetailsCache, setEventDetailsCache] = useState<Record<string, Event>>({});
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Checkout | MyPass.lk';
+    }
+  }, []);
 
   // Fetch event details for items in cart if not already fetched
   // This is primarily for getting full event details for the booking record

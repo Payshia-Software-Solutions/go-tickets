@@ -5,7 +5,51 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { CalendarDays, MapPin, Users, Building, Tag, Info, Ticket as TicketIcon } from 'lucide-react';
 import Link from 'next/link';
-import TicketSelector from '@/components/events/TicketSelector'; // We might move this to book page. For now, display info here.
+import type { Metadata, ResolvingMetadata } from 'next';
+
+interface EventDetailsPageProps {
+  params: { slug: string };
+}
+
+export async function generateMetadata(
+  { params }: EventDetailsPageProps,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const event = await getEventBySlug(params.slug);
+
+  if (!event) {
+    return {
+      title: 'Event Not Found',
+    };
+  }
+
+  const previousImages = (await parent).openGraph?.images || [];
+
+  return {
+    title: event.name,
+    description: event.description.substring(0, 160), // Keep descriptions concise for meta tags
+    openGraph: {
+      title: event.name,
+      description: event.description.substring(0, 100), // Shorter for OG
+      images: [
+        {
+          url: event.imageUrl, // Assuming imageUrl is absolute or metadataBase is set
+          width: 800, // Provide dimensions if known
+          height: 450,
+          alt: event.name,
+        },
+        ...previousImages,
+      ],
+      type: 'article', // Or 'event' if you have specific event schema
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: event.name,
+      description: event.description.substring(0, 100),
+      images: [event.imageUrl],
+    },
+  };
+}
 
 export async function generateStaticParams() {
   // In a real app, fetch all event slugs
@@ -16,7 +60,7 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function EventDetailsPage({ params: { slug } }: { params: { slug: string } }) {
+export default async function EventDetailsPage({ params: { slug } }: EventDetailsPageProps) {
   const event = await getEventBySlug(slug);
 
   if (!event) {

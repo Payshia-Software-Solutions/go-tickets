@@ -16,6 +16,31 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import type { Metadata } from 'next';
+
+// Static metadata for the homepage
+export const metadata: Metadata = {
+  title: 'MyPass.lk - Discover & Book Event Tickets',
+  description: 'Find and book tickets for the best concerts, sports, theater shows, festivals, and other live events on MyPass.lk. Your adventure starts here!',
+  openGraph: {
+    title: 'MyPass.lk - Discover & Book Event Tickets',
+    description: 'Explore a wide variety of live events and book your tickets easily with MyPass.lk.',
+    images: [
+      {
+        url: '/og-homepage.png', // Replace with a specific OG image for the homepage in /public
+        width: 1200,
+        height: 630,
+        alt: 'MyPass.lk Homepage',
+      },
+    ],
+  },
+  twitter: {
+    title: 'MyPass.lk - Discover & Book Event Tickets',
+    description: 'Explore a wide variety of live events and book your tickets easily with MyPass.lk.',
+    images: ['/og-homepage.png'], // Replace with a specific Twitter image for the homepage
+  },
+};
+
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
   Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
@@ -172,7 +197,7 @@ export default function HomePage() {
                           onClick={() => {
                             setHeroSearchQuery(event.name);
                             setShowSuggestions(false);
-                            router.push(`/events/${event.slug}`);
+                            // router.push(`/events/${event.slug}`); // Navigation handled by Link component
                           }}
                         >
                           {event.name}

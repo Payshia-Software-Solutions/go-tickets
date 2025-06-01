@@ -10,11 +10,24 @@ import EventFilters from '@/components/events/EventFilters';
 import { Loader2, SearchX, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import type { Metadata } from 'next';
+
+// Metadata for client components needs to be handled differently, often in a parent server component or layout.
+// Or, if it needs to be dynamic based on searchParams from client-side, it cannot be standard Next.js metadata export.
+// For now, this will not be directly used by Next.js from a client component.
+// A <Head> tag from 'next/head' could be used inside the component for basic title, but full metadata objects are for Server Components/generateMetadata.
+
+// export const metadata: Metadata = {
+// title: 'Search Events',
+// description: 'Find your perfect event. Search by keyword, category, date, or location on MyPass.lk.',
+// };
 
 function SearchResults() {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pageTitle, setPageTitle] = useState('Search Events');
+
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -26,6 +39,14 @@ function SearchResults() {
       const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined;
       const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
       
+      if (query) {
+        setPageTitle(`Search results for "${query}" | MyPass.lk`);
+      } else if (category) {
+        setPageTitle(`${category} Events | MyPass.lk`);
+      } else {
+        setPageTitle('Browse All Events | MyPass.lk');
+      }
+
       const events = await searchEvents(query, category, date, location, minPrice, maxPrice);
       setResults(events);
       setIsLoading(false);
@@ -33,6 +54,10 @@ function SearchResults() {
 
     fetchResults();
   }, [searchParams]);
+
+  useEffect(() => {
+    document.title = pageTitle;
+  }, [pageTitle]);
 
   if (isLoading) {
     return (
@@ -65,18 +90,18 @@ function SearchResults() {
 
 export default function SearchPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  const searchParams = useSearchParams(); // Get searchParams for the key
+  const searchParams = useSearchParams(); 
 
   const handleFiltersApplied = () => {
-    setIsMobileFiltersOpen(false); // Close sheet after applying filters
+    setIsMobileFiltersOpen(false); 
   };
 
-  // Generate a key from searchParams to force Suspense re-evaluation
   const suspenseKey = searchParams.toString();
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="mb-8 text-center">
+        {/* Title will be set by SearchResults component using document.title */}
         <h1 className="text-3xl md:text-4xl font-bold font-headline">Find Your Perfect Event</h1>
       </div>
 
@@ -107,7 +132,7 @@ export default function SearchPage() {
 
         <main className="lg:col-span-3">
           <Suspense 
-            key={suspenseKey} // Add key here
+            key={suspenseKey}
             fallback={
               <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />

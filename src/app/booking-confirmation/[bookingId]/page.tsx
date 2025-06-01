@@ -5,8 +5,44 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Download, CalendarPlus, Ticket, MapPin, CalendarDays } from 'lucide-react';
 import Link from 'next/link';
+import type { Metadata, ResolvingMetadata } from 'next';
 
-export default async function BookingConfirmationPage({ params: { bookingId } }: { params: { bookingId: string } }) {
+interface BookingConfirmationPageProps {
+  params: { bookingId: string };
+}
+
+export async function generateMetadata(
+  { params }: BookingConfirmationPageProps,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const booking = await getBookingById(params.bookingId);
+
+  if (!booking) {
+    return {
+      title: 'Booking Not Found',
+      robots: {
+        index: false,
+        follow: true,
+      },
+    };
+  }
+
+  return {
+    title: `Booking Confirmed: ${booking.eventName}`,
+    description: `Your booking for ${booking.eventName} is confirmed. Booking ID: ${booking.id}.`,
+    robots: {
+      index: false, // Do not index booking confirmation pages
+      follow: true,
+    },
+    openGraph: {
+      title: `Booking Confirmed: ${booking.eventName}`,
+      description: `Your tickets for ${booking.eventName} are confirmed.`,
+      // You might want a generic event confirmation image here
+    },
+  };
+}
+
+export default async function BookingConfirmationPage({ params: { bookingId } }: BookingConfirmationPageProps) {
   const booking = await getBookingById(bookingId);
 
   if (!booking) {

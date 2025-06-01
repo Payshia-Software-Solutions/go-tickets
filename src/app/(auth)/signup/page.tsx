@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Added useEffect
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -11,6 +11,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus } from 'lucide-react';
+import type { Metadata } from 'next';
+
+// Metadata for client components is tricky. This won't be used by Next.js directly here.
+// export const metadata: Metadata = {
+//   title: 'Sign Up - MyPass.lk',
+//   description: 'Create an account on MyPass.lk to start booking tickets for your favorite events.',
+//   robots: {
+//     index: false, // Usually no need to index signup pages
+//     follow: true,
+//   },
+// };
+
 
 const SignupPage = () => {
   const { signup } = useAuth();
@@ -22,6 +34,12 @@ const SignupPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Sign Up | MyPass.lk';
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -5,9 +5,60 @@ import { Providers } from '@/components/Providers';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'; // Define your site URL
+
 export const metadata: Metadata = {
-  title: 'MyPass.lk - Event Tickets',
-  description: 'Your ultimate destination for event tickets on MyPass.lk.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'MyPass.lk - Your Gateway to Events',
+    template: '%s | MyPass.lk',
+  },
+  description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk. Your ultimate destination for unforgettable live experiences.',
+  keywords: ['events', 'tickets', 'concerts', 'sports', 'theater', 'festivals', 'booking', 'MyPass.lk'],
+  openGraph: {
+    title: {
+        default: 'MyPass.lk - Your Gateway to Events',
+        template: '%s | MyPass.lk',
+    },
+    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk.',
+    siteName: 'MyPass.lk',
+    type: 'website',
+    locale: 'en_US',
+    url: SITE_URL,
+    images: [
+      {
+        url: '/og-default.png', // Replace with your actual default OG image path in /public
+        width: 1200,
+        height: 630,
+        alt: 'MyPass.lk - Event Tickets',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: {
+        default: 'MyPass.lk - Your Gateway to Events',
+        template: '%s | MyPass.lk',
+    },
+    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk.',
+    images: ['/og-default.png'], // Replace with your actual default Twitter image path in /public
+    // site: '@yourtwitterhandle', // Optional: Add your Twitter handle
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  icons: { // Add favicon and other icons here if you have them in /public
+    icon: '/favicon.ico',
+    // apple: '/apple-touch-icon.png', 
+  }
 };
 
 export default function RootLayout({

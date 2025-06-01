@@ -3,6 +3,24 @@ import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Building, Lightbulb, Users, Target, Heart, Handshake, ShieldCheck } from 'lucide-react';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'About MyPass.lk - Our Mission, Vision, and Team',
+  description: 'Learn more about MyPass.lk, your trusted platform for event ticket booking. Discover our story, mission, vision, and the dedicated team behind our success.',
+  openGraph: {
+    title: 'About MyPass.lk - Our Story and Commitment',
+    description: 'Discover the mission, vision, and values that drive MyPass.lk. Meet the team dedicated to making your event experiences seamless and memorable.',
+    images: [
+      {
+        url: '/og-about.png', // Replace with a specific OG image for the about page
+        width: 1200,
+        height: 630,
+        alt: 'About MyPass.lk',
+      },
+    ],
+  },
+};
 
 const teamMembers = [
   {

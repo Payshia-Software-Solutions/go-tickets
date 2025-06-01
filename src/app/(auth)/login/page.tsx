@@ -11,6 +11,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { LogIn } from 'lucide-react';
+import type { Metadata } from 'next';
+
+// Metadata for client components is tricky. This won't be used by Next.js directly here.
+// Consider setting title via useEffect or in a parent server component/layout.
+// export const metadata: Metadata = {
+//   title: 'Login - MyPass.lk',
+//   description: 'Log in to your MyPass.lk account to access your bookings and manage your profile.',
+//   robots: {
+//     index: false, // Usually no need to index login pages
+//     follow: true,
+//   },
+// };
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -20,6 +32,12 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Login | MyPass.lk';
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

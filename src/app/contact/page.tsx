@@ -7,7 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Phone, Mail, MapPin, MessageSquare, Send } from 'lucide-react';
-import Image from 'next/image'; // Added for map placeholder
+import Image from 'next/image';
+import type { Metadata } from 'next';
+
+// Cannot export metadata from a client component. 
+// If this page needs dynamic metadata, convert to Server Component or use metadata in layout.
+// For now, this static metadata object won't be used by Next.js as this is a client component.
+// To make this work, this page would need to be a Server Component, or metadata handled in a parent layout.
+// Consider adding static metadata in a parent (e.g. RootLayout) or converting this to a Server Component if SEO is critical here.
+// export const metadata: Metadata = {
+//   title: 'Contact Us - MyPass.lk',
+//   description: 'Get in touch with MyPass.lk for support, inquiries, or feedback. We are here to help you with your event ticket booking needs.',
+//   openGraph: {
+//     title: 'Contact MyPass.lk',
+//     description: 'Reach out to the MyPass.lk team. We value your feedback and are ready to assist.',
+//   },
+// };
+
 
 export default function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
