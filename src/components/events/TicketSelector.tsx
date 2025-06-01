@@ -111,7 +111,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <h4 className="font-semibold text-lg">{ticketType.name}</h4>
-                <p className="text-sm text-muted-foreground">${ticketType.price.toFixed(2)} each</p>
+                <p className="text-sm text-muted-foreground">LKR {ticketType.price.toFixed(2)} each</p>
                 {ticketType.description && <p className="text-xs text-muted-foreground mt-1">{ticketType.description}</p>}
                 <p className="text-xs text-primary mt-1">{ticketType.availability} available</p>
               </div>
@@ -148,7 +148,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event }) => {
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t">
         <div className="text-xl font-semibold">
-          Current Selection Total: ${currentTotal.toFixed(2)}
+          Current Selection Total: LKR {currentTotal.toFixed(2)}
         </div>
       </CardFooter>
     </Card>

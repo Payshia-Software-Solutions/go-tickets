@@ -84,7 +84,7 @@ export default async function EventDetailsPage({ params: { slug } }: { params: {
               {event.ticketTypes.map(ticket => (
                 <div key={ticket.id} className="p-3 border rounded-md bg-background">
                   <h4 className="font-semibold">{ticket.name}</h4>
-                  <p className="text-lg font-bold text-primary">${ticket.price.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-primary">LKR {ticket.price.toFixed(2)}</p>
                   <p className="text-xs text-muted-foreground">{ticket.availability} available</p>
                 </div>
               ))}

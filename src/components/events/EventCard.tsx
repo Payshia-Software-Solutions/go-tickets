@@ -4,7 +4,7 @@ import Image from 'next/image';
 import type { Event } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Tag, DollarSign } from 'lucide-react';
+import { CalendarDays, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface EventCardProps {
@@ -58,12 +58,14 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
         </div>
       </CardContent>
       <CardFooter className="p-4 flex justify-between items-center border-t">
-         {minPrice !== null && (
+         {minPrice !== null ? (
           <div className="flex items-center text-lg font-semibold text-primary">
-            <DollarSign className="mr-1 h-5 w-5" />
+            <span className="mr-1 text-sm">LKR</span>
             <span>{minPrice.toFixed(2)}</span>
             <span className="text-xs text-muted-foreground ml-1">onwards</span>
           </div>
+        ) : (
+          <div /> // Placeholder for alignment if no price
         )}
         <Button asChild size="sm">
           <Link href={`/events/${event.slug}`}>View Details</Link>

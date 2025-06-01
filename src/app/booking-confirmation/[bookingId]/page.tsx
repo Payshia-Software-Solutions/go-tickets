@@ -52,12 +52,12 @@ export default async function BookingConfirmationPage({ params: { bookingId } }:
             {booking.tickets.map((ticket, index) => (
               <div key={index} className="flex justify-between items-center text-sm">
                 <span>{ticket.quantity} x {ticket.ticketTypeName}</span>
-                <span>${(ticket.quantity * ticket.pricePerTicket).toFixed(2)}</span>
+                <span>LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}</span>
               </div>
             ))}
             <div className="flex justify-between items-center font-bold text-lg border-t pt-2 mt-2">
               <span>Total Paid:</span>
-              <span>${booking.totalPrice.toFixed(2)}</span>
+              <span>LKR {booking.totalPrice.toFixed(2)}</span>
             </div>
              <p className="text-xs text-muted-foreground text-right pt-1">Booked on: {formattedBookingDate}</p>
           </div>
