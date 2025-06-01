@@ -1,13 +1,17 @@
 
+"use client";
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
 import EventCard from '@/components/events/EventCard';
-import EventFilters from '@/components/events/EventFilters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input'; // Added
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket // Added new icons
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,10 +27,25 @@ const categoryIcons: Record<string, React.ElementType> = {
   Default: Zap, // Fallback icon
 };
 
-export default async function HomePage() {
-  const upcomingEvents = await getUpcomingEvents(3); // Keep upcoming to 3 for balance
-  const categories = await getEventCategories();
-  const popularEvents = mockEvents.slice(0, 3); // Take first 3 as "popular"
+export default function HomePage() {
+  const router = useRouter();
+  const [heroSearchQuery, setHeroSearchQuery] = useState('');
+
+  // These would ideally be fetched, but for now, using static data.
+  const [upcomingEvents, setUpcomingEvents] = useState<Awaited<ReturnType<typeof getUpcomingEvents>>>([]);
+  const [categories, setCategories] = useState<Awaited<ReturnType<typeof getEventCategories>>>([]);
+  const [popularEvents, setPopularEvents] = useState<typeof mockEvents>([]);
+
+
+  useState(() => {
+    const fetchData = async () => {
+      setUpcomingEvents(await getUpcomingEvents(3));
+      setCategories(await getEventCategories());
+      setPopularEvents(mockEvents.slice(0, 3));
+    };
+    fetchData();
+  });
+
 
   const guestReviews = [
     {
@@ -58,6 +77,13 @@ export default async function HomePage() {
     },
   ];
 
+  const handleHeroSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (heroSearchQuery.trim()) {
+      router.push(`/search?query=${encodeURIComponent(heroSearchQuery.trim())}`);
+    }
+  };
+
   return (
     <div className="space-y-12 md:space-y-16 lg:space-y-20 pb-10">
       {/* Hero Section */}
@@ -79,9 +105,20 @@ export default async function HomePage() {
           <p className="text-lg md:text-xl lg:text-2xl mb-10 max-w-3xl mx-auto">
             Find tickets for concerts, sports, theater, festivals, and more. Your unforgettable experience starts here.
           </p>
-          <div className="max-w-4xl mx-auto">
-            <EventFilters />
-          </div>
+          <form onSubmit={handleHeroSearch} className="max-w-xl mx-auto mt-10 flex gap-2 px-4 sm:px-0">
+            <Input
+              type="search"
+              placeholder="Search events, artists, or venues..."
+              value={heroSearchQuery}
+              onChange={(e) => setHeroSearchQuery(e.target.value)}
+              className="flex-grow h-12 text-base bg-background/90 text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-accent"
+              aria-label="Search for events"
+            />
+            <Button type="submit" size="lg" className="h-12 !text-accent-foreground hover:!bg-accent/90 !bg-accent">
+              <Search className="mr-2 h-5 w-5" />
+              Search
+            </Button>
+          </form>
         </div>
       </section>
 
@@ -214,3 +251,5 @@ export default async function HomePage() {
     </div>
   );
 }
+
+    
