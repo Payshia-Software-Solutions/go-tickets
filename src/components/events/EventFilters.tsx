@@ -66,7 +66,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
 
   return (
     <form onSubmit={handleSearch} className="p-6 bg-card rounded-xl shadow-lg space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4"> {/* Changed from md:grid-cols-2 lg:grid-cols-4 */}
         <div className="space-y-1">
           <label htmlFor="searchTerm" className="text-sm font-medium">Search Event</label>
           <div className="relative">
