@@ -65,10 +65,14 @@ function SearchResults() {
 
 export default function SearchPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const searchParams = useSearchParams(); // Get searchParams for the key
 
   const handleFiltersApplied = () => {
     setIsMobileFiltersOpen(false); // Close sheet after applying filters
   };
+
+  // Generate a key from searchParams to force Suspense re-evaluation
+  const suspenseKey = searchParams.toString();
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -102,12 +106,15 @@ export default function SearchPage() {
         </aside>
 
         <main className="lg:col-span-3">
-          <Suspense fallback={
-            <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-lg text-muted-foreground">Loading search results...</p>
-            </div>
-          }>
+          <Suspense 
+            key={suspenseKey} // Add key here
+            fallback={
+              <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-4 text-lg text-muted-foreground">Loading search results...</p>
+              </div>
+            }
+          >
             <SearchResults />
           </Suspense>
         </main>
