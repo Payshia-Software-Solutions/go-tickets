@@ -134,35 +134,37 @@ export default async function HomePage() {
           <h2 className="text-3xl font-bold text-center mb-12 font-headline flex items-center justify-center">
             <MessageSquare className="mr-3 h-8 w-8 text-primary" /> What Our Guests Say
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
             {guestReviews.map((review) => (
-              <Card key={review.id} className="shadow-lg flex flex-col">
-                <CardHeader className="flex-row gap-4 items-center">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint="person portrait" />
-                    <AvatarFallback>{review.avatarFallback}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-lg">{review.name}</CardTitle>
-                    <div className="flex">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-5 w-5 ${
-                            i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
-                          }`}
-                        />
-                      ))}
+              <div key={review.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full md:h-auto pb-1">
+                <Card className="shadow-lg flex flex-col h-full">
+                  <CardHeader className="flex-row gap-4 items-center">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint="person portrait" />
+                      <AvatarFallback>{review.avatarFallback}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <CardTitle className="text-lg">{review.name}</CardTitle>
+                      <div className="flex">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-5 w-5 ${
+                              i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
+                            }`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <p className="text-muted-foreground leading-relaxed">{review.review}</p>
-                </CardContent>
-                <CardFooter>
-                  <p className="text-xs text-muted-foreground">Reviewed event: {review.event}</p>
-                </CardFooter>
-              </Card>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <p className="text-muted-foreground leading-relaxed">{review.review}</p>
+                  </CardContent>
+                  <CardFooter>
+                    <p className="text-xs text-muted-foreground">Reviewed event: {review.event}</p>
+                  </CardFooter>
+                </Card>
+              </div>
             ))}
           </div>
         </div>
