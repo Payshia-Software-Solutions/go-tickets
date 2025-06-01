@@ -6,8 +6,8 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
-  title: 'Event Horizon Tickets',
-  description: 'Your ultimate destination for event tickets.',
+  title: 'MyPass.lk - Event Tickets',
+  description: 'Your ultimate destination for event tickets on MyPass.lk.',
 };
 
 export default function RootLayout({

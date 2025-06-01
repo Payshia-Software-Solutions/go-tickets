@@ -47,7 +47,7 @@ const SignupPage = () => {
         <CardHeader className="text-center">
           <UserPlus className="mx-auto h-10 w-10 text-primary mb-2" />
           <CardTitle className="text-2xl font-bold font-headline">Create an Account</CardTitle>
-          <CardDescription>Join Event Horizon to start booking tickets.</CardDescription>
+          <CardDescription>Join MyPass.lk to start booking tickets.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">

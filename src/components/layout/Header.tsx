@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
+import Image from 'next/image';
 
 const Header = () => {
   const { user, logout, loading } = useAuth();
@@ -19,12 +20,14 @@ const Header = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const logoUrl = "https://storage.googleapis.com/project_MASKED_PATH/mypass_logo.png"; // User provided URL
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/search?query=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery('');
+      if (isMobileMenuOpen) setIsMobileMenuOpen(false);
     }
   };
 
@@ -84,20 +87,25 @@ const Header = () => {
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/" className="flex items-center space-x-2">
-            <Ticket className="h-7 w-7 text-primary" />
-            <span className="font-bold text-xl">Event Horizon</span>
+            <Image 
+              src={logoUrl} 
+              alt="MyPass.lk Logo" 
+              width={110} // Adjust width as needed, maintaining aspect ratio (286/64) approx 4.46
+              height={25} // Adjust height as needed
+              priority 
+            />
           </Link>
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <NavLinks />
           </nav>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           <form onSubmit={handleSearch} className="hidden md:flex items-center relative">
             <Input
               type="search"
               placeholder="Search events..."
-              className="h-9 md:w-[200px] lg:w-[250px] pr-8"
+              className="h-9 md:w-[150px] lg:w-[250px] pr-8" // Adjusted width
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -113,6 +121,7 @@ const Header = () => {
                 {totalItems}
               </span>
             )}
+            <span className="sr-only">Cart</span>
           </Button>
 
           <div className="hidden md:block">
@@ -124,13 +133,18 @@ const Header = () => {
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon">
                   <Menu className="h-6 w-6" />
+                   <span className="sr-only">Open menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left">
+              <SheetContent side="left" className="w-[280px]">
                 <div className="flex flex-col space-y-4 p-4">
                   <Link href="/" className="flex items-center space-x-2 mb-4" onClick={() => setIsMobileMenuOpen(false)}>
-                     <Ticket className="h-7 w-7 text-primary" />
-                     <span className="font-bold text-lg">Event Horizon</span>
+                     <Image 
+                        src={logoUrl} 
+                        alt="MyPass.lk Logo" 
+                        width={120} 
+                        height={27}  
+                      />
                   </Link>
                   <form onSubmit={handleSearch} className="flex items-center relative w-full">
                     <Input
@@ -142,18 +156,29 @@ const Header = () => {
                     />
                      <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9">
                        <Search className="h-4 w-4" />
+                       <span className="sr-only">Search</span>
                      </Button>
                   </form>
                   <nav className="flex flex-col space-y-2 text-base">
                     <NavLinks inSheet />
                   </nav>
-                  <div className="mt-auto">
+                  <div className="mt-auto border-t pt-4">
                     {user ? (
                       <>
+                        <div className="flex items-center mb-3">
+                            <Avatar className="h-10 w-10 mr-2">
+                                <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
+                                <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="text-sm font-medium leading-none">{user.name || 'User'}</p>
+                                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                            </div>
+                        </div>
                         <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}>
                           <Ticket className="mr-2 h-4 w-4" /> My Bookings
                         </Button>
-                        <Button variant="ghost" className="w-full justify-start text-red-500 hover:text-red-600" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
+                        <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
                           <LogOut className="mr-2 h-4 w-4" /> Logout
                         </Button>
                       </>

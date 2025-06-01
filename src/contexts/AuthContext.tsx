@@ -18,10 +18,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const localStorageKey = 'mypassUser';
 
   useEffect(() => {
     // Check if user is stored in localStorage (simple persistence)
-    const storedUser = localStorage.getItem('eventHorizonUser');
+    const storedUser = localStorage.getItem(localStorageKey);
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -33,7 +34,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const foundUser = await getUserByEmail(email);
     if (foundUser) {
       setUser(foundUser);
-      localStorage.setItem('eventHorizonUser', JSON.stringify(foundUser));
+      localStorage.setItem(localStorageKey, JSON.stringify(foundUser));
       setLoading(false);
       return true;
     }
@@ -43,7 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('eventHorizonUser');
+    localStorage.removeItem(localStorageKey);
   };
 
   const signup = async (name: string, email: string, _pass: string) => {
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     const newUser = await apiCreateUser({ email, name });
     setUser(newUser);
-    localStorage.setItem('eventHorizonUser', JSON.stringify(newUser));
+    localStorage.setItem(localStorageKey, JSON.stringify(newUser));
     setLoading(false);
     return true;
   };

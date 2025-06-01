@@ -1,16 +1,22 @@
 
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Linkedin, Ticket } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import Image from 'next/image';
 
 const Footer = () => {
+  const logoUrl = "https://storage.googleapis.com/project_MASKED_PATH/mypass_logo.png"; 
   return (
     <footer className="bg-muted text-muted-foreground border-t">
       <div className="container py-12 px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <Link href="/" className="flex items-center space-x-2 mb-4">
-              <Ticket className="h-8 w-8 text-primary" />
-              <span className="font-bold text-2xl text-foreground">Event Horizon</span>
+              <Image 
+                src={logoUrl} 
+                alt="MyPass.lk Logo" 
+                width={130} // Adjust width as needed
+                height={29} // Adjust height as needed
+              />
             </Link>
             <p className="text-sm">
               Your ultimate destination for discovering and booking tickets for events worldwide.
@@ -33,7 +39,7 @@ const Footer = () => {
               <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors"><Instagram size={24} /></Link>
               <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary transition-colors"><Linkedin size={24} /></Link>
             </div>
-            <p className="text-sm">&copy; {new Date().getFullYear()} Event Horizon Tickets. All rights reserved.</p>
+            <p className="text-sm">&copy; {new Date().getFullYear()} MyPass.lk. All rights reserved.</p>
           </div>
         </div>
       </div>

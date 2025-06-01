@@ -18,17 +18,21 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const localStorageKey = 'mypassCart';
 
   useEffect(() => {
-    const storedCart = localStorage.getItem('eventHorizonCart');
+    const storedCart = localStorage.getItem(localStorageKey);
     if (storedCart) {
       setCart(JSON.parse(storedCart));
     }
   }, []);
 
   useEffect(() => {
-    if (cart.length > 0 || localStorage.getItem('eventHorizonCart')) {
-         localStorage.setItem('eventHorizonCart', JSON.stringify(cart));
+    if (cart.length > 0 || localStorage.getItem(localStorageKey)) { // Ensure key is removed if cart becomes empty after being populated
+         localStorage.setItem(localStorageKey, JSON.stringify(cart));
+    }
+    if (cart.length === 0 && localStorage.getItem(localStorageKey)) {
+      localStorage.removeItem(localStorageKey);
     }
   }, [cart]);
 
@@ -70,7 +74,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearCart = () => {
     setCart([]);
-    localStorage.removeItem('eventHorizonCart');
+    localStorage.removeItem(localStorageKey);
   };
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
+import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -31,16 +32,16 @@ export default function HomePage() {
   const router = useRouter();
   const [heroSearchQuery, setHeroSearchQuery] = useState('');
 
-  const [upcomingEvents, setUpcomingEvents] = useState<Awaited<ReturnType<typeof getUpcomingEvents>>>([]);
-  const [categories, setCategories] = useState<Awaited<ReturnType<typeof getEventCategories>>>([]);
-  const [popularEvents, setPopularEvents] = useState<typeof mockEvents>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [popularEvents, setPopularEvents] = useState<Event[]>([]);
 
 
   useEffect(() => {
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(3));
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 3));
+      setPopularEvents(mockEvents.slice(0, 3)); // Assuming mockEvents is suitable for popular
     };
     fetchData();
   }, []);
@@ -53,7 +54,7 @@ export default function HomePage() {
       avatarUrl: 'https://placehold.co/100x100.png',
       avatarFallback: 'SL',
       rating: 5,
-      review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend Event Horizon!',
+      review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend MyPass.lk!',
       event: 'Summer Music Fest 2024',
     },
     {
@@ -129,13 +130,15 @@ export default function HomePage() {
             const IconComponent = categoryIcons[category] || categoryIcons.Default;
             return (
               <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[28vw] md:w-full pb-1">
-                <Link href={`/search?category=${encodeURIComponent(category)}`}>
-                  <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
-                    <CardHeader className="p-2 flex flex-col items-center justify-center">
-                      <IconComponent className="h-10 w-10 text-primary mb-2" />
-                      <CardTitle className="text-base font-semibold leading-tight">{category}</CardTitle>
-                    </CardHeader>
-                  </Card>
+                <Link href={`/search?category=${encodeURIComponent(category)}`} legacyBehavior>
+                  <a className="block h-full">
+                    <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
+                      <CardHeader className="p-2 flex flex-col items-center justify-center">
+                        <IconComponent className="h-10 w-10 text-primary mb-2" />
+                        <CardTitle className="text-base font-semibold leading-tight">{category}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  </a>
                 </Link>
               </div>
             );
@@ -227,7 +230,7 @@ export default function HomePage() {
       {/* Why Choose Us Section */}
       <section className="bg-muted py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why Event Horizon?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div className="p-6">
               <Users className="h-12 w-12 text-primary mx-auto mb-4" />
