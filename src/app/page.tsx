@@ -42,7 +42,7 @@ export default function HomePage() {
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(3));
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 3)); 
+      setPopularEvents(mockEvents.slice(0, 3));
     };
     fetchData();
   }, []);
@@ -166,7 +166,7 @@ export default function HomePage() {
                           href={`/events/${event.slug}`}
                           className="block p-3 hover:bg-muted transition-colors text-sm text-foreground"
                           onClick={() => {
-                            setHeroSearchQuery(event.name); 
+                            setHeroSearchQuery(event.name);
                             setShowSuggestions(false);
                             router.push(`/events/${event.slug}`);
                           }}
@@ -289,8 +289,8 @@ export default function HomePage() {
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="bg-muted py-16">
-        <div className="container mx-auto px-4">
+      <section className="bg-muted">
+        <div className="container mx-auto px-4 py-12"> {/* Added py-12 here to maintain some internal padding if desired */}
           <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div className="p-6">
