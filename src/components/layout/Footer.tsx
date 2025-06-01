@@ -1,22 +1,15 @@
 
 import Link from 'next/link';
 import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
-import Image from 'next/image';
 
 const Footer = () => {
-  const logoUrl = "https://storage.googleapis.com/project_MASKED_PATH/mypass_logo.png"; 
   return (
     <footer className="bg-muted text-muted-foreground border-t">
       <div className="container py-12 px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <Link href="/" className="flex items-center space-x-2 mb-4">
-              <Image 
-                src={logoUrl} 
-                alt="MyPass.lk Logo" 
-                width={130} // Adjust width as needed
-                height={29} // Adjust height as needed
-              />
+            <Link href="/" className="block mb-4">
+              <span className="text-xl font-bold text-primary font-headline">MyPass<span className="font-normal text-foreground">.</span> <span className="text-accent">lk</span></span>
             </Link>
             <p className="text-sm">
               Your ultimate destination for discovering and booking tickets for events worldwide.

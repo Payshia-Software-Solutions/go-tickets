@@ -12,7 +12,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
-import Image from 'next/image';
 
 const Header = () => {
   const { user, logout, loading } = useAuth();
@@ -20,7 +19,6 @@ const Header = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const logoUrl = "https://storage.googleapis.com/project_MASKED_PATH/mypass_logo.png"; // User provided URL
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,14 +84,8 @@ const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link href="/" className="flex items-center space-x-2">
-            <Image 
-              src={logoUrl} 
-              alt="MyPass.lk Logo" 
-              width={110} // Adjust width as needed, maintaining aspect ratio (286/64) approx 4.46
-              height={25} // Adjust height as needed
-              priority 
-            />
+          <Link href="/" className="flex items-center">
+            <span className="text-2xl font-bold text-primary font-headline">MyPass<span className="font-normal text-foreground">.</span> <span className="text-accent">lk</span></span>
           </Link>
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <NavLinks />
@@ -105,7 +97,7 @@ const Header = () => {
             <Input
               type="search"
               placeholder="Search events..."
-              className="h-9 md:w-[150px] lg:w-[250px] pr-8" // Adjusted width
+              className="h-9 md:w-[150px] lg:w-[250px] pr-8" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -138,13 +130,8 @@ const Header = () => {
               </SheetTrigger>
               <SheetContent side="left" className="w-[280px]">
                 <div className="flex flex-col space-y-4 p-4">
-                  <Link href="/" className="flex items-center space-x-2 mb-4" onClick={() => setIsMobileMenuOpen(false)}>
-                     <Image 
-                        src={logoUrl} 
-                        alt="MyPass.lk Logo" 
-                        width={120} 
-                        height={27}  
-                      />
+                  <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
+                     <span className="text-xl font-bold text-primary font-headline">MyPass<span className="font-normal text-foreground">.</span> <span className="text-accent">lk</span></span>
                   </Link>
                   <form onSubmit={handleSearch} className="flex items-center relative w-full">
                     <Input
