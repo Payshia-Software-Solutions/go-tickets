@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
@@ -31,21 +31,46 @@ const categoryIcons: Record<string, React.ElementType> = {
 export default function HomePage() {
   const router = useRouter();
   const [heroSearchQuery, setHeroSearchQuery] = useState('');
-
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [popularEvents, setPopularEvents] = useState<Event[]>([]);
-
+  const [suggestedEvents, setSuggestedEvents] = useState<Event[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(3));
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 3)); // Assuming mockEvents is suitable for popular
+      setPopularEvents(mockEvents.slice(0, 3)); 
     };
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (heroSearchQuery.trim().length > 1) {
+      const filtered = mockEvents.filter(event =>
+        event.name.toLowerCase().includes(heroSearchQuery.toLowerCase())
+      ).slice(0, 5);
+      setSuggestedEvents(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestedEvents([]);
+      setShowSuggestions(false);
+    }
+  }, [heroSearchQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [searchContainerRef]);
 
   const guestReviews = [
     {
@@ -82,6 +107,7 @@ export default function HomePage() {
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
     if (heroSearchQuery.trim()) {
       router.push(`/search?query=${encodeURIComponent(heroSearchQuery.trim())}`);
     }
@@ -108,20 +134,52 @@ export default function HomePage() {
           <p className="text-lg md:text-xl lg:text-2xl mb-10 max-w-3xl mx-auto">
             Find tickets for concerts, sports, theater, festivals, and more. Your unforgettable experience starts here.
           </p>
-          <form onSubmit={handleHeroSearch} className="max-w-xl mx-auto mt-10 flex gap-2 px-4 sm:px-0">
-            <Input
-              type="search"
-              placeholder="Search events, artists, or venues..."
-              value={heroSearchQuery}
-              onChange={(e) => setHeroSearchQuery(e.target.value)}
-              className="flex-grow h-12 text-base bg-background/90 text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-accent"
-              aria-label="Search for events"
-            />
-            <Button type="submit" size="lg" className="h-12 !text-accent-foreground hover:!bg-accent/90 !bg-accent">
-              <Search className="mr-2 h-5 w-5" />
-              Search
-            </Button>
-          </form>
+          <div ref={searchContainerRef} className="max-w-xl mx-auto mt-10 relative px-4 sm:px-0">
+            <form onSubmit={handleHeroSearch} className="flex gap-2">
+              <Input
+                type="search"
+                placeholder="Search events, artists, or venues..."
+                value={heroSearchQuery}
+                onChange={(e) => setHeroSearchQuery(e.target.value)}
+                onFocus={() => {
+                  if (heroSearchQuery.trim().length > 1 && suggestedEvents.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
+                className="flex-grow h-12 text-base bg-background/90 text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-accent"
+                aria-label="Search for events"
+                aria-autocomplete="list"
+                aria-expanded={showSuggestions && suggestedEvents.length > 0}
+              />
+              <Button type="submit" size="lg" className="h-12 !text-accent-foreground hover:!bg-accent/90 !bg-accent">
+                <Search className="mr-2 h-5 w-5" />
+                Search
+              </Button>
+            </form>
+            {showSuggestions && suggestedEvents.length > 0 && (
+              <Card className="absolute top-full mt-1 w-full max-h-60 overflow-y-auto z-20 shadow-lg text-left">
+                <CardContent className="p-0">
+                  <ul role="listbox">
+                    {suggestedEvents.map(event => (
+                      <li key={event.id} role="option">
+                        <Link
+                          href={`/events/${event.slug}`}
+                          className="block p-3 hover:bg-muted transition-colors text-sm text-foreground"
+                          onClick={() => {
+                            setHeroSearchQuery(event.name); 
+                            setShowSuggestions(false);
+                            router.push(`/events/${event.slug}`);
+                          }}
+                        >
+                          {event.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </section>
 
