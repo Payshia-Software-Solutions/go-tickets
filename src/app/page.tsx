@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import Link from 'next/link';
-import { Input } from '@/components/ui/input'; // Added
+import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
   Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket
@@ -31,20 +31,19 @@ export default function HomePage() {
   const router = useRouter();
   const [heroSearchQuery, setHeroSearchQuery] = useState('');
 
-  // These would ideally be fetched, but for now, using static data.
   const [upcomingEvents, setUpcomingEvents] = useState<Awaited<ReturnType<typeof getUpcomingEvents>>>([]);
   const [categories, setCategories] = useState<Awaited<ReturnType<typeof getEventCategories>>>([]);
   const [popularEvents, setPopularEvents] = useState<typeof mockEvents>([]);
 
 
-  useState(() => {
+  useEffect(() => {
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(3));
       setCategories(await getEventCategories());
       setPopularEvents(mockEvents.slice(0, 3));
     };
     fetchData();
-  });
+  }, []);
 
 
   const guestReviews = [
@@ -251,5 +250,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
