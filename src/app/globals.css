@@ -24,8 +24,8 @@ body {
     --secondary: 262 50% 90%; /* Lighter purple */
     --secondary-foreground: 262 52% 47%; /* Deep purple */
 
-    --muted: 262 30% 83%; /* Light muted purple - made slightly darker */
-    --muted-foreground: 262 30% 55%; /* Muted purple text */
+    --muted: 262 30% 80%; /* Light muted purple - made slightly darker for general use */
+    --muted-foreground: 262 30% 50%; /* Muted purple text - adjusted for darker muted */
 
     --accent: 340 82% 52%; /* Pink */
     --accent-foreground: 0 0% 98%; /* Almost white */
@@ -33,7 +33,7 @@ body {
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 262 30% 80%; /* Light purple border - made slightly darker */
+    --border: 262 30% 75%; /* Light purple border - adjusted for darker muted */
     --input: 262 30% 90%; /* Slightly darker than border for input background */
     --ring: 340 82% 52%; /* Pink for focus rings */
 
@@ -53,6 +53,11 @@ body {
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 262 30% 85%;
     --sidebar-ring: 340 82% 52%;
+
+    /* Footer specific colors */
+    --footer-background: 220 13% 12%; /* Very Dark Cool Gray, almost black */
+    --footer-foreground: 220 10% 80%; /* Light Gray for text */
+    --footer-border: 220 13% 22%;    /* Slightly lighter border for dark footer */
   }
 
   .dark {
@@ -71,8 +76,8 @@ body {
     --secondary: 262 30% 25%; /* Darker muted purple */
     --secondary-foreground: 330 43% 80%; /* Lighter purple text */
 
-    --muted: 262 30% 15%; /* Dark muted purple - made slightly darker */
-    --muted-foreground: 262 30% 65%; /* Muted purple text */
+    --muted: 262 30% 12%; /* Dark muted purple - made slightly darker for general use */
+    --muted-foreground: 262 30% 60%; /* Muted purple text - adjusted for darker muted */
 
     --accent: 340 92% 62%; /* Lighter pink */
     --accent-foreground: 340 30% 10%; /* Dark text on accent */
@@ -80,7 +85,7 @@ body {
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 262 30% 20%; /* Darker purple border - made slightly darker */
+    --border: 262 30% 18%; /* Darker purple border - adjusted for darker muted */
     --input: 262 30% 20%;
     --ring: 340 92% 62%;
 
@@ -98,6 +103,11 @@ body {
     --sidebar-accent-foreground: 340 30% 10%;
     --sidebar-border: 262 30% 25%;
     --sidebar-ring: 340 92% 62%;
+
+    /* Footer specific colors for dark theme */
+    --footer-background: 220 13% 8%;  /* Even Darker Cool Gray, almost pure black */
+    --footer-foreground: 220 10% 75%; /* Light Gray for text */
+    --footer-border: 220 13% 18%;     /* Slightly lighter border for very dark footer */
   }
 }
 
