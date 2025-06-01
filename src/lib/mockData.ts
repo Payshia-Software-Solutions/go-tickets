@@ -1,3 +1,4 @@
+
 import type { Event, Booking, TicketType, User } from './types';
 
 const users: User[] = [
@@ -30,6 +31,10 @@ const ticketTypes: Record<string, TicketType[]> = {
    'local-theater-play': [
     { id: 'theater-standard', name: 'Standard Seat', price: 30, availability: 100 },
     { id: 'theater-balcony', name: 'Balcony Seat', price: 20, availability: 50 },
+  ],
+  'future-fest-2025': [
+    { id: 'ff25-standard', name: 'Standard Pass', price: 99, availability: 500, description: 'General access to Future Fest.' },
+    { id: 'ff25-early', name: 'Early Access', price: 79, availability: 100, description: 'Get in early!' },
   ],
 };
 
@@ -112,6 +117,19 @@ export const mockEvents: Event[] = [
     organizer: { name: 'Austin Community Theatre Group' },
     venue: { name: 'Community Playhouse', address: '303 Stage Door, Austin, TX', mapLink: '#' },
     ticketTypes: ticketTypes['local-theater-play'],
+  },
+  {
+    id: '7',
+    slug: 'future-fest-2025',
+    name: 'Future Fest 2025',
+    date: '2025-12-01T10:00:00Z',
+    location: 'Virtual Reality Arena, The Cloud',
+    description: 'A glimpse into the events of tomorrow! Experience the future of entertainment, technology, and art.',
+    category: 'Future',
+    imageUrl: 'https://placehold.co/600x400.png',
+    organizer: { name: 'Tomorrow Today Corp.' },
+    venue: { name: 'VR Arena', address: '1 Cyberspace, Cloud City, CC', mapLink: '#' },
+    ticketTypes: ticketTypes['future-fest-2025'],
   },
 ];
 
@@ -207,3 +225,4 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
   users.push(newUser);
   return newUser;
 };
+
