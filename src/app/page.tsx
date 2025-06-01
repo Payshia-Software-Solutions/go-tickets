@@ -8,25 +8,29 @@ import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockDat
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-const categoryIcons: Record<string, React.ElementType> = {
-  Technology: Cpu,
-  Music: Music2,
-  'Arts & Culture': Palette,
-  Charity: Heart,
-  Sports: Trophy,
-  Theater: Drama,
-  Future: Rocket,
-  Default: Zap, // Fallback icon
+const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
+  Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
+  Sports: { icon: Goal, bgColor: 'bg-orange-100', iconColor: 'text-orange-600' },
+  Theater: { icon: Drama, bgColor: 'bg-teal-100', iconColor: 'text-teal-600' },
+  Festivals: { icon: PartyPopper, bgColor: 'bg-purple-100', iconColor: 'text-purple-600' },
+  Comedy: { icon: Smile, bgColor: 'bg-yellow-100', iconColor: 'text-yellow-600' },
+  Exhibitions: { icon: Images, bgColor: 'bg-cyan-100', iconColor: 'text-cyan-600' },
+  Technology: { icon: Cpu, bgColor: 'bg-slate-100', iconColor: 'text-slate-600' },
+  'Arts & Culture': { icon: Palette, bgColor: 'bg-pink-100', iconColor: 'text-pink-600' },
+  Charity: { icon: Heart, bgColor: 'bg-red-100', iconColor: 'text-red-600' },
+  Future: { icon: Rocket, bgColor: 'bg-lime-100', iconColor: 'text-lime-600' },
+  Default: { icon: Zap, bgColor: 'bg-gray-100', iconColor: 'text-gray-600' },
 };
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -40,9 +44,9 @@ export default function HomePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setUpcomingEvents(await getUpcomingEvents(4)); // Fetch 4 for XL display
+      setUpcomingEvents(await getUpcomingEvents(4));
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 4)); // Fetch 4 for XL display
+      setPopularEvents(mockEvents.slice(0, 4));
     };
     fetchData();
   }, []);
@@ -186,20 +190,19 @@ export default function HomePage() {
       {/* Categories Section */}
       <section id="categories" className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Explore by Category</h2>
-        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-5 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
+        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
           {categories.map((category) => {
-            const IconComponent = categoryIcons[category] || categoryIcons.Default;
+            const displayInfo = categoryDisplayData[category] || categoryDisplayData.Default;
+            const IconComponent = displayInfo.icon;
             return (
-              <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[28vw] md:w-full pb-1">
-                <Link href={`/search?category=${encodeURIComponent(category)}`} legacyBehavior>
-                  <a className="block h-full">
-                    <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
-                      <CardHeader className="p-2 flex flex-col items-center justify-center">
-                        <IconComponent className="h-10 w-10 text-primary mb-2" />
-                        <CardTitle className="text-base font-semibold leading-tight">{category}</CardTitle>
-                      </CardHeader>
-                    </Card>
-                  </a>
+              <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
+                <Link href={`/search?category=${encodeURIComponent(category)}`} className="block h-full">
+                  <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4">
+                    <div className={`p-4 rounded-full mb-3 ${displayInfo.bgColor}`}>
+                      <IconComponent className={`h-8 w-8 ${displayInfo.iconColor}`} />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">{category}</span>
+                  </Card>
                 </Link>
               </div>
             );
@@ -213,7 +216,7 @@ export default function HomePage() {
           <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
         </h2>
         {popularEvents.length > 0 ? (
-          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
             {popularEvents.map((event) => (
               <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
                 <EventCard event={event} />
@@ -229,7 +232,7 @@ export default function HomePage() {
       <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
         {upcomingEvents.length > 0 ? (
-           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
+           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
             {upcomingEvents.map((event) => (
               <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
                 <EventCard event={event} />
@@ -252,35 +255,35 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-center mb-12 font-headline flex items-center justify-center">
             <MessageSquare className="mr-3 h-8 w-8 text-primary" /> What Our Guests Say
           </h2>
-          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
             {guestReviews.map((review) => (
               <div key={review.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full md:h-auto pb-1">
                 <Card className="shadow-lg flex flex-col h-full">
-                  <CardHeader className="flex-row gap-4 items-center">
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint={review.dataAiHint} />
-                      <AvatarFallback>{review.avatarFallback}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg">{review.name}</CardTitle>
-                      <div className="flex">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-5 w-5 ${
-                              i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
-                            }`}
-                          />
-                        ))}
+                  <CardContent className="p-6 flex-grow">
+                    <div className="flex items-center mb-4">
+                      <Avatar className="h-12 w-12 mr-4">
+                        <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint={review.dataAiHint} />
+                        <AvatarFallback>{review.avatarFallback}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="text-lg font-semibold">{review.name}</h3>
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-5 w-5 ${
+                                i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
+                              }`}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
                     <p className="text-muted-foreground leading-relaxed">{review.review}</p>
                   </CardContent>
-                  <CardFooter>
+                  <div className="p-6 pt-0">
                     <p className="text-xs text-muted-foreground">Reviewed event: {review.event}</p>
-                  </CardFooter>
+                  </div>
                 </Card>
               </div>
             ))}
@@ -290,7 +293,7 @@ export default function HomePage() {
 
       {/* Why Choose Us Section */}
       <section className="bg-muted mt-12 md:mt-16 lg:mt-20">
-        <div className="container mx-auto px-4 py-12"> {/* Added py-12 here to maintain some internal padding if desired */}
+        <div className="container mx-auto px-4 py-12">
           <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div className="p-6">
