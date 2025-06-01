@@ -1,18 +1,51 @@
-import { getUpcomingEvents, getEventCategories } from '@/lib/mockData';
+
+import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
 import EventCard from '@/components/events/EventCard';
 import EventFilters from '@/components/events/EventFilters';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import Link from 'next/link';
-import { Ticket, Search, Zap, Users, Star } from 'lucide-react';
+import { Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare } from 'lucide-react';
 import Image from 'next/image';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default async function HomePage() {
-  const upcomingEvents = await getUpcomingEvents(6);
+  const upcomingEvents = await getUpcomingEvents(3); // Keep upcoming to 3 for balance
   const categories = await getEventCategories();
+  const popularEvents = mockEvents.slice(0, 3); // Take first 3 as "popular"
+
+  const guestReviews = [
+    {
+      id: 'review1',
+      name: 'Sarah L.',
+      avatarUrl: 'https://placehold.co/100x100.png',
+      avatarFallback: 'SL',
+      rating: 5,
+      review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend Event Horizon!',
+      event: 'Summer Music Fest 2024',
+    },
+    {
+      id: 'review2',
+      name: 'Michael B.',
+      avatarUrl: 'https://placehold.co/100x100.png',
+      avatarFallback: 'MB',
+      rating: 4,
+      review: 'Great selection of events and easy to find what I was looking for. The app is very user-friendly.',
+      event: 'Tech Conference 2024',
+    },
+    {
+      id: 'review3',
+      name: 'Jessica P.',
+      avatarUrl: 'https://placehold.co/100x100.png',
+      avatarFallback: 'JP',
+      rating: 5,
+      review: 'Attended the Charity Gala booked through this site. Everything was perfect, from ticketing to the event itself. Will use again!',
+      event: 'Charity Gala Night',
+    },
+  ];
 
   return (
-    <div className="space-y-12 md:space-y-16 lg:space-y-20">
+    <div className="space-y-12 md:space-y-16 lg:space-y-20 pb-10">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
         <div className="absolute inset-0">
@@ -56,7 +89,23 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Featured Events Section */}
+      {/* Popular Events Section */}
+      <section className="container mx-auto px-4">
+        <h2 className="text-3xl font-bold text-center mb-10 font-headline flex items-center justify-center">
+          <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
+        </h2>
+        {popularEvents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {popularEvents.map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">No popular events to show at the moment.</p>
+        )}
+      </section>
+      
+      {/* Upcoming Events Section */}
       <section className="container mx-auto px-4">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
         {upcomingEvents.length > 0 ? (
@@ -72,6 +121,46 @@ export default async function HomePage() {
           <Button asChild size="lg">
             <Link href="/search">Browse All Events</Link>
           </Button>
+        </div>
+      </section>
+
+      {/* Guest Reviews Section */}
+      <section className="bg-secondary/30 py-16">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12 font-headline flex items-center justify-center">
+            <MessageSquare className="mr-3 h-8 w-8 text-primary" /> What Our Guests Say
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {guestReviews.map((review) => (
+              <Card key={review.id} className="shadow-lg flex flex-col">
+                <CardHeader className="flex-row gap-4 items-center">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint="person portrait" />
+                    <AvatarFallback>{review.avatarFallback}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <CardTitle className="text-lg">{review.name}</CardTitle>
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-5 w-5 ${
+                            i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-muted-foreground leading-relaxed">{review.review}</p>
+                </CardContent>
+                <CardFooter>
+                  <p className="text-xs text-muted-foreground">Reviewed event: {review.event}</p>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 
