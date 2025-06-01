@@ -16,31 +16,12 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { Metadata } from 'next';
+// Removed Metadata import as it's not used for static export in client components
+// import type { Metadata } from 'next';
 
-// Static metadata for the homepage
-export const metadata: Metadata = {
-  title: 'MyPass.lk - Discover & Book Event Tickets',
-  description: 'Find and book tickets for the best concerts, sports, theater shows, festivals, and other live events on MyPass.lk. Your adventure starts here!',
-  openGraph: {
-    title: 'MyPass.lk - Discover & Book Event Tickets',
-    description: 'Explore a wide variety of live events and book your tickets easily with MyPass.lk.',
-    images: [
-      {
-        url: '/og-homepage.png', // Replace with a specific OG image for the homepage in /public
-        width: 1200,
-        height: 630,
-        alt: 'MyPass.lk Homepage',
-      },
-    ],
-  },
-  twitter: {
-    title: 'MyPass.lk - Discover & Book Event Tickets',
-    description: 'Explore a wide variety of live events and book your tickets easily with MyPass.lk.',
-    images: ['/og-homepage.png'], // Replace with a specific Twitter image for the homepage
-  },
-};
-
+// Removed static metadata export as this is a client component.
+// SEO for the homepage is primarily handled by src/app/layout.tsx.
+// Dynamic title can be set via useEffect if needed.
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
   Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
@@ -68,6 +49,9 @@ export default function HomePage() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Set document title for client-side rendering
+    document.title = 'MyPass.lk - Discover & Book Event Tickets';
+
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(4));
       setCategories(await getEventCategories());
@@ -197,7 +181,6 @@ export default function HomePage() {
                           onClick={() => {
                             setHeroSearchQuery(event.name);
                             setShowSuggestions(false);
-                            // router.push(`/events/${event.slug}`); // Navigation handled by Link component
                           }}
                         >
                           {event.name}
@@ -342,3 +325,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
