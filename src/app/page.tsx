@@ -114,7 +114,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-12 md:space-y-16 lg:space-y-20 pb-10">
+    <div className="pb-10">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
         <div className="absolute inset-0">
@@ -184,7 +184,7 @@ export default function HomePage() {
       </section>
 
       {/* Categories Section */}
-      <section id="categories" className="container mx-auto px-4">
+      <section id="categories" className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Explore by Category</h2>
         <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-5 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
           {categories.map((category) => {
@@ -208,7 +208,7 @@ export default function HomePage() {
       </section>
 
       {/* Popular Events Section */}
-      <section className="container mx-auto px-4">
+      <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline flex items-center justify-center">
           <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
         </h2>
@@ -226,7 +226,7 @@ export default function HomePage() {
       </section>
 
       {/* Upcoming Events Section */}
-      <section className="container mx-auto px-4">
+      <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
         {upcomingEvents.length > 0 ? (
            <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
@@ -247,7 +247,7 @@ export default function HomePage() {
       </section>
 
       {/* Guest Reviews Section */}
-      <section className="bg-secondary/30 py-16">
+      <section className="bg-secondary/30 py-16 mt-12 md:mt-16 lg:mt-20">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12 font-headline flex items-center justify-center">
             <MessageSquare className="mr-3 h-8 w-8 text-primary" /> What Our Guests Say
@@ -289,7 +289,7 @@ export default function HomePage() {
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="bg-muted">
+      <section className="bg-muted mt-12 md:mt-16 lg:mt-20">
         <div className="container mx-auto px-4 py-12"> {/* Added py-12 here to maintain some internal padding if desired */}
           <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
