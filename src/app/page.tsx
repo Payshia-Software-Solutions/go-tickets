@@ -40,9 +40,9 @@ export default function HomePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setUpcomingEvents(await getUpcomingEvents(3));
+      setUpcomingEvents(await getUpcomingEvents(4)); // Fetch 4 for XL display
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 3));
+      setPopularEvents(mockEvents.slice(0, 4)); // Fetch 4 for XL display
     };
     fetchData();
   }, []);
@@ -114,7 +114,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="pb-10">
+    <div className="">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
         <div className="absolute inset-0">
@@ -213,7 +213,7 @@ export default function HomePage() {
           <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
         </h2>
         {popularEvents.length > 0 ? (
-          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
             {popularEvents.map((event) => (
               <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
                 <EventCard event={event} />
@@ -229,7 +229,7 @@ export default function HomePage() {
       <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
         {upcomingEvents.length > 0 ? (
-           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
+           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
             {upcomingEvents.map((event) => (
               <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
                 <EventCard event={event} />
