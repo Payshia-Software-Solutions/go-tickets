@@ -17,6 +17,8 @@ interface EventFiltersProps {
   showPriceFilter?: boolean;
 }
 
+const ALL_CATEGORIES_ITEM_VALUE = "__ALL_CATEGORIES_SENTINEL__";
+
 const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter = true }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,6 +56,14 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
     }
   };
 
+  const handleCategoryChange = (selectedValue: string) => {
+    if (selectedValue === ALL_CATEGORIES_ITEM_VALUE) {
+      setCategory('');
+    } else {
+      setCategory(selectedValue);
+    }
+  };
+
   return (
     <form onSubmit={handleSearch} className="p-6 bg-card rounded-xl shadow-lg space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -85,7 +95,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
         </div>
         <div className="space-y-1">
           <label htmlFor="category" className="text-sm font-medium">Category</label>
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={handleCategoryChange}>
             <SelectTrigger id="category" className="w-full">
               <div className="flex items-center">
                 <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -93,7 +103,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value={ALL_CATEGORIES_ITEM_VALUE}>All Categories</SelectItem>
               {categories.map((cat) => (
                 <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
