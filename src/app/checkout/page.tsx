@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createBooking, getEventById } from '@/lib/mockData'; // Assuming getEventById for additional details if needed
 import type { Event } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
 
@@ -57,7 +57,7 @@ const CheckoutPage = () => {
         title: "Login Required",
         description: "Please log in to complete your booking.",
         variant: "destructive",
-        action: <Button onClick={() => router.push('/login')}>Login</Button>
+        action: <Button onClick={() => router.push('/login?redirect=/checkout')}>Login</Button>
       });
       return;
     }
