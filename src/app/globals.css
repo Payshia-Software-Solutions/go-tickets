@@ -24,7 +24,7 @@ body {
     --secondary: 262 50% 90%; /* Lighter purple */
     --secondary-foreground: 262 52% 47%; /* Deep purple */
 
-    --muted: 262 30% 88%; /* Light muted purple */
+    --muted: 262 30% 86%; /* Light muted purple - slightly darker */
     --muted-foreground: 262 30% 55%; /* Muted purple text */
 
     --accent: 340 82% 52%; /* Pink */
@@ -33,7 +33,7 @@ body {
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 262 30% 85%; /* Light purple border */
+    --border: 262 30% 83%; /* Light purple border - slightly darker */
     --input: 262 30% 90%; /* Slightly darker than border for input background */
     --ring: 340 82% 52%; /* Pink for focus rings */
 
@@ -71,7 +71,7 @@ body {
     --secondary: 262 30% 25%; /* Darker muted purple */
     --secondary-foreground: 330 43% 80%; /* Lighter purple text */
 
-    --muted: 262 30% 20%; /* Dark muted purple */
+    --muted: 262 30% 18%; /* Dark muted purple - slightly darker */
     --muted-foreground: 262 30% 65%; /* Muted purple text */
 
     --accent: 340 92% 62%; /* Lighter pink */
@@ -80,7 +80,7 @@ body {
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 262 30% 25%;
+    --border: 262 30% 23%; /* Darker purple border - slightly adjusted */
     --input: 262 30% 20%;
     --ring: 340 92% 62%;
 
