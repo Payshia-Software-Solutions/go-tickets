@@ -49,11 +49,11 @@ export default async function HomePage() {
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
         <div className="absolute inset-0">
-            <Image 
-                src="https://placehold.co/1920x1080.png" 
-                alt="Hero Background" 
-                layout="fill" 
-                objectFit="cover" 
+            <Image
+                src="https://placehold.co/1920x1080.png"
+                alt="Hero Background"
+                fill={true}
+                style={{objectFit: 'cover'}}
                 className="opacity-20"
                 data-ai-hint="concert crowd"
             />
@@ -80,7 +80,7 @@ export default async function HomePage() {
               <Card className="text-center hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col justify-center items-center p-4 aspect-square">
                 <CardHeader className="p-2">
                   {/* Placeholder for category icons - could use a mapping */}
-                  <Zap className="h-10 w-10 text-primary mx-auto mb-2" /> 
+                  <Zap className="h-10 w-10 text-primary mx-auto mb-2" />
                   <CardTitle className="text-lg font-semibold">{category}</CardTitle>
                 </CardHeader>
               </Card>
@@ -95,23 +95,27 @@ export default async function HomePage() {
           <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
         </h2>
         {popularEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
             {popularEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
+                <EventCard event={event} />
+              </div>
             ))}
           </div>
         ) : (
           <p className="text-center text-muted-foreground">No popular events to show at the moment.</p>
         )}
       </section>
-      
+
       {/* Upcoming Events Section */}
       <section className="container mx-auto px-4">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
         {upcomingEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 md:space-x-0 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
             {upcomingEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
+                <EventCard event={event} />
+              </div>
             ))}
           </div>
         ) : (

@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -43,8 +44,8 @@ body {
     --chart-3: 262 50% 70%;
     --chart-4: 340 80% 70%;
     --chart-5: 262 40% 50%;
-    
-    --sidebar-background: 260 40% 98%; 
+
+    --sidebar-background: 260 40% 98%;
     --sidebar-foreground: 262 30% 20%;
     --sidebar-primary: 262 52% 47%;
     --sidebar-primary-foreground: 0 0% 98%;
@@ -82,14 +83,14 @@ body {
     --border: 262 30% 25%;
     --input: 262 30% 20%;
     --ring: 340 92% 62%;
-    
+
     --chart-1: 262 62% 57%;
     --chart-2: 340 92% 62%;
     --chart-3: 262 50% 40%;
     --chart-4: 340 80% 40%;
     --chart-5: 262 40% 30%;
 
-    --sidebar-background: 262 30% 12%; 
+    --sidebar-background: 262 30% 12%;
     --sidebar-foreground: 330 43% 90%;
     --sidebar-primary: 262 62% 57%;
     --sidebar-primary-foreground: 262 20% 10%;
@@ -106,5 +107,15 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 }
