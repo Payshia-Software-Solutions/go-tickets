@@ -56,6 +56,7 @@ export default function HomePage() {
       rating: 5,
       review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend MyPass.lk!',
       event: 'Summer Music Fest 2024',
+      dataAiHint: 'person portrait',
     },
     {
       id: 'review2',
@@ -65,6 +66,7 @@ export default function HomePage() {
       rating: 4,
       review: 'Great selection of events and easy to find what I was looking for. The app is very user-friendly.',
       event: 'Tech Conference 2024',
+      dataAiHint: 'person portrait',
     },
     {
       id: 'review3',
@@ -74,6 +76,7 @@ export default function HomePage() {
       rating: 5,
       review: 'Attended the Charity Gala booked through this site. Everything was perfect, from ticketing to the event itself. Will use again!',
       event: 'Charity Gala Night',
+      dataAiHint: 'person portrait',
     },
   ];
 
@@ -197,7 +200,7 @@ export default function HomePage() {
                 <Card className="shadow-lg flex flex-col h-full">
                   <CardHeader className="flex-row gap-4 items-center">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint="person portrait" />
+                      <AvatarImage src={review.avatarUrl} alt={review.name} data-ai-hint={review.dataAiHint} />
                       <AvatarFallback>{review.avatarFallback}</AvatarFallback>
                     </Avatar>
                     <div>
