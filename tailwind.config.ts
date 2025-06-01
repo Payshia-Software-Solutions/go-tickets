@@ -1,3 +1,4 @@
+
 import type {Config} from 'tailwindcss';
 
 export default {
@@ -8,6 +9,23 @@ export default {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    container: {
+      center: true,
+      padding: {
+        DEFAULT: '1rem', // Default padding for mobile and up
+        sm: '1.5rem',    // Padding for 'sm' breakpoint and up
+        md: '2rem',      // Padding for 'md' breakpoint and up
+        lg: '2rem',      // Padding for 'lg' breakpoint and up
+        xl: '2rem',      // Padding for 'xl' breakpoint and up
+      },
+      screens: { // Optional: keep default screen sizes or adjust as needed
+        sm: '640px',
+        md: '768px',
+        lg: '1024px',
+        xl: '1280px',
+        '2xl': '1536px',
+      },
+    },
     extend: {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
