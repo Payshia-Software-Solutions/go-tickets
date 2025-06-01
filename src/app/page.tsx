@@ -8,20 +8,14 @@ import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockDat
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card'; 
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images 
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-// Removed Metadata import as it's not used for static export in client components
-// import type { Metadata } from 'next';
-
-// Removed static metadata export as this is a client component.
-// SEO for the homepage is primarily handled by src/app/layout.tsx.
-// Dynamic title can be set via useEffect if needed.
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
   Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
@@ -300,7 +294,7 @@ export default function HomePage() {
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="bg-muted mt-12 md:mt-16 lg:mt-20">
+      <section className="bg-muted">
         <div className="container mx-auto px-4 py-12">
           <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
@@ -325,5 +319,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
