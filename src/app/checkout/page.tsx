@@ -307,27 +307,15 @@ const CheckoutPage = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Payment Details (Mock)</CardTitle>
-                  <CardDescription>This is a simulated payment process. No real card needed.</CardDescription>
+                    <CardTitle>Payment Information</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="cardNumber">Card Number</Label>
-                    <Input id="cardNumber" placeholder="**** **** **** **** (mock)" defaultValue="4242 4242 4242 4242" disabled />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="expiryDate">Expiry Date</Label>
-                      <Input id="expiryDate" placeholder="MM/YY (mock)" defaultValue="12/25" disabled />
-                    </div>
-                    <div>
-                      <Label htmlFor="cvc">CVC</Label>
-                      <Input id="cvc" placeholder="*** (mock)" defaultValue="123" disabled />
-                    </div>
-                  </div>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                        Payment will be handled by our secure payment gateway.
+                        You will be redirected to complete your payment after confirming your order details.
+                    </p>
                 </CardContent>
               </Card>
-              {/* The main submit button is now part of the summary card on the right */}
             </form>
           </Form>
         </div>
@@ -351,7 +339,7 @@ const CheckoutPage = () => {
                 onClick={billingForm.handleSubmit(handleConfirmBooking)} // Trigger form submit
                 disabled={!user || isProcessing || cart.length === 0 || !billingForm.formState.isValid && billingForm.formState.isSubmitted}
               >
-                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Pay (Mock)</>}
+                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Proceed to Payment</>}
               </Button>
             </CardFooter>
           </Card>
