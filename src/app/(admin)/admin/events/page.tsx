@@ -84,7 +84,7 @@ export default function AdminEventsPage() {
       }
       toast({
         title: "Event Deleted",
-        description: \`"\${eventToDelete.name}" has been successfully deleted.\`,
+        description: `"${eventToDelete.name}" has been successfully deleted.`,
       });
       fetchEvents(); // Re-fetch events
     } catch (error: any) {
@@ -135,7 +135,7 @@ export default function AdminEventsPage() {
       const newEvent = await response.json();
       toast({
         title: "Event Created",
-        description: \`"\${newEvent.name}" has been successfully created.\`,
+        description: `"${newEvent.name}" has been successfully created.`,
       });
       setShowCreateModal(false);
       fetchEvents();
@@ -167,7 +167,7 @@ export default function AdminEventsPage() {
       const updatedEvent = await response.json();
       toast({
         title: "Event Updated",
-        description: \`"\${updatedEvent.name}" has been successfully updated.\`,
+        description: `"${updatedEvent.name}" has been successfully updated.`,
       });
       setShowEditModal(false);
       setCurrentEventForEdit(null);
