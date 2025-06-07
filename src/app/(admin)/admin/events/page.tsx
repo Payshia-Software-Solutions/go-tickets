@@ -9,6 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+// Client component, dynamic title set via useEffect
+// export const metadata: Metadata = {
+//   title: 'Manage Events',
+//   robots: { index: false, follow: true },
+// };
 
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
