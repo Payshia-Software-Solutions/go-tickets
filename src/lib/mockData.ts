@@ -1,12 +1,17 @@
 
-import type { Event, Booking, TicketType, User } from './types';
+import type { Event, Booking, TicketType, User, EventFormData } from './types';
 
 const users: User[] = [
   { id: 'user1', email: 'test@example.com', name: 'Test User', isAdmin: false },
   { id: 'adminUser', email: 'admin@example.com', name: 'Admin User', isAdmin: true },
 ];
 
-const ticketTypes: Record<string, TicketType[]> = {
+const defaultTicketTypes: TicketType[] = [
+    { id: 'default-standard', name: 'Standard Ticket', price: 50, availability: 100, description: 'General access.' },
+    { id: 'default-vip', name: 'VIP Ticket', price: 150, availability: 20, description: 'VIP benefits included.' },
+];
+
+let ticketTypes: Record<string, TicketType[]> = {
   'tech-conference-2024': [
     { id: 'tc24-early', name: 'Early Bird', price: 199, availability: 50, description: 'Access to all talks and workshops, available for a limited time.' },
     { id: 'tc24-general', name: 'General Admission', price: 299, availability: 200, description: 'Full access to all conference events.' },
@@ -40,7 +45,7 @@ const ticketTypes: Record<string, TicketType[]> = {
 };
 
 
-export const mockEvents: Event[] = [
+export let mockEvents: Event[] = [
   {
     id: '1',
     slug: 'tech-conference-2024',
@@ -230,4 +235,83 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
   const newUser: User = { ...userData, id: `user-${Date.now()}` };
   users.push(newUser);
   return newUser;
+};
+
+// CRUD for Events
+export const createEvent = async (data: EventFormData): Promise<Event> => {
+  const newEventId = (mockEvents.length + 1).toString();
+  // Check if slug is unique, append number if not (basic uniqueness)
+  let slug = data.slug;
+  let counter = 1;
+  while (mockEvents.some(e => e.slug === slug)) {
+    slug = `${data.slug}-${counter}`;
+    counter++;
+  }
+
+  const newEvent: Event = {
+    id: newEventId,
+    name: data.name,
+    slug: slug,
+    date: data.date.toISOString(),
+    location: data.location,
+    description: data.description,
+    category: data.category,
+    imageUrl: data.imageUrl,
+    organizer: { name: data.organizerName },
+    venue: { name: data.venueName, address: data.venueAddress },
+    ticketTypes: [...defaultTicketTypes.map(tt => ({...tt, id: `${slug}-${tt.id.split('-')[1]}`}))], // Assign default ticket types with unique IDs based on slug
+  };
+  mockEvents.push(newEvent);
+  ticketTypes[slug] = newEvent.ticketTypes; // Add new ticket types to global record
+  return newEvent;
+};
+
+export const updateEvent = async (eventId: string, data: Partial<EventFormData>): Promise<Event | undefined> => {
+  const eventIndex = mockEvents.findIndex(event => event.id === eventId);
+  if (eventIndex === -1) {
+    return undefined;
+  }
+
+  const existingEvent = mockEvents[eventIndex];
+  
+  // Create a deep copy of the existing event to modify
+  const updatedEvent: Event = JSON.parse(JSON.stringify(existingEvent));
+
+  if (data.name) updatedEvent.name = data.name;
+  if (data.slug) {
+     // Check if slug is unique (excluding current event)
+    let slug = data.slug;
+    let counter = 1;
+    while (mockEvents.some(e => e.slug === slug && e.id !== eventId)) {
+        slug = `${data.slug}-${counter}`;
+        counter++;
+    }
+    updatedEvent.slug = slug;
+  }
+  if (data.date) updatedEvent.date = data.date.toISOString();
+  if (data.location) updatedEvent.location = data.location;
+  if (data.description) updatedEvent.description = data.description;
+  if (data.category) updatedEvent.category = data.category;
+  if (data.imageUrl) updatedEvent.imageUrl = data.imageUrl;
+  if (data.organizerName) updatedEvent.organizer.name = data.organizerName;
+  if (data.venueName) updatedEvent.venue.name = data.venueName;
+  if (data.venueAddress !== undefined) updatedEvent.venue.address = data.venueAddress; // handle optional field
+
+  // Ticket types are not updated by this form directly, preserved from existingEvent
+  // If slug changed, ticketTypes keys might need update if we were managing them globally by slug rigorously.
+  // For now, if slug changes, the reference in `ticketTypes` map might become stale. This is a mock data limitation.
+
+  mockEvents[eventIndex] = updatedEvent;
+  return updatedEvent;
+};
+
+export const deleteEvent = async (eventId: string): Promise<boolean> => {
+  const eventIndex = mockEvents.findIndex(event => event.id === eventId);
+  if (eventIndex === -1) {
+    return false;
+  }
+  const deletedEventSlug = mockEvents[eventIndex].slug;
+  mockEvents.splice(eventIndex, 1);
+  delete ticketTypes[deletedEventSlug]; // Also remove its ticket types from the global record
+  return true;
 };
