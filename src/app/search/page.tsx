@@ -1,7 +1,7 @@
 
-"use client"; 
+"use client";
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, type FC } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchEvents } from '@/lib/mockData';
 import type { Event } from '@/lib/types';
@@ -10,24 +10,16 @@ import EventFilters from '@/components/events/EventFilters';
 import { Loader2, SearchX, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import type { Metadata } from 'next';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Metadata for client components needs to be handled differently, often in a parent server component or layout.
-// Or, if it needs to be dynamic based on searchParams from client-side, it cannot be standard Next.js metadata export.
-// For now, this will not be directly used by Next.js from a client component.
-// A <Head> tag from 'next/head' could be used inside the component for basic title, but full metadata objects are for Server Components/generateMetadata.
 
-// export const metadata: Metadata = {
-// title: 'Search Events',
-// description: 'Find your perfect event. Search by keyword, category, date, or location on MyPass.lk.',
-// };
-
-function SearchResults() {
+// Component that actually fetches and displays results.
+// It uses useSearchParams and must be rendered within a <Suspense> boundary.
+const SearchResultsDisplay: FC = () => {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageTitle, setPageTitle] = useState('Search Events');
-
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -39,13 +31,13 @@ function SearchResults() {
       const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined;
       const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
       
+      let title = 'Browse All Events | MyPass.lk';
       if (query) {
-        setPageTitle(`Search results for "${query}" | MyPass.lk`);
+        title = `Search results for "${query}" | MyPass.lk`;
       } else if (category) {
-        setPageTitle(`${category} Events | MyPass.lk`);
-      } else {
-        setPageTitle('Browse All Events | MyPass.lk');
+        title = `${category} Events | MyPass.lk`;
       }
+      setPageTitle(title);
 
       const events = await searchEvents(query, category, date, location, minPrice, maxPrice);
       setResults(events);
@@ -56,7 +48,9 @@ function SearchResults() {
   }, [searchParams]);
 
   useEffect(() => {
-    document.title = pageTitle;
+    if (typeof window !== 'undefined') {
+      document.title = pageTitle;
+    }
   }, [pageTitle]);
 
   if (isLoading) {
@@ -85,23 +79,55 @@ function SearchResults() {
       ))}
     </div>
   );
-}
+};
+
+// Wrapper component to get searchParams and provide a key for the main Suspense boundary
+// This avoids calling useSearchParams directly in SearchPage
+const SearchContentWrapper: FC = () => {
+    const searchParams = useSearchParams();
+    const suspenseKey = searchParams.toString();
+
+    return (
+        <Suspense
+            key={suspenseKey} // Key to re-mount SearchResultsDisplay on param change
+            fallback={
+              <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="ml-4 text-lg text-muted-foreground">Loading search results...</p>
+              </div>
+            }
+          >
+            <SearchResultsDisplay />
+        </Suspense>
+    );
+};
+
+const FilterSkeleton = () => (
+  <div className="p-6 bg-card rounded-xl shadow-lg space-y-6 animate-pulse">
+    <Skeleton className="h-6 w-1/3 mb-4" />
+    <div className="space-y-4">
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="space-y-1">
+          <Skeleton className="h-4 w-1/4 mb-2" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ))}
+    </div>
+    <Skeleton className="h-10 w-full" />
+  </div>
+);
 
 
 export default function SearchPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  const searchParams = useSearchParams(); 
 
   const handleFiltersApplied = () => {
-    setIsMobileFiltersOpen(false); 
+    setIsMobileFiltersOpen(false);
   };
-
-  const suspenseKey = searchParams.toString();
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="mb-8 text-center">
-        {/* Title will be set by SearchResults component using document.title */}
         <h1 className="text-3xl md:text-4xl font-bold font-headline">Find Your Perfect Event</h1>
       </div>
 
@@ -118,7 +144,9 @@ export default function SearchPage() {
               <SheetTitle>Filter Events</SheetTitle>
             </SheetHeader>
             <div className="p-6">
-              <EventFilters onSearch={handleFiltersApplied} />
+              <Suspense fallback={<FilterSkeleton />}>
+                <EventFilters onSearch={handleFiltersApplied} />
+              </Suspense>
             </div>
           </SheetContent>
         </Sheet>
@@ -127,20 +155,19 @@ export default function SearchPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-8">
         <aside className="hidden lg:block lg:col-span-1 sticky top-20 self-start h-auto">
           <h2 className="text-xl font-semibold mb-4 font-headline">Filters</h2>
-          <EventFilters />
+          <Suspense fallback={<FilterSkeleton />}>
+            <EventFilters />
+          </Suspense>
         </aside>
 
         <main className="lg:col-span-3">
-          <Suspense 
-            key={suspenseKey}
-            fallback={
-              <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
+          <Suspense fallback={ 
+             <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-4 text-lg text-muted-foreground">Loading search results...</p>
-              </div>
-            }
-          >
-            <SearchResults />
+                <p className="ml-4 text-lg text-muted-foreground">Loading content...</p>
+             </div>
+          }>
+            <SearchContentWrapper />
           </Suspense>
         </main>
       </div>
