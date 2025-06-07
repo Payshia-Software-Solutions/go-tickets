@@ -129,3 +129,67 @@ body {
     scrollbar-width: none;  /* Firefox */
   }
 }
+
+/* Tiptap Editor Styles */
+@layer components {
+  .tiptap {
+    @apply prose dark:prose-invert max-w-none focus:outline-none;
+  }
+
+  .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+    height: 0;
+  }
+
+  .tiptap > * + * {
+    @apply mt-3; /* Corresponds to prose's default paragraph spacing */
+  }
+
+  .tiptap ul,
+  .tiptap ol {
+    @apply pl-4 my-2; /* Basic list padding */
+  }
+  
+  .tiptap ul {
+    @apply list-disc;
+  }
+  .tiptap ol {
+    @apply list-decimal;
+  }
+
+  .tiptap li > p { /* Reduce margin for paragraphs inside list items */
+    @apply my-1;
+  }
+
+  .tiptap h1,
+  .tiptap h2,
+  .tiptap h3,
+  .tiptap h4,
+  .tiptap h5,
+  .tiptap h6 {
+    @apply leading-tight my-4; /* Basic heading styling */
+  }
+
+  .tiptap code:not(pre code) { /* Inline code */
+    @apply bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm; 
+  }
+
+  .tiptap pre {
+    @apply bg-muted text-muted-foreground font-mono text-sm p-3 rounded-md overflow-x-auto my-4;
+  }
+
+  .tiptap pre code {
+    @apply bg-transparent text-inherit p-0;
+  }
+
+  .tiptap blockquote {
+    @apply border-l-4 border-border pl-4 italic my-4 text-muted-foreground;
+  }
+
+  .tiptap hr {
+    @apply border-t border-border my-4;
+  }
+}

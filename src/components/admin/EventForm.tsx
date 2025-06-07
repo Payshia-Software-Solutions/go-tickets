@@ -2,15 +2,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form"; // Import Controller
-import type { EventFormData, EventFormSchema as EventFormSchemaType } from "@/lib/types";
+import { useForm, Controller } from "react-hook-form";
+import type { EventFormData } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
@@ -18,9 +17,7 @@ import type { Event } from "@/lib/types";
 import { getEventCategories } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-// Placeholder for a Rich Text Editor component you might create or import
-// Example: import MyRichTextEditor from '@/components/shared/MyRichTextEditor';
+import RichTextEditor from '@/components/shared/RichTextEditor'; // Import the RichTextEditor
 
 interface EventFormProps {
   initialData?: Event | null;
@@ -58,7 +55,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       slug: "",
       date: undefined,
       location: "",
-      description: "", // Initialize description as empty string
+      description: "<p></p>", // Initialize with an empty paragraph for Tiptap
       category: "",
       imageUrl: "",
       organizerName: "",
@@ -74,7 +71,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         slug: initialData.slug,
         date: new Date(initialData.date),
         location: initialData.location,
-        description: initialData.description,
+        description: initialData.description || "<p></p>", // Ensure description is not undefined
         category: initialData.category,
         imageUrl: initialData.imageUrl,
         organizerName: initialData.organizer.name,
@@ -87,7 +84,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         slug: "",
         date: undefined,
         location: "",
-        description: "",
+        description: "<p></p>", // Default empty state for Tiptap
         category: "",
         imageUrl: "",
         organizerName: "",
@@ -100,14 +97,26 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
-      if (name === 'name' && type === 'change' && !form.getValues('slug')) {
-        const newSlug = (value.name || '')
+      if (name === 'name' && type === 'change') {
+        // Only auto-generate slug if slug field is empty or if it was auto-generated from the current name
+        const currentSlug = form.getValues('slug');
+        const nameValue = (value.name || '').trim();
+        const potentialOldSlug = nameValue
           .toLowerCase()
           .trim()
           .replace(/\s+/g, '-') 
           .replace(/[^\w-]+/g, '') 
-          .replace(/--+/g, '-'); 
-        form.setValue('slug', newSlug, { shouldValidate: true });
+          .replace(/--+/g, '-');
+
+        if (!currentSlug || currentSlug === potentialOldSlug || !form.formState.dirtyFields.slug) {
+          const newSlug = nameValue
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, '-') 
+            .replace(/[^\w-]+/g, '') 
+            .replace(/--+/g, '-'); 
+          form.setValue('slug', newSlug, { shouldValidate: true, shouldDirty: !currentSlug });
+        }
       }
     });
     return () => subscription.unsubscribe();
@@ -145,7 +154,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 <Input placeholder="e.g., annual-tech-summit" {...field} />
               </FormControl>
               <FormDescription>
-                Unique identifier for the event URL. Auto-generated if left empty.
+                Unique identifier for the event URL. Auto-generated if left empty or as you type the name.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -205,16 +214,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             </FormItem>
           )}
         />
-
-        {/* 
-          RICH TEXT EDITOR INTEGRATION POINT:
-          To integrate a rich text editor (e.g., Tiptap, Quill, Slate):
-          1. Install the chosen library (e.g., `npm install @tiptap/react @tiptap/starter-kit`).
-          2. Create a custom RichTextEditor component that encapsulates the editor's setup and toolbar.
-          3. Replace the `Textarea` below with your `MyRichTextEditor` component.
-          4. Use react-hook-form's `Controller` component to manage the editor's state.
-             The `value` would be HTML string, and `onChange` would come from the editor.
-        */}
+        
         <FormField
           control={form.control}
           name="description"
@@ -222,29 +222,19 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                {/* 
-                  Replace this Textarea with your Rich Text Editor component.
-                  Example using react-hook-form Controller:
-                  
-                  <Controller
-                    name="description"
-                    control={form.control}
-                    render={({ field: { onChange, value } }) => (
-                      <MyRichTextEditor
-                        content={value}
-                        onChange={onChange} // Your editor's onChange would provide HTML
-                      />
-                    )}
-                  />
-                */}
-                <Textarea 
-                  placeholder="Detailed description of the event... (HTML can be entered here and will be rendered)" 
-                  className="min-h-[150px]" 
-                  {...field} 
+                <Controller
+                  name="description"
+                  control={form.control}
+                  render={({ field: controllerField }) => (
+                    <RichTextEditor
+                      value={controllerField.value}
+                      onChange={controllerField.onChange}
+                    />
+                  )}
                 />
               </FormControl>
               <FormDescription>
-                You can use basic HTML tags for formatting. For a full rich text editor experience, further integration is needed.
+                Use the rich text editor to format your event description.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -270,7 +260,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                    <SelectItem value="Other">Other (Type below if not listed)</SelectItem>
                 </SelectContent>
               </Select>
-               {form.watch("category") === "Other" && (
+               {form.watch("category") === "Other" && !categories.includes(field.value) && ( // Ensure it doesn't show if "Other" is typed but then matches existing
                  <Input 
                     placeholder="Enter custom category" 
                     onChange={(e) => field.onChange(e.target.value)} 
@@ -340,9 +330,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         />
         
         <div className="flex gap-2 justify-end pt-4">
-            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-                Cancel
-            </Button>
+            {onCancel && (
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+                    Cancel
+                </Button>
+            )}
             <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {submitButtonText}
