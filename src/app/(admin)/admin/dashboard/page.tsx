@@ -2,9 +2,11 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Users, DollarSign, Activity } from 'lucide-react';
+import { BarChart, Users, DollarSign, Activity, PlusCircle } from 'lucide-react'; // Added PlusCircle
 import type { Metadata } from 'next';
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/button'; // Added Button
+import Link from 'next/link'; // Added Link
 
 // Client component, dynamic title set via useEffect
 // export const metadata: Metadata = {
@@ -84,8 +86,12 @@ export default function AdminDashboardPage() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-muted-foreground">More actions will be added here.</p>
-            {/* Example: <Button>Create New Event</Button> */}
+            <Button asChild>
+              <Link href="/admin/events/new">
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Event
+              </Link>
+            </Button>
+            <p className="text-muted-foreground text-sm mt-2">More actions can be added here as needed.</p>
           </CardContent>
         </Card>
         <Card>
