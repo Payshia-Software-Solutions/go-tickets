@@ -11,7 +11,7 @@ let mockOrganizers: Organizer[] = [
   { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date(), updatedAt: new Date() },
   { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date(), updatedAt: new Date() },
 ];
-let mockEvents: Event[] = []; // Will be populated by createEvent or initialization logic
+let mockEvents: Event[] = []; 
 let mockBookings: Booking[] = [];
 
 // Helper for unique IDs
@@ -110,7 +110,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   const newEventId = generateId('evt');
 
   const ticketTypes: TicketType[] = data.ticketTypes.map(ttData => ({
-    id: ttData.id || generateId('tt'), // Use provided ID (temp client) or generate new
+    id: ttData.id && !ttData.id.startsWith('client-') ? ttData.id : generateId('tt'), // Use provided DB ID or generate new
     eventId: newEventId,
     name: ttData.name,
     price: ttData.price,
@@ -121,7 +121,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   }));
 
   const showTimes: ShowTime[] = data.showTimes.map(stData => {
-    const showTimeId = stData.id || generateId('st');
+    const showTimeId = stData.id && !stData.id.startsWith('client-') ? stData.id : generateId('st');
     return {
       id: showTimeId,
       eventId: newEventId,
@@ -129,10 +129,10 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       createdAt: new Date(),
       updatedAt: new Date(),
       ticketAvailabilities: stData.ticketAvailabilities.map(staData => {
-        const parentTicketType = ticketTypes.find(tt => tt.id === staData.ticketTypeId || tt.name === staData.ticketTypeName); // Match by ID or name for robustness with client temp IDs
-        if (!parentTicketType) throw new Error(`Ticket type ${staData.ticketTypeName} not found for showtime.`);
+        const parentTicketType = ticketTypes.find(tt => tt.id === staData.ticketTypeId); 
+        if (!parentTicketType) throw new Error(`Ticket type template with ID ${staData.ticketTypeId} not found for showtime.`);
         return {
-          id: staData.id || generateId('sta'),
+          id: staData.id && !staData.id.startsWith('client-') ? staData.id : generateId('sta'),
           showTimeId: showTimeId,
           ticketTypeId: parentTicketType.id,
           ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
@@ -155,7 +155,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer,
-    venue: { name: data.venueName, address: data.venueAddress || undefined },
+    venue: { name: data.venueName, address: data.venueAddress || undefined, mapLink: undefined },
     ticketTypes,
     showTimes,
     createdAt: new Date(),
@@ -169,12 +169,13 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   const eventIndex = mockEvents.findIndex(e => e.id === eventId);
   if (eventIndex === -1) return undefined;
 
+  const originalEvent = mockEvents[eventIndex];
   const organizer = await getOrganizerById(data.organizerId);
   if (!organizer) throw new Error("Organizer not found");
 
   let finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
-  if (!finalNewSlug) finalNewSlug = mockEvents[eventIndex].slug;
-  if (finalNewSlug !== mockEvents[eventIndex].slug) {
+  if (!finalNewSlug) finalNewSlug = originalEvent.slug;
+  if (finalNewSlug !== originalEvent.slug) {
     let baseSlugForUniqueness = finalNewSlug;
     let counter = 1;
     while (mockEvents.some(e => e.slug === finalNewSlug && e.id !== eventId)) {
@@ -184,24 +185,23 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   }
 
   // Manage Ticket Types
-  const existingTicketTypes = mockEvents[eventIndex].ticketTypes;
   const updatedTicketTypes: TicketType[] = [];
+  const formTicketTypeIds = data.ticketTypes.map(tt => tt.id);
 
   for (const ttData of data.ticketTypes) {
-    if (ttData.id && existingTicketTypes.some(ett => ett.id === ttData.id)) { // Existing TT
-      // Check for bookings before major changes if needed (simplified for mock)
-      const existingTt = existingTicketTypes.find(ett => ett.id === ttData.id)!;
+    const existingTt = originalEvent.ticketTypes.find(ett => ett.id === ttData.id);
+    if (existingTt) { // Existing TT
       updatedTicketTypes.push({
         ...existingTt,
         name: ttData.name,
         price: ttData.price,
-        availability: ttData.availability,
+        availability: ttData.availability, // template availability
         description: ttData.description || undefined,
         updatedAt: new Date(),
       });
-    } else { // New TT
+    } else { // New TT (client-side ID or no ID)
       updatedTicketTypes.push({
-        id: ttData.id || generateId('tt'), // Use temp ID or generate
+        id: generateId('tt'),
         eventId: eventId,
         name: ttData.name,
         price: ttData.price,
@@ -212,34 +212,32 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       });
     }
   }
-  // Filter out deleted TTs (those not in updatedTicketTypes by ID)
-  // More complex: check if any showtime availability or booking refers to them.
-  // For mock, we'll keep it simpler: if a TT is removed from form, it's removed if no bookings.
-  const formTicketTypeIds = data.ticketTypes.map(ft => ft.id).filter(Boolean);
-  const ticketTypesToDelete = existingTicketTypes.filter(ett => !formTicketTypeIds.includes(ett.id));
+  // Check for deletions
+  const ticketTypesToDelete = originalEvent.ticketTypes.filter(ett => !formTicketTypeIds.includes(ett.id));
   for (const ttToDelete of ticketTypesToDelete) {
       const hasBookings = mockBookings.some(b => b.bookedTickets.some(bt => bt.ticketTypeId === ttToDelete.id));
       if (hasBookings) throw new Error(`Cannot delete ticket type "${ttToDelete.name}": It has existing bookings.`);
   }
+  const finalTicketTypes = updatedTicketTypes.filter(tt => !ticketTypesToDelete.find(del => del.id === tt.id));
 
 
   // Manage ShowTimes
-  const existingShowTimes = mockEvents[eventIndex].showTimes;
   const updatedShowTimes: ShowTime[] = [];
+  const formShowTimeIds = data.showTimes.map(st => st.id);
 
   for (const stData of data.showTimes) {
-    let currentShowTime: ShowTime;
-    const existingSt = stData.id ? existingShowTimes.find(est => est.id === stData.id) : undefined;
-
+    const existingSt = originalEvent.showTimes.find(est => est.id === stData.id);
+    const showTimeId = existingSt ? existingSt.id : generateId('st');
+    
     const ticketAvailabilities: ShowTimeTicketAvailability[] = [];
     for (const staData of stData.ticketAvailabilities) {
-        const parentTicketType = updatedTicketTypes.find(tt => tt.id === staData.ticketTypeId || tt.name === staData.ticketTypeName);
-        if (!parentTicketType) throw new Error(`Ticket type ${staData.ticketTypeName} template not found for showtime.`);
+        const parentTicketType = finalTicketTypes.find(tt => tt.id === staData.ticketTypeId);
+        if (!parentTicketType) throw new Error(`Ticket type template with ID ${staData.ticketTypeId} not found for showtime. It might have been removed.`);
         
         const existingSta = existingSt?.ticketAvailabilities.find(esta => esta.ticketTypeId === parentTicketType.id);
         ticketAvailabilities.push({
-            id: existingSta?.id || staData.id || generateId('sta'),
-            showTimeId: existingSt?.id || stData.id || generateId('st-temp'), // Temp ID if showtime is new
+            id: existingSta?.id || generateId('sta'),
+            showTimeId: showTimeId,
             ticketTypeId: parentTicketType.id,
             ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
             availableCount: staData.availableCount,
@@ -249,35 +247,34 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     }
 
     if (existingSt) {
-      currentShowTime = {
+      updatedShowTimes.push({
         ...existingSt,
         dateTime: stData.dateTime.toISOString(),
         ticketAvailabilities,
         updatedAt: new Date(),
-      };
+      });
     } else {
-      currentShowTime = {
-        id: stData.id || generateId('st'),
+      updatedShowTimes.push({
+        id: showTimeId,
         eventId: eventId,
         dateTime: stData.dateTime.toISOString(),
         ticketAvailabilities,
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      });
     }
-    updatedShowTimes.push(currentShowTime);
   }
-  // Filter out deleted ShowTimes
-  const formShowTimeIds = data.showTimes.map(fst => fst.id).filter(Boolean);
-  const showTimesToDelete = existingShowTimes.filter(est => !formShowTimeIds.includes(est.id));
+  // Check for deleted ShowTimes
+  const showTimesToDelete = originalEvent.showTimes.filter(est => !formShowTimeIds.includes(est.id));
    for (const stToDelete of showTimesToDelete) {
       const hasBookings = mockBookings.some(b => b.bookedTickets.some(bt => bt.showTimeId === stToDelete.id));
       if (hasBookings) throw new Error(`Cannot delete showtime scheduled for ${new Date(stToDelete.dateTime).toLocaleString()}: It has existing bookings.`);
   }
+  const finalShowTimes = updatedShowTimes.filter(st => !showTimesToDelete.find(del => del.id === st.id));
 
 
   mockEvents[eventIndex] = {
-    ...mockEvents[eventIndex],
+    ...originalEvent,
     name: data.name,
     slug: finalNewSlug,
     date: data.date.toISOString(),
@@ -287,9 +284,9 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer,
-    venue: { name: data.venueName, address: data.venueAddress || undefined },
-    ticketTypes: updatedTicketTypes,
-    showTimes: updatedShowTimes,
+    venue: { ...originalEvent.venue, name: data.venueName, address: data.venueAddress || undefined },
+    ticketTypes: finalTicketTypes,
+    showTimes: finalShowTimes,
     updatedAt: new Date(),
   };
   return mockEvents[eventIndex];
@@ -310,34 +307,38 @@ export const createBooking = async (
   bookingData: {
     eventId: string;
     userId: string;
-    tickets: BookedTicketItem[];
+    tickets: BookedTicketItem[]; // These now include showTimeId
     totalPrice: number;
-    event: Pick<Event, 'name' | 'location' | 'slug'>;
+    // event: Pick<Event, 'name' | 'location' | 'slug'>; // This is not needed if we fetch event by eventId
   }
 ): Promise<Booking> => {
   const user = mockUsers.find(u => u.id === bookingData.userId);
   if (!user) throw new Error("User not found for booking.");
+  
   const event = mockEvents.find(e => e.id === bookingData.eventId);
   if (!event) throw new Error("Event not found for booking.");
 
+  // All tickets in a single booking must be for the same showtime.
+  // Take the showTimeId from the first ticket item.
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
   
   const showTime = event.showTimes.find(st => st.id === showTimeId);
   if (!showTime) throw new Error(`ShowTime with ID ${showTimeId} not found for this event.`);
 
-  // Check and decrement availability
+  // Check and decrement availability for each ticket item against the selected showTime
   for (const ticketItem of bookingData.tickets) {
     if (ticketItem.showTimeId !== showTimeId) {
-        throw new Error("All tickets in a single booking must be for the same showtime.");
+        throw new Error("All tickets in a single booking must be for the same showtime. This is a system constraint.");
     }
-    const staIndex = showTime.ticketAvailabilities.findIndex(sta => sta.ticketTypeId === ticketItem.ticketTypeId);
+    const staIndex = showTime.ticketAvailabilities.findIndex(sta => sta.ticketType.id === ticketItem.ticketTypeId);
     if (staIndex === -1) {
-      throw new Error(`Availability record not found for ticket type ${ticketItem.ticketTypeName} at the selected showtime.`);
+      throw new Error(`Availability record not found for ticket type ${ticketItem.ticketTypeName} at showtime ${new Date(showTime.dateTime).toLocaleString()}.`);
     }
     if (showTime.ticketAvailabilities[staIndex].availableCount < ticketItem.quantity) {
-      throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName}. Requested: ${ticketItem.quantity}, Available: ${showTime.ticketAvailabilities[staIndex].availableCount}`);
+      throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName} for showtime ${new Date(showTime.dateTime).toLocaleString()}. Requested: ${ticketItem.quantity}, Available: ${showTime.ticketAvailabilities[staIndex].availableCount}`);
     }
+    // Decrement in the mock data
     showTime.ticketAvailabilities[staIndex].availableCount -= ticketItem.quantity;
   }
   
@@ -349,23 +350,34 @@ export const createBooking = async (
     bookedTickets: bookingData.tickets.map(ticket => ({
       id: generateId('btk'),
       bookingId: bookingId,
-      ...ticket,
+      eventNsid: event.slug, // Use event's slug
+      ticketTypeId: ticket.ticketTypeId,
+      ticketTypeName: ticket.ticketTypeName,
+      quantity: ticket.quantity,
+      pricePerTicket: ticket.pricePerTicket,
+      showTimeId: ticket.showTimeId, // Store showTimeId
       createdAt: new Date(),
       updatedAt: new Date()
     })),
     totalPrice: bookingData.totalPrice,
     bookingDate: new Date().toISOString(),
-    eventName: bookingData.event.name,
-    eventDate: new Date(showTime.dateTime).toISOString(), // Specific showtime's date
-    eventLocation: bookingData.event.location,
-    qrCodeValue: `EVENT:${bookingData.event.slug},BOOKING_ID:${bookingId},SHOWTIME:${showTime.dateTime}`,
+    eventName: event.name,
+    eventDate: new Date(showTime.dateTime).toISOString(), // Date of the specific showtime
+    eventLocation: event.location,
+    qrCodeValue: `EVENT:${event.slug},BOOKING_ID:${bookingId},SHOWTIME:${showTime.dateTime}`,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
   mockBookings.push(newBooking);
-  // Persist change to mockEvents (for availability)
+
+  // Persist change to mockEvents (for availability counts on the specific showtime)
   const eventIdx = mockEvents.findIndex(e => e.id === event.id);
-  if(eventIdx > -1) mockEvents[eventIdx] = {...event};
+  if(eventIdx > -1) {
+      const showTimeIdx = mockEvents[eventIdx].showTimes.findIndex(st => st.id === showTimeId);
+      if (showTimeIdx > -1) {
+          mockEvents[eventIdx].showTimes[showTimeIdx] = {...showTime};
+      }
+  }
 
   return newBooking;
 };
@@ -379,7 +391,7 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
 };
 
 // --- Public Event Queries ---
-export const getEvents = async (): Promise<Event[]> => { // Public facing, should only show future events
+export const getEvents = async (): Promise<Event[]> => { 
   const now = new Date();
   return mockEvents
     .filter(event => new Date(event.date) >= now || event.showTimes.some(st => new Date(st.dateTime) >= now))
@@ -391,8 +403,12 @@ export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => 
 };
 
 export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
-  // For mock, popular is same as upcoming for simplicity
-  return getUpcomingEvents(limit);
+  // Mock: Sort by number of ticket types (as a proxy for popularity) then take upcoming.
+  // A real implementation would use booking counts or other metrics.
+  const allUpcoming = await getEvents();
+  return allUpcoming
+    .sort((a, b) => (b.ticketTypes?.length || 0) - (a.ticketTypes?.length || 0))
+    .slice(0, limit);
 };
 
 
@@ -404,10 +420,8 @@ export const getEventCategories = async (): Promise<string[]> => {
 
 export const searchEvents = async (query?: string, category?: string, date?: string, location?: string, minPrice?: number, maxPrice?: number): Promise<Event[]> => {
   let filteredEvents = [...mockEvents];
-  const now = new Date(new Date().setHours(0,0,0,0)); // Start of today
+  const now = new Date(new Date().setHours(0,0,0,0)); 
 
-  // Default filter: show only events whose main date is today or in the future,
-  // OR events that have at least one showtime today or in the future.
   filteredEvents = filteredEvents.filter(event => {
     const mainEventDate = new Date(event.date);
     mainEventDate.setHours(0,0,0,0);
@@ -419,12 +433,11 @@ export const searchEvents = async (query?: string, category?: string, date?: str
     return mainEventDate >= now || hasFutureShowTime;
   });
 
-
   if (query) {
     const lowerQuery = query.toLowerCase();
     filteredEvents = filteredEvents.filter(event =>
       event.name.toLowerCase().includes(lowerQuery) ||
-      event.description.toLowerCase().includes(lowerQuery) ||
+      (event.description && event.description.toLowerCase().includes(lowerQuery)) ||
       event.location.toLowerCase().includes(lowerQuery) ||
       event.category.toLowerCase().includes(lowerQuery) ||
       event.organizer.name.toLowerCase().includes(lowerQuery) ||
@@ -447,7 +460,6 @@ export const searchEvents = async (query?: string, category?: string, date?: str
   }
   if (minPrice !== undefined || maxPrice !== undefined) {
     filteredEvents = filteredEvents.filter(event => {
-      // Check price against any ticket type of any showtime
       return event.showTimes.some(st => 
         st.ticketAvailabilities.some(sta => {
             const price = sta.ticketType.price;
@@ -456,8 +468,7 @@ export const searchEvents = async (query?: string, category?: string, date?: str
             return meetsMin && meetsMax;
         })
       ) || 
-      // Fallback to main ticket types if no showtimes (older model)
-      (!event.showTimes.length && event.ticketTypes.some(tt => {
+      (!event.showTimes.length && event.ticketTypes.some(tt => { // Fallback for events somehow without showtimes
             const price = tt.price;
             const meetsMin = minPrice !== undefined ? price >= minPrice : true;
             const meetsMax = maxPrice !== undefined ? price <= maxPrice : true;
@@ -470,16 +481,19 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 
 // Initialize with some default data
 const initMockData = async () => {
-    if (mockEvents.length > 0) return; // Already initialized
+    if (mockEvents.length > 0 && mockEvents.some(e => e.id === 'evt-predefined-1')) return; 
 
-    const org1 = mockOrganizers[0]; // Music Makers Inc.
-    const org2 = mockOrganizers[1]; // Tech Events Global
+    const org1 = mockOrganizers.find(o => o.id === 'org-1') || mockOrganizers[0];
+    const org2 = mockOrganizers.find(o => o.id === 'org-2') || mockOrganizers[1];
+    
+    mockEvents = mockEvents.filter(e => !e.id.startsWith('evt-predefined-'));
 
-    const defaultEventData: EventFormData[] = [
+
+    const defaultEventDataList: EventFormData[] = [
         {
-            name: "Summer Music Fest",
-            slug: "summer-music-fest",
-            date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
+            name: "Summer Music Fest 2025",
+            slug: "summer-music-fest-2025",
+            date: new Date(new Date().getFullYear() + 1, 5, 15), // June 15th next year
             location: "Grand Park, Downtown",
             description: "<p>Join us for the biggest music festival of the summer! Three days of non-stop music, food, and fun under the sun. Featuring top artists from around the globe.</p>",
             category: "Festivals",
@@ -488,28 +502,28 @@ const initMockData = async () => {
             venueName: "Grand Park Main Stage",
             venueAddress: "123 Park Ave, Downtown",
             ticketTypes: [
-                { name: "General Admission", price: 75, availability: 500, description: "Access to all stages." },
-                { name: "VIP Pass", price: 250, availability: 100, description: "VIP lounge, front stage access, free merch." }
+                { id: generateId('tt'), name: "General Admission", price: 75, availability: 500, description: "Access to all stages." },
+                { id: generateId('tt'), name: "VIP Pass", price: 250, availability: 100, description: "VIP lounge, front stage access, free merch." }
             ],
             showTimes: [
-                { dateTime: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000), // Day 1, 6 PM
+                { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 15, 18, 0), // Day 1, 6 PM
                   ticketAvailabilities: [
-                    { ticketTypeName: "General Admission", ticketTypeId: "temp-ga-fest", availableCount: 200 }, // temp IDs will be resolved
-                    { ticketTypeName: "VIP Pass", ticketTypeId: "temp-vip-fest", availableCount: 50 }
+                    { ticketTypeId: "NEEDS_REPLACEMENT_GA", ticketTypeName: "General Admission", availableCount: 200 },
+                    { ticketTypeId: "NEEDS_REPLACEMENT_VIP", ticketTypeName: "VIP Pass", availableCount: 50 }
                   ]
                 },
-                 { dateTime: new Date(Date.now() + 11 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000), // Day 2, 6 PM
+                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 16, 18, 0), // Day 2, 6 PM
                   ticketAvailabilities: [
-                    { ticketTypeName: "General Admission", ticketTypeId: "temp-ga-fest", availableCount: 150 },
-                    { ticketTypeName: "VIP Pass", ticketTypeId: "temp-vip-fest", availableCount: 30 }
+                    { ticketTypeId: "NEEDS_REPLACEMENT_GA", ticketTypeName: "General Admission", availableCount: 150 },
+                    { ticketTypeId: "NEEDS_REPLACEMENT_VIP", ticketTypeName: "VIP Pass", availableCount: 30 }
                   ]
                 }
             ]
         },
         {
-            name: "Future of AI Conference",
-            slug: "future-of-ai-conf",
-            date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            name: "Future of AI Conference 2025",
+            slug: "future-of-ai-conf-2025",
+            date: new Date(new Date().getFullYear() + 1, 7, 20), // Aug 20th next year
             location: "Innovation Hub",
             description: "<p>Explore the cutting edge of Artificial Intelligence with leading researchers and industry pioneers. Keynotes, workshops, and networking opportunities.</p>",
             category: "Technology",
@@ -518,41 +532,41 @@ const initMockData = async () => {
             venueName: "Innovation Hall A",
             venueAddress: "456 Tech Drive",
             ticketTypes: [
-                { name: "Standard Ticket", price: 199, availability: 300, description: "Full conference access." },
-                { name: "Student Ticket", price: 99, availability: 100, description: "Requires valid student ID." }
+                { id: generateId('tt'), name: "Standard Ticket", price: 199, availability: 300, description: "Full conference access." },
+                { id: generateId('tt'), name: "Student Ticket", price: 99, availability: 100, description: "Requires valid student ID." }
             ],
             showTimes: [
-                 { dateTime: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000), // Day 1, 9 AM
+                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 7, 20, 9, 0), // Day 1, 9 AM
                   ticketAvailabilities: [
-                    { ticketTypeName: "Standard Ticket", ticketTypeId: "temp-std-ai", availableCount: 150 },
-                    { ticketTypeName: "Student Ticket", ticketTypeId: "temp-stu-ai", availableCount: 50 }
+                    { ticketTypeId: "NEEDS_REPLACEMENT_STD", ticketTypeName: "Standard Ticket", availableCount: 150 },
+                    { ticketTypeId: "NEEDS_REPLACEMENT_STU", ticketTypeName: "Student Ticket", availableCount: 50 }
                   ]
                 }
             ]
         }
     ];
 
-    for (const eventData of defaultEventData) {
-        // Assign temporary IDs to ticket types in form data for createEvent logic to map them
-        const ttWithTempIds = eventData.ticketTypes.map(tt => ({...tt, id: generateId('client-tt')}));
-        const stWithMappedTtIds = eventData.showTimes.map(st => ({
-            ...st,
-            id: generateId('client-st'),
-            ticketAvailabilities: st.ticketAvailabilities.map(sta => {
-                const matchedTt = ttWithTempIds.find(t => t.name === sta.ticketTypeName);
-                return {...sta, ticketTypeId: matchedTt!.id!, id: generateId('client-sta') };
-            })
-        }));
+    for (const eventData of defaultEventDataList) {
+        // Correctly map ticketTypeId for showTime.ticketAvailabilities using the IDs from eventData.ticketTypes
+        const finalTicketTypes = eventData.ticketTypes; // these now have IDs
+        const finalShowTimes = eventData.showTimes.map(st => {
+            const newTicketAvailabilities = st.ticketAvailabilities.map(sta => {
+                const parentTicketType = finalTicketTypes.find(tt => tt.name === sta.ticketTypeName);
+                if (!parentTicketType || !parentTicketType.id) {
+                    console.error(`Error in mock data: Could not find parent ticket type for ${sta.ticketTypeName}`);
+                    return { ...sta, ticketTypeId: 'error-tt-id' }; // Fallback
+                }
+                return { ...sta, ticketTypeId: parentTicketType.id };
+            });
+            return { ...st, ticketAvailabilities: newTicketAvailabilities };
+        });
 
-        await createEvent({...eventData, ticketTypes: ttWithTempIds, showTimes: stWithMappedTtIds });
+        // Use a predefined ID for easier testing if needed, or let createEvent generate one
+        // For this example, let createEvent handle ID generation to avoid clashes
+        const createdEvent = await createEvent({ ...eventData, ticketTypes: finalTicketTypes, showTimes: finalShowTimes });
+        if(eventData.name.includes("Summer Music Fest")) createdEvent.id = 'evt-predefined-1';
+        if(eventData.name.includes("Future of AI")) createdEvent.id = 'evt-predefined-2';
     }
 };
 
-initMockData(); // Initialize mock data when module loads
-
-// Ensure this file exports all necessary functions and types for your app.
-// Functions for admin panel, event display, booking, etc.
-// Types from './types' are implicitly re-exported or used.
-// The API routes will import these functions.
-// Frontend pages (like search, event details) will also import these for now,
-// but should ideally move to fetching from API routes if you want a strict client-server separation.
+initMockData();

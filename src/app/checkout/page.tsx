@@ -10,24 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking, getEventById } from '@/lib/mockData'; // Assuming getEventById for additional details if needed
+import { createBooking } from '@/lib/mockData'; 
 import type { Event } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { AlertCircle, Trash2, ShoppingCart } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart, Loader2 } from 'lucide-react'; // Added Loader2
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
-import type { Metadata } from 'next';
-
-// Client component - static metadata export will not work here.
-// export const metadata: Metadata = {
-//   title: 'Checkout - MyPass.lk',
-//   description: 'Complete your ticket purchase securely. Review your order and payment details.',
-//   robots: {
-//     index: false,
-//     follow: true,
-//   },
-// };
-
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
@@ -35,38 +23,14 @@ const CheckoutPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [eventDetailsCache, setEventDetailsCache] = useState<Record<string, Event>>({});
+  // No longer need eventDetailsCache as cart items should have sufficient info, 
+  // and createBooking now takes eventId directly.
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.title = 'Checkout | MyPass.lk';
     }
   }, []);
-
-  // Fetch event details for items in cart if not already fetched
-  // This is primarily for getting full event details for the booking record
-  useEffect(() => {
-    const fetchEventDetailsForCart = async () => {
-      const newCache = { ...eventDetailsCache };
-      let changed = false;
-      for (const item of cart) {
-        if (!newCache[item.eventId]) {
-          const eventDetail = await getEventById(item.eventId);
-          if (eventDetail) {
-            newCache[item.eventId] = eventDetail;
-            changed = true;
-          }
-        }
-      }
-      if (changed) {
-        setEventDetailsCache(newCache);
-      }
-    };
-    if (cart.length > 0) {
-      fetchEventDetailsForCart();
-    }
-  }, [cart, eventDetailsCache]);
-
 
   const handleConfirmBooking = async () => {
     if (!user) {
@@ -89,39 +53,33 @@ const CheckoutPage = () => {
     }
     
     setIsProcessing(true);
-
-    // For mock booking, we just need one event for simplicity, or aggregate.
-    // Let's assume the booking is for the first event in cart if multiple distinct events are somehow added (though UI usually focuses on one event at a time).
-    // A real system would handle multi-event carts or per-event bookings.
-    const primaryEventId = cart[0]?.eventId;
-    const primaryEvent = eventDetailsCache[primaryEventId];
-
-    if (!primaryEvent) {
-      toast({
-        title: "Error",
-        description: "Could not retrieve event details for booking. Please try again.",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-      return;
-    }
     
+    // createBooking now primarily needs eventId and showTimeId from the cart items.
+    // Assuming all items in the cart are for the same event (a common cart behavior).
+    // If cart can contain multiple events, this needs more complex handling (e.g., separate bookings).
+    const primaryEventId = cart[0]?.eventId; 
+    if (!primaryEventId) {
+         toast({ title: "Error", description: "Event ID missing from cart. Cannot proceed.", variant: "destructive" });
+         setIsProcessing(false);
+         return;
+    }
+
     try {
+      // The `tickets` array for createBooking is directly derived from cart items
       const bookingPayload = {
-        eventId: primaryEvent.id, // Or handle multiple events if your system supports it
+        eventId: primaryEventId,
         userId: user.id,
         tickets: cart.map(item => ({ 
             eventNsid: item.eventNsid,
             ticketTypeId: item.ticketTypeId, 
             ticketTypeName: item.ticketTypeName, 
             quantity: item.quantity,
-            pricePerTicket: item.pricePerTicket
+            pricePerTicket: item.pricePerTicket,
+            showTimeId: item.showTimeId, // Pass the showTimeId
         })),
         totalPrice,
-        event: primaryEvent, // Pass the full event object
       };
 
-      // @ts-ignore // Ignoring since event object might be slightly different than expected by createBooking type
       const newBooking = await createBooking(bookingPayload);
       
       toast({
@@ -130,11 +88,11 @@ const CheckoutPage = () => {
       });
       clearCart();
       router.push(`/booking-confirmation/${newBooking.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Booking error:", error);
       toast({
         title: "Booking Failed",
-        description: "Something went wrong. Please try again.",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -143,10 +101,15 @@ const CheckoutPage = () => {
   };
   
   if (authLoading) {
-    return <div className="container mx-auto py-12 text-center">Loading...</div>;
+    return (
+        <div className="container mx-auto py-12 text-center flex justify-center items-center min-h-[calc(100vh-15rem)]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-4 text-lg text-muted-foreground">Loading checkout...</p>
+        </div>
+    );
   }
 
-  if (cart.length === 0 && !isProcessing) { // Don't show if redirecting
+  if (cart.length === 0 && !isProcessing) { 
     return (
       <div className="container mx-auto py-12 text-center">
         <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
@@ -174,16 +137,19 @@ const CheckoutPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {cart.map(item => (
-                <div key={`${item.eventId}-${item.ticketTypeId}`} className="flex justify-between items-center p-3 border rounded-md">
+                <div key={`${item.eventId}-${item.ticketTypeId}-${item.showTimeId}`} className="flex justify-between items-start p-3 border rounded-md">
                   <div>
                     <p className="font-semibold">{item.eventName} - {item.ticketTypeName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Showtime ID: {item.showTimeId.substring(0,8)}... {/* Display part of showtime ID for differentiation */}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {item.quantity} x LKR {item.pricePerTicket.toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">LKR {(item.quantity * item.pricePerTicket).toFixed(2)}</p>
-                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.ticketTypeId)} aria-label="Remove item">
+                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.ticketTypeId, item.showTimeId)} aria-label="Remove item">
                       <Trash2 className="h-4 w-4 text-destructive"/>
                     </Button>
                   </div>
@@ -195,7 +161,7 @@ const CheckoutPage = () => {
                 <p>LKR {totalPrice.toFixed(2)}</p>
               </div>
               <div className="flex justify-between">
-                <p>Taxes (10%)</p>
+                <p>Taxes (Mock 10%)</p>
                 <p>LKR {taxes.toFixed(2)}</p>
               </div>
               <Separator />
@@ -263,7 +229,7 @@ const CheckoutPage = () => {
                 onClick={handleConfirmBooking} 
                 disabled={!user || isProcessing || cart.length === 0}
               >
-                {isProcessing ? 'Processing...' : 'Confirm & Pay (Mock)'}
+                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Confirm & Pay (Mock)'}
               </Button>
             </CardFooter>
           </Card>

@@ -5,9 +5,8 @@ import { z } from 'zod';
 export interface User {
   id: string;
   email: string;
-  name?: string | null; // Prisma allows null names
+  name?: string | null;
   isAdmin?: boolean;
-  // Timestamps might not be managed by mock data, but good to have for type consistency
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -41,7 +40,7 @@ export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 
 export interface TicketType {
   id: string;
-  eventId?: string; // Link back to event if needed directly on TT (Prisma does this)
+  eventId?: string; // Link back to event if needed directly on TT
   name: string;
   price: number;
   availability: number; // Template availability

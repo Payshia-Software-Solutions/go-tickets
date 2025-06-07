@@ -1,14 +1,14 @@
 
 "use client";
 
-import type { CartItem, Event, TicketType } from '@/lib/types';
+import type { CartItem, Event, TicketType, ShowTime } from '@/lib/types'; // Added ShowTime
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (event: Event, ticketType: TicketType, quantity: number) => void;
-  removeFromCart: (ticketTypeId: string) => void;
-  updateQuantity: (ticketTypeId: string, quantity: number) => void;
+  addToCart: (event: Event, ticketType: TicketType, quantity: number, showTimeId: string) => void;
+  removeFromCart: (ticketTypeId: string, showTimeId: string) => void; // Needs showTimeId for uniqueness
+  updateQuantity: (ticketTypeId: string, showTimeId: string, quantity: number) => void; // Needs showTimeId
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
@@ -28,7 +28,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    if (cart.length > 0 || localStorage.getItem(localStorageKey)) { // Ensure key is removed if cart becomes empty after being populated
+    if (cart.length > 0 || localStorage.getItem(localStorageKey)) {
          localStorage.setItem(localStorageKey, JSON.stringify(cart));
     }
     if (cart.length === 0 && localStorage.getItem(localStorageKey)) {
@@ -36,9 +36,11 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [cart]);
 
-  const addToCart = (event: Event, ticketType: TicketType, quantity: number) => {
+  const addToCart = (event: Event, ticketType: TicketType, quantity: number, showTimeId: string) => {
     setCart(prevCart => {
-      const existingItemIndex = prevCart.findIndex(item => item.ticketTypeId === ticketType.id && item.eventId === event.id);
+      const existingItemIndex = prevCart.findIndex(
+        item => item.ticketTypeId === ticketType.id && item.eventId === event.id && item.showTimeId === showTimeId
+      );
       if (existingItemIndex > -1) {
         const updatedCart = [...prevCart];
         updatedCart[existingItemIndex].quantity += quantity;
@@ -54,20 +56,21 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ticketTypeName: ticketType.name,
             quantity,
             pricePerTicket: ticketType.price,
+            showTimeId: showTimeId, // Store the showTimeId
           }
         ];
       }
     });
   };
 
-  const removeFromCart = (ticketTypeId: string) => {
-    setCart(prevCart => prevCart.filter(item => item.ticketTypeId !== ticketTypeId));
+  const removeFromCart = (ticketTypeId: string, showTimeId: string) => {
+    setCart(prevCart => prevCart.filter(item => !(item.ticketTypeId === ticketTypeId && item.showTimeId === showTimeId)));
   };
 
-  const updateQuantity = (ticketTypeId: string, quantity: number) => {
+  const updateQuantity = (ticketTypeId: string, showTimeId: string, quantity: number) => {
     setCart(prevCart =>
       prevCart.map(item =>
-        item.ticketTypeId === ticketTypeId ? { ...item, quantity: Math.max(0, quantity) } : item
+        (item.ticketTypeId === ticketTypeId && item.showTimeId === showTimeId) ? { ...item, quantity: Math.max(0, quantity) } : item
       ).filter(item => item.quantity > 0) // Remove if quantity is 0
     );
   };
