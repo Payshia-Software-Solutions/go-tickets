@@ -196,6 +196,12 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
   return mockBookings.find(booking => booking.id === id);
 };
 
+export const adminGetAllBookings = async (): Promise<Booking[]> => {
+  // Return a copy and sort by booking date, newest first
+  return [...mockBookings].sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+};
+
+
 export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => {
   return mockEvents
     .filter(event => new Date(event.date) > new Date())
@@ -253,7 +259,8 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
 export const createEvent = async (data: EventFormData): Promise<Event> => {
   const newEventId = (mockEvents.length + 1).toString() + '-' + Date.now();
   
-  let baseSlug = data.slug;
+  let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+  if (!baseSlug) baseSlug = `event-${Date.now()}`; // Fallback slug
   let finalSlug = baseSlug;
   let counter = 1;
   while (mockEvents.some(e => e.slug === finalSlug)) {
@@ -286,13 +293,15 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   }
 
   const existingEvent = mockEvents[eventIndex];
-  const updatedEvent: Event = JSON.parse(JSON.stringify(existingEvent));
+  const updatedEvent: Event = JSON.parse(JSON.stringify(existingEvent)); // Deep copy
 
   updatedEvent.name = data.name;
   
-  let finalNewSlug = data.slug;
+  let finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+  if (!finalNewSlug) finalNewSlug = existingEvent.slug; // Keep old slug if new one is invalid
+
   if (finalNewSlug !== existingEvent.slug) {
-      let baseSlugForUniqueness = data.slug;
+      let baseSlugForUniqueness = finalNewSlug;
       let counter = 1;
       while (mockEvents.some(e => e.slug === finalNewSlug && e.id !== eventId)) {
           finalNewSlug = `${baseSlugForUniqueness}-${counter}`;
@@ -305,7 +314,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   updatedEvent.description = data.description;
   updatedEvent.category = data.category;
   updatedEvent.imageUrl = data.imageUrl;
-  updatedEvent.organizer.name = data.organizerName; // This will change
+  updatedEvent.organizer.name = data.organizerName; 
   updatedEvent.venue.name = data.venueName;
   updatedEvent.venue.address = data.venueAddress || ""; 
 
@@ -317,6 +326,8 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     delete ticketTypes[existingEvent.slug];
     ticketTypes[finalNewSlug] = updatedEvent.ticketTypes;
   } else {
+     // If slug hasn't changed, ticketTypes are assumed to be managed elsewhere or remain as is
+     // For this mock, we ensure the ticketTypes reference is updated in the `ticketTypes` global map.
      ticketTypes[finalNewSlug] = updatedEvent.ticketTypes;
   }
   
