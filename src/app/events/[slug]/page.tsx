@@ -112,7 +112,11 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
               <CardTitle className="flex items-center"><Info className="mr-2 h-6 w-6 text-primary" /> About This Event</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-foreground leading-relaxed whitespace-pre-line">{event.description}</p>
+              {/* Render description as HTML. Ensure the HTML is sanitized if it comes from user input. */}
+              <div 
+                className="prose dark:prose-invert max-w-none text-foreground leading-relaxed whitespace-pre-line" 
+                dangerouslySetInnerHTML={{ __html: event.description }} 
+              />
             </CardContent>
           </Card>
         </div>

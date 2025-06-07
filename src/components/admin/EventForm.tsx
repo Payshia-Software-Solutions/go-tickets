@@ -2,7 +2,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form"; // Import Controller
 import type { EventFormData, EventFormSchema as EventFormSchemaType } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -19,13 +19,15 @@ import { getEventCategories } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+// Placeholder for a Rich Text Editor component you might create or import
+// Example: import MyRichTextEditor from '@/components/shared/MyRichTextEditor';
 
 interface EventFormProps {
   initialData?: Event | null;
   onSubmit: (data: EventFormData) => Promise<void>;
   isSubmitting: boolean;
   submitButtonText?: string;
-  onCancel?: () => void; // Added for modal cancellation
+  onCancel?: () => void;
 }
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
@@ -56,7 +58,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       slug: "",
       date: undefined,
       location: "",
-      description: "",
+      description: "", // Initialize description as empty string
       category: "",
       imageUrl: "",
       organizerName: "",
@@ -65,7 +67,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     },
   });
   
-  // Reset form when initialData changes (e.g., when opening edit modal for different events)
   useEffect(() => {
     if (initialData) {
       form.reset({
@@ -81,7 +82,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         venueAddress: initialData.venue.address || "",
       });
     } else {
-      form.reset({ // Reset to empty for create form
+      form.reset({ 
         name: "",
         slug: "",
         date: undefined,
@@ -205,6 +206,15 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           )}
         />
 
+        {/* 
+          RICH TEXT EDITOR INTEGRATION POINT:
+          To integrate a rich text editor (e.g., Tiptap, Quill, Slate):
+          1. Install the chosen library (e.g., `npm install @tiptap/react @tiptap/starter-kit`).
+          2. Create a custom RichTextEditor component that encapsulates the editor's setup and toolbar.
+          3. Replace the `Textarea` below with your `MyRichTextEditor` component.
+          4. Use react-hook-form's `Controller` component to manage the editor's state.
+             The `value` would be HTML string, and `onChange` would come from the editor.
+        */}
         <FormField
           control={form.control}
           name="description"
@@ -212,8 +222,30 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Detailed description of the event..." className="min-h-[100px]" {...field} />
+                {/* 
+                  Replace this Textarea with your Rich Text Editor component.
+                  Example using react-hook-form Controller:
+                  
+                  <Controller
+                    name="description"
+                    control={form.control}
+                    render={({ field: { onChange, value } }) => (
+                      <MyRichTextEditor
+                        content={value}
+                        onChange={onChange} // Your editor's onChange would provide HTML
+                      />
+                    )}
+                  />
+                */}
+                <Textarea 
+                  placeholder="Detailed description of the event... (HTML can be entered here and will be rendered)" 
+                  className="min-h-[150px]" 
+                  {...field} 
+                />
               </FormControl>
+              <FormDescription>
+                You can use basic HTML tags for formatting. For a full rich text editor experience, further integration is needed.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
