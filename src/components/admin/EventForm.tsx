@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
-import type { EventFormData, Organizer } from "@/lib/types"; // Added Organizer
+import type { EventFormData, Organizer } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -12,12 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Sparkles } from "lucide-react";
 import type { Event } from "@/lib/types";
-import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData"; // Added adminGetAllOrganizers
+import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
+import { generateEventImage } from '@/ai/flows/generate-event-image-flow';
+import { useToast } from "@/hooks/use-toast";
+
 
 interface EventFormProps {
   initialData?: Event | null;
@@ -29,13 +32,15 @@ interface EventFormProps {
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<string[]>([]);
-  const [organizers, setOrganizers] = useState<Organizer[]>([]); // State for organizers
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [organizers, setOrganizers] = useState<Organizer[]>([]);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchDropdownData = async () => {
       setCategories(await getEventCategories());
-      setOrganizers(await adminGetAllOrganizers()); // Fetch organizers
+      setOrganizers(await adminGetAllOrganizers());
     };
     fetchDropdownData();
   }, []);
@@ -50,7 +55,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       description: initialData.description || "<p></p>",
       category: initialData.category,
       imageUrl: initialData.imageUrl,
-      organizerId: initialData.organizer.id, // Use organizer.id
+      organizerId: initialData.organizer.id,
       venueName: initialData.venue.name,
       venueAddress: initialData.venue.address || "",
     } : {
@@ -61,7 +66,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       description: "<p></p>",
       category: "",
       imageUrl: "",
-      organizerId: "", // Default organizerId
+      organizerId: "",
       venueName: "",
       venueAddress: "",
     },
@@ -77,7 +82,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         description: initialData.description || "<p></p>",
         category: initialData.category,
         imageUrl: initialData.imageUrl,
-        organizerId: initialData.organizer.id, // Reset with organizer.id
+        organizerId: initialData.organizer.id,
         venueName: initialData.venue.name,
         venueAddress: initialData.venue.address || "",
       });
@@ -113,13 +118,44 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         if (form.getValues('slug') !== newPotentialSlug) {
           form.setValue('slug', newPotentialSlug, { 
               shouldValidate: true, 
-              shouldDirty: false 
+              shouldDirty: form.formState.dirtyFields.slug // Only mark dirty if it was already dirty
           });
         }
       }
     });
     return () => subscription.unsubscribe();
   }, [form, slugManuallyEdited]);
+
+  const handleGenerateImage = async () => {
+    const eventName = form.getValues("name");
+    if (!eventName.trim()) {
+      toast({
+        title: "Cannot Generate Image",
+        description: "Please enter an event name first to generate an image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const result = await generateEventImage({ prompt: `Event poster for: ${eventName}` });
+      form.setValue("imageUrl", result.imageUrl, { shouldValidate: true, shouldDirty: true });
+      toast({
+        title: "Image Generated",
+        description: "AI has generated an image URL for your event.",
+      });
+    } catch (error) {
+      console.error("AI Image Generation Error:", error);
+      toast({
+        title: "Image Generation Failed",
+        description: "Could not generate an image. Please try again or enter a URL manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
 
 
   const handleFormSubmit = async (data: EventFormData) => {
@@ -161,7 +197,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
-                  Auto-generated from name. Edit manually to customize.
+                  Auto-updated from name. Edit manually to customize. Uniqueness handled on save.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -175,7 +211,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             name="date"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Event Date</FormLabel>
+                <FormLabel>Event Date & Time</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -187,9 +223,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "PPP")
+                          format(field.value, "PPP HH:mm") // Added HH:mm for time
                         ) : (
-                          <span>Pick a date</span>
+                          <span>Pick a date and time</span>
                         )}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
@@ -203,6 +239,22 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                       disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
                       initialFocus
                     />
+                     <div className="p-2 border-t border-border">
+                        <Input
+                            type="time"
+                            value={field.value ? format(field.value, "HH:mm") : ""}
+                            onChange={(e) => {
+                                const newTime = e.target.value;
+                                const currentDate = field.value || new Date();
+                                const [hours, minutes] = newTime.split(':').map(Number);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(hours);
+                                newDate.setMinutes(minutes);
+                                field.onChange(newDate);
+                            }}
+                            className="w-full"
+                        />
+                    </div>
                   </PopoverContent>
                 </Popover>
                 <FormMessage />
@@ -289,9 +341,28 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           render={({ field }) => (
             <FormItem>
               <FormLabel>Image URL</FormLabel>
-              <FormControl>
-                <Input type="url" placeholder="https://example.com/image.png" {...field} />
-              </FormControl>
+              <div className="flex items-center gap-2">
+                <FormControl className="flex-grow">
+                  <Input type="url" placeholder="https://example.com/image.png or use AI" {...field} />
+                </FormControl>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGenerateImage}
+                  disabled={isGeneratingImage || isSubmitting}
+                  size="sm"
+                >
+                  {isGeneratingImage ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  AI Generate
+                </Button>
+              </div>
+              <FormDescription className="text-xs">
+                Provide an image URL or let AI generate one based on the event name.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -311,6 +382,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                    {organizers.length === 0 && <p className="p-2 text-sm text-muted-foreground">No organizers found. Please add one.</p>}
                     {organizers.map((org) => (
                       <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                     ))}
@@ -352,12 +424,12 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         
         <div className="flex gap-2 justify-end pt-4">
             {onCancel && (
-                <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting || isGeneratingImage}>
                     Cancel
                 </Button>
             )}
-            <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={isSubmitting || isGeneratingImage}>
+                {(isSubmitting || isGeneratingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {submitButtonText}
             </Button>
         </div>
