@@ -8,11 +8,11 @@ import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockDat
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card'; 
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images 
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -126,12 +126,12 @@ export default function HomePage() {
       <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
         <div className="absolute inset-0">
             <Image
-                src="https://placehold.co/1920x1080.png"
+                src="https://images.unsplash.com/photo-1687317587523-d3e2eb5289e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxOXx8dGlja2V0JTIwYm9va2luZ3xlbnwwfHx8fDE3NDkyODU0MDN8MA&ixlib=rb-4.1.0&q=80&w=1080"
                 alt="Hero Background"
                 fill={true}
                 style={{objectFit: 'cover'}}
                 className="opacity-20"
-                data-ai-hint="concert crowd"
+                data-ai-hint="ticket booking"
             />
         </div>
         <div className="container mx-auto text-center relative z-10">
@@ -319,3 +319,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
