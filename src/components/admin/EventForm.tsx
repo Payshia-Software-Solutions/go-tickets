@@ -14,24 +14,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@/lib/types";
-import { getEventCategories } from "@/lib/mockData"; // For category suggestions
+import { getEventCategories } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 interface EventFormProps {
-  initialData?: Event | null; // Event type for initial data
+  initialData?: Event | null;
   onSubmit: (data: EventFormData) => Promise<void>;
   isSubmitting: boolean;
   submitButtonText?: string;
+  onCancel?: () => void; // Added for modal cancellation
 }
 
-export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event" }: EventFormProps) {
-  const router = useRouter();
-  const { toast } = useToast();
+export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -57,7 +54,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     } : {
       name: "",
       slug: "",
-      date: undefined, // Changed from new Date() to undefined for placeholder
+      date: undefined,
       location: "",
       description: "",
       category: "",
@@ -67,17 +64,48 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       venueAddress: "",
     },
   });
+  
+  // Reset form when initialData changes (e.g., when opening edit modal for different events)
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        name: initialData.name,
+        slug: initialData.slug,
+        date: new Date(initialData.date),
+        location: initialData.location,
+        description: initialData.description,
+        category: initialData.category,
+        imageUrl: initialData.imageUrl,
+        organizerName: initialData.organizer.name,
+        venueName: initialData.venue.name,
+        venueAddress: initialData.venue.address || "",
+      });
+    } else {
+      form.reset({ // Reset to empty for create form
+        name: "",
+        slug: "",
+        date: undefined,
+        location: "",
+        description: "",
+        category: "",
+        imageUrl: "",
+        organizerName: "",
+        venueName: "",
+        venueAddress: "",
+      });
+    }
+  }, [initialData, form]);
 
-  // Auto-generate slug from name, if slug is empty and name changes
+
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
-      if (name === 'name' && type === 'change' && !form.getValues('slug')) { // Only if slug is empty
+      if (name === 'name' && type === 'change' && !form.getValues('slug')) {
         const newSlug = (value.name || '')
           .toLowerCase()
           .trim()
-          .replace(/\s+/g, '-') // Replace spaces with hyphens
-          .replace(/[^\w-]+/g, '') // Remove non-word characters (except hyphens)
-          .replace(/--+/g, '-'); // Replace multiple hyphens with single
+          .replace(/\s+/g, '-') 
+          .replace(/[^\w-]+/g, '') 
+          .replace(/--+/g, '-'); 
         form.setValue('slug', newSlug, { shouldValidate: true });
       }
     });
@@ -91,7 +119,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="name"
@@ -116,7 +144,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 <Input placeholder="e.g., annual-tech-summit" {...field} />
               </FormControl>
               <FormDescription>
-                Unique identifier for the event URL (e.g., my-event-slug). Use lowercase letters, numbers, and hyphens. Auto-generated if left empty.
+                Unique identifier for the event URL. Auto-generated if left empty.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -153,7 +181,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } // Disable past dates
+                    disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
                     initialFocus
                   />
                 </PopoverContent>
@@ -197,7 +225,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
@@ -214,7 +242,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                  <Input 
                     placeholder="Enter custom category" 
                     onChange={(e) => field.onChange(e.target.value)} 
-                    // If field.value is "Other", treat it as empty for input, otherwise show current custom value
                     value={field.value === "Other" ? "" : (categories.includes(field.value) ? "" : field.value)}
                     className="mt-2"
                  />
@@ -223,7 +250,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             </FormItem>
           )}
         />
-
 
         <FormField
           control={form.control}
@@ -281,8 +307,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           )}
         />
         
-        <div className="flex gap-2 justify-end">
-            <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
+        <div className="flex gap-2 justify-end pt-4">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
