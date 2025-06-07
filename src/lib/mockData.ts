@@ -1,5 +1,5 @@
 
-import type { Event, Booking, TicketType, User, EventFormData } from './types';
+import type { Event, Booking, TicketType, User, EventFormData, Organizer, OrganizerFormData } from './types';
 
 const users: User[] = [
   { id: 'user1', email: 'test@example.com', name: 'Test User', isAdmin: false },
@@ -141,6 +141,18 @@ export let mockEvents: Event[] = [
 
 const mockBookings: Booking[] = [];
 
+// Organizers Data
+let mockOrganizers: Organizer[] = [
+  { id: 'org1', name: 'Tech Solutions Inc.', contactEmail: 'contact@techsolutions.com', website: 'https://techsolutions.com' },
+  { id: 'org2', name: 'BeatDrop Productions', contactEmail: 'info@beatdrop.com', website: 'https://beatdrop.com' },
+  { id: 'org3', name: 'The Art Collective', contactEmail: 'gallery@artcollective.org' },
+  { id: 'org4', name: 'Starlight Foundation', contactEmail: 'give@starlight.org', website: 'https://starlight.org' },
+  { id: 'org5', name: 'National Soccer League', contactEmail: 'fans@nsl.com', website: 'https://nsl.com' },
+  { id: 'org6', name: 'Austin Community Theatre Group', contactEmail: 'act@communityplays.org' },
+  { id: 'org7', name: 'Tomorrow Today Corp.', contactEmail: 'future@tt.corp', website: 'https://tt.corp/futurefest'}
+];
+
+
 // Admin function to get all events
 export const adminGetAllEvents = async (): Promise<Event[]> => {
   return mockEvents;
@@ -242,7 +254,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   const newEventId = (mockEvents.length + 1).toString() + '-' + Date.now();
   
   let baseSlug = data.slug;
-  let finalSlug = baseSlug; // Use finalSlug to store the potentially modified slug
+  let finalSlug = baseSlug;
   let counter = 1;
   while (mockEvents.some(e => e.slug === finalSlug)) {
     finalSlug = `${baseSlug}-${counter}`;
@@ -258,7 +270,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     description: data.description,
     category: data.category,
     imageUrl: data.imageUrl,
-    organizer: { name: data.organizerName },
+    organizer: { name: data.organizerName }, // This will be updated when Organizers are fully integrated
     venue: { name: data.venueName, address: data.venueAddress },
     ticketTypes: [...defaultTicketTypes.map(tt => ({...tt, id: `${finalSlug}-${tt.id.split('-')[1]}`}))], 
   };
@@ -293,7 +305,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   updatedEvent.description = data.description;
   updatedEvent.category = data.category;
   updatedEvent.imageUrl = data.imageUrl;
-  updatedEvent.organizer.name = data.organizerName;
+  updatedEvent.organizer.name = data.organizerName; // This will change
   updatedEvent.venue.name = data.venueName;
   updatedEvent.venue.address = data.venueAddress || ""; 
 
@@ -320,5 +332,52 @@ export const deleteEvent = async (eventId: string): Promise<boolean> => {
   const deletedEventSlug = mockEvents[eventIndex].slug;
   mockEvents.splice(eventIndex, 1);
   delete ticketTypes[deletedEventSlug]; 
+  return true;
+};
+
+// CRUD for Organizers
+export const adminGetAllOrganizers = async (): Promise<Organizer[]> => {
+  return [...mockOrganizers].sort((a,b) => a.name.localeCompare(b.name));
+};
+
+export const getOrganizerById = async (id: string): Promise<Organizer | undefined> => {
+  return mockOrganizers.find(org => org.id === id);
+};
+
+export const createOrganizer = async (data: OrganizerFormData): Promise<Organizer> => {
+  const newOrganizer: Organizer = {
+    id: `org-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: data.name,
+    contactEmail: data.contactEmail,
+    website: data.website || undefined,
+  };
+  mockOrganizers.push(newOrganizer);
+  return newOrganizer;
+};
+
+export const updateOrganizer = async (organizerId: string, data: OrganizerFormData): Promise<Organizer | undefined> => {
+  const organizerIndex = mockOrganizers.findIndex(org => org.id === organizerId);
+  if (organizerIndex === -1) {
+    return undefined;
+  }
+  const updatedOrganizer = {
+    ...mockOrganizers[organizerIndex],
+    ...data,
+    website: data.website || undefined, // Ensure empty string becomes undefined
+  };
+  mockOrganizers[organizerIndex] = updatedOrganizer;
+  return updatedOrganizer;
+};
+
+export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
+  // Check if organizer is used in any event first (this check would be important in a real app)
+  // For mock: const isUsed = mockEvents.some(event => event.organizer.name === mockOrganizers.find(o => o.id === organizerId)?.name);
+  // if (isUsed) { return false; /* Or throw an error */ }
+
+  const organizerIndex = mockOrganizers.findIndex(org => org.id === organizerId);
+  if (organizerIndex === -1) {
+    return false;
+  }
+  mockOrganizers.splice(organizerIndex, 1);
   return true;
 };

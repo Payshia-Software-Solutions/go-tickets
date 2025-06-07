@@ -17,7 +17,7 @@ export interface Event {
   description: string;
   category: string;
   imageUrl: string;
-  organizer: {
+  organizer: { // This will be updated later to link to Organizer type
     name: string;
     contact?: string;
   };
@@ -72,9 +72,25 @@ export const EventFormSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.string().min(3, "Category is required"),
   imageUrl: z.string().url({ message: "Invalid image URL" }),
-  organizerName: z.string().min(3, "Organizer name is required"),
+  organizerName: z.string().min(3, "Organizer name is required"), // This will change later
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
 });
 
 export type EventFormData = z.infer<typeof EventFormSchema>;
+
+// Organizer Types
+export interface Organizer {
+  id: string;
+  name: string;
+  contactEmail: string;
+  website?: string;
+}
+
+export const OrganizerFormSchema = z.object({
+  name: z.string().min(2, "Organizer name must be at least 2 characters."),
+  contactEmail: z.string().email("Invalid email address."),
+  website: z.string().url("Invalid URL.").optional().or(z.literal('')), // Allow empty string or valid URL
+});
+
+export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
