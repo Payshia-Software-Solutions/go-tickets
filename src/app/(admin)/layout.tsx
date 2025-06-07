@@ -1,20 +1,24 @@
 
 "use client";
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/admin/AdminSidebar';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import Link from 'next/link';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!loading) {
       if (!user || !user.isAdmin) {
-        router.replace('/login?redirect=/admin/dashboard'); // Redirect to login if not admin
+        router.replace('/login?redirect=/admin/dashboard');
       }
     }
   }, [user, loading, router]);
@@ -30,8 +34,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 md:p-8 overflow-auto">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex w-64 flex-shrink-0">
+        <AdminSidebar />
+      </div>
+
+      {/* Mobile Sidebar (Sheet) */}
+      <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
+        <SheetContent side="left" className="w-64 p-0 md:hidden">
+          <AdminSidebar onLinkClick={() => setIsMobileSidebarOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
+        {/* Mobile Header with Hamburger */}
+        <div className="md:hidden mb-4 flex items-center justify-between">
+          <Button variant="outline" size="icon" onClick={() => setIsMobileSidebarOpen(true)}>
+            <Menu className="h-6 w-6" />
+            <span className="sr-only">Open sidebar</span>
+          </Button>
+          <Link href="/admin/dashboard">
+            <h1 className="text-xl font-bold text-primary">Admin Panel</h1>
+          </Link>
+          <div className="w-10"></div> {/* Spacer for alignment */}
+        </div>
         {children}
       </main>
     </div>

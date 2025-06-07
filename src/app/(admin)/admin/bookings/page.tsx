@@ -18,7 +18,7 @@ export default function AdminBookingsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Manage Bookings | MyPass.lk Admin';
+      document.title = 'Manage Bookings | Event Horizon Admin';
     }
     fetchBookings();
   }, []);
@@ -31,7 +31,6 @@ export default function AdminBookingsPage() {
   };
 
   const handleSendEmail = (bookingId: string) => {
-    // In a real app, this would trigger an API call to send an email.
     toast({
       title: "Simulate Email Sent",
       description: `Confirmation email resent for booking ID: ${bookingId} (mock).`,
@@ -39,7 +38,6 @@ export default function AdminBookingsPage() {
   };
 
   const handleSendSms = (bookingId: string) => {
-    // In a real app, this would trigger an API call to send an SMS.
     toast({
       title: "Simulate SMS Sent",
       description: `Booking details SMS sent for booking ID: ${bookingId} (mock).`,
@@ -51,7 +49,7 @@ export default function AdminBookingsPage() {
     return (
       <div className="space-y-8">
         <header>
-          <h1 className="text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
           <p className="text-muted-foreground">View and manage all event bookings.</p>
         </header>
         <div className="flex items-center justify-center h-64">
@@ -65,7 +63,7 @@ export default function AdminBookingsPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
         <p className="text-muted-foreground">View and manage all event bookings.</p>
       </header>
 
@@ -82,49 +80,51 @@ export default function AdminBookingsPage() {
               <p className="text-sm text-muted-foreground">Bookings will appear here as users make them.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Event Name</TableHead>
-                  <TableHead>Event Date</TableHead>
-                  <TableHead>User ID</TableHead>
-                  <TableHead className="text-right">Tickets</TableHead>
-                  <TableHead className="text-right">Total Price</TableHead>
-                  <TableHead>Booked On</TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bookings.map((booking) => {
-                  const totalTickets = booking.tickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
-                  return (
-                    <TableRow key={booking.id}>
-                      <TableCell className="font-mono text-xs">{booking.id}</TableCell>
-                      <TableCell className="font-medium">{booking.eventName}</TableCell>
-                      <TableCell>{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-xs">{booking.userId}</TableCell>
-                      <TableCell className="text-right">{totalTickets}</TableCell>
-                      <TableCell className="text-right">LKR {booking.totalPrice.toFixed(2)}</TableCell>
-                      <TableCell>{new Date(booking.bookingDate).toLocaleString()}</TableCell>
-                      <TableCell className="text-right space-x-1">
-                        <Button variant="outline" size="sm" asChild title="View Booking Confirmation">
-                          <Link href={`/booking-confirmation/${booking.id}`} target="_blank">
-                            View <ExternalLink className="ml-1 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
-                         <Button variant="outline" size="icon" title="Send Email (Mock)" onClick={() => handleSendEmail(booking.id)}>
-                            <Mail className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" title="Send SMS (Mock)" onClick={() => handleSendSms(booking.id)}>
-                            <MessageSquare className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Booking ID</TableHead>
+                    <TableHead>Event Name</TableHead>
+                    <TableHead>Event Date</TableHead>
+                    <TableHead>User ID</TableHead>
+                    <TableHead className="text-right">Tickets</TableHead>
+                    <TableHead className="text-right">Total Price</TableHead>
+                    <TableHead>Booked On</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bookings.map((booking) => {
+                    const totalTickets = booking.tickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
+                    return (
+                      <TableRow key={booking.id}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{booking.eventName}</TableCell>
+                        <TableCell className="whitespace-nowrap">{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{booking.userId}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{totalTickets}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
+                        <TableCell className="text-right space-x-1 whitespace-nowrap">
+                          <Button variant="outline" size="sm" asChild title="View Booking Confirmation">
+                            <Link href={`/booking-confirmation/${booking.id}`} target="_blank">
+                              View <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                           <Button variant="outline" size="icon" title="Send Email (Mock)" onClick={() => handleSendEmail(booking.id)}>
+                              <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="icon" title="Send SMS (Mock)" onClick={() => handleSendSms(booking.id)}>
+                              <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

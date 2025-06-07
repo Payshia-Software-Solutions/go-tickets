@@ -7,7 +7,7 @@ import { adminGetAllEvents, deleteEvent, createEvent, updateEvent } from '@/lib/
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
@@ -38,7 +38,7 @@ export default function AdminEventsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Manage Events | MyPass.lk Admin';
+      document.title = 'Manage Events | Event Horizon Admin';
     }
     fetchEvents();
   }, []);
@@ -153,12 +153,12 @@ export default function AdminEventsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground font-headline">Manage Events</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Events</h1>
           <p className="text-muted-foreground">View, create, edit, or delete events.</p>
         </div>
-        <Button onClick={handleOpenCreateModal}>
+        <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Event
         </Button>
       </div>
@@ -178,47 +178,48 @@ export default function AdminEventsPage() {
           {!isLoading && events.length === 0 ? (
             <p className="text-muted-foreground text-center py-10">No events found. Start by adding a new event.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {events.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">{event.name}</TableCell>
-                    <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
-                    <TableCell>{event.location}</TableCell>
-                    <TableCell>{event.category}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(event)} title="Edit Event">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(event)} title="Delete Event">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {events.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium whitespace-nowrap">{event.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{new Date(event.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="whitespace-nowrap">{event.location}</TableCell>
+                      <TableCell className="whitespace-nowrap">{event.category}</TableCell>
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(event)} title="Edit Event">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(event)} title="Delete Event">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Create Event Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Event</DialogTitle>
             <DialogDescription>Fill in the details for the new event.</DialogDescription>
           </DialogHeader>
-          <div className="py-4 max-h-[70vh] overflow-y-auto">
+          <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
             <EventForm
               onSubmit={handleCreateEventSubmit}
               isSubmitting={isSubmitting}
@@ -229,7 +230,6 @@ export default function AdminEventsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Event Modal */}
       {currentEventForEdit && (
         <Dialog open={showEditModal} onOpenChange={(isOpen) => {
             setShowEditModal(isOpen);
@@ -240,7 +240,7 @@ export default function AdminEventsPage() {
               <DialogTitle>Edit Event: {currentEventForEdit.name}</DialogTitle>
               <DialogDescription>Modify the details for this event.</DialogDescription>
             </DialogHeader>
-            <div className="py-4 max-h-[70vh] overflow-y-auto">
+            <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
               <EventForm
                 initialData={currentEventForEdit}
                 onSubmit={handleUpdateEventSubmit}

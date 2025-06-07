@@ -38,7 +38,7 @@ export default function AdminOrganizersPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Manage Organizers | MyPass.lk Admin';
+      document.title = 'Manage Organizers | Event Horizon Admin';
     }
     fetchOrganizers();
   }, []);
@@ -57,14 +57,14 @@ export default function AdminOrganizersPage() {
 
   const handleConfirmDelete = async () => {
     if (!organizerToDelete) return;
-    setIsLoading(true); // Or use isSubmitting for the delete action
+    setIsLoading(true);
     const success = await deleteOrganizer(organizerToDelete.id);
     if (success) {
       toast({
         title: "Organizer Deleted",
         description: `"${organizerToDelete.name}" has been successfully deleted.`,
       });
-      fetchOrganizers(); // Refresh list
+      fetchOrganizers(); 
     } else {
       toast({
         title: "Error Deleting Organizer",
@@ -152,14 +152,14 @@ export default function AdminOrganizersPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground font-headline flex items-center">
-            <Users className="mr-3 h-8 w-8" /> Manage Organizers
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
+            <Users className="mr-3 h-7 w-7 sm:h-8 sm:w-8" /> Manage Organizers
           </h1>
           <p className="text-muted-foreground">View, create, edit, or delete event organizers.</p>
         </div>
-        <Button onClick={handleOpenCreateModal}>
+        <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Organizer
         </Button>
       </div>
@@ -179,53 +179,54 @@ export default function AdminOrganizersPage() {
           {!isLoading && organizers.length === 0 ? (
             <p className="text-muted-foreground text-center py-10">No organizers found. Start by adding a new one.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact Email</TableHead>
-                  <TableHead>Website</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {organizers.map((organizer) => (
-                  <TableRow key={organizer.id}>
-                    <TableCell className="font-medium">{organizer.name}</TableCell>
-                    <TableCell>{organizer.contactEmail}</TableCell>
-                    <TableCell>
-                      {organizer.website ? (
-                        <a href={organizer.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                          {organizer.website}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(organizer)} title="Edit Organizer">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(organizer)} title="Delete Organizer">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Contact Email</TableHead>
+                    <TableHead>Website</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {organizers.map((organizer) => (
+                    <TableRow key={organizer.id}>
+                      <TableCell className="font-medium whitespace-nowrap">{organizer.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{organizer.contactEmail}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {organizer.website ? (
+                          <a href={organizer.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                            {organizer.website}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2 whitespace-nowrap">
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(organizer)} title="Edit Organizer">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(organizer)} title="Delete Organizer">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Create Organizer Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Organizer</DialogTitle>
             <DialogDescription>Fill in the details for the new organizer.</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
             <OrganizerForm
               onSubmit={handleCreateOrganizerSubmit}
               isSubmitting={isSubmitting}
@@ -236,7 +237,6 @@ export default function AdminOrganizersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Organizer Modal */}
       {currentOrganizerForEdit && (
         <Dialog open={showEditModal} onOpenChange={(isOpen) => {
             setShowEditModal(isOpen);
@@ -247,7 +247,7 @@ export default function AdminOrganizersPage() {
               <DialogTitle>Edit Organizer: {currentOrganizerForEdit.name}</DialogTitle>
               <DialogDescription>Modify the details for this organizer.</DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
               <OrganizerForm
                 initialData={currentOrganizerForEdit}
                 onSubmit={handleUpdateOrganizerSubmit}
