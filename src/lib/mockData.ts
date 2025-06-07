@@ -239,7 +239,7 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
 
 // CRUD for Events
 export const createEvent = async (data: EventFormData): Promise<Event> => {
-  const newEventId = (mockEvents.length + 1).toString();
+  const newEventId = (mockEvents.length + 1).toString() + '-' + Date.now(); // More unique ID
   // Check if slug is unique, append number if not (basic uniqueness)
   let slug = data.slug;
   let counter = 1;
@@ -261,12 +261,12 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     venue: { name: data.venueName, address: data.venueAddress },
     ticketTypes: [...defaultTicketTypes.map(tt => ({...tt, id: `${slug}-${tt.id.split('-')[1]}`}))], // Assign default ticket types with unique IDs based on slug
   };
-  mockEvents.push(newEvent);
+  mockEvents.unshift(newEvent); // Add to the beginning of the array
   ticketTypes[slug] = newEvent.ticketTypes; // Add new ticket types to global record
   return newEvent;
 };
 
-export const updateEvent = async (eventId: string, data: Partial<EventFormData>): Promise<Event | undefined> => {
+export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
   const eventIndex = mockEvents.findIndex(event => event.id === eventId);
   if (eventIndex === -1) {
     return undefined;
@@ -277,29 +277,45 @@ export const updateEvent = async (eventId: string, data: Partial<EventFormData>)
   // Create a deep copy of the existing event to modify
   const updatedEvent: Event = JSON.parse(JSON.stringify(existingEvent));
 
-  if (data.name) updatedEvent.name = data.name;
-  if (data.slug) {
-     // Check if slug is unique (excluding current event)
-    let slug = data.slug;
-    let counter = 1;
-    while (mockEvents.some(e => e.slug === slug && e.id !== eventId)) {
-        slug = `${data.slug}-${counter}`;
-        counter++;
-    }
-    updatedEvent.slug = slug;
+  updatedEvent.name = data.name;
+  
+  // Check if slug is unique (excluding current event)
+  let slug = data.slug;
+  if (slug !== existingEvent.slug) {
+      let counter = 1;
+      while (mockEvents.some(e => e.slug === slug && e.id !== eventId)) {
+          slug = `${data.slug}-${counter}`;
+          counter++;
+      }
   }
-  if (data.date) updatedEvent.date = data.date.toISOString();
-  if (data.location) updatedEvent.location = data.location;
-  if (data.description) updatedEvent.description = data.description;
-  if (data.category) updatedEvent.category = data.category;
-  if (data.imageUrl) updatedEvent.imageUrl = data.imageUrl;
-  if (data.organizerName) updatedEvent.organizer.name = data.organizerName;
-  if (data.venueName) updatedEvent.venue.name = data.venueName;
-  if (data.venueAddress !== undefined) updatedEvent.venue.address = data.venueAddress; // handle optional field
+  updatedEvent.slug = slug;
+  updatedEvent.date = data.date.toISOString();
+  updatedEvent.location = data.location;
+  updatedEvent.description = data.description;
+  updatedEvent.category = data.category;
+  updatedEvent.imageUrl = data.imageUrl;
+  updatedEvent.organizer.name = data.organizerName;
+  updatedEvent.venue.name = data.venueName;
+  updatedEvent.venue.address = data.venueAddress || ""; // handle optional field
 
-  // Ticket types are not updated by this form directly, preserved from existingEvent
-  // If slug changed, ticketTypes keys might need update if we were managing them globally by slug rigorously.
-  // For now, if slug changes, the reference in `ticketTypes` map might become stale. This is a mock data limitation.
+  // If slug changed and ticket types were tied to slug, they would need updating.
+  // For this mock, we assume ticketTypes structure/IDs might persist or be re-evaluated if needed.
+  // If original ticket type IDs were like `originalslug-standard`, they are now `newslug-standard` if we re-gen them.
+  // Let's preserve original ticket types for simplicity of mock update unless they need specific update logic.
+  // If slug changed, let's update the ticketType IDs prefix to match the new slug for consistency.
+  if (slug !== existingEvent.slug) {
+    updatedEvent.ticketTypes = existingEvent.ticketTypes.map(tt => ({
+        ...tt,
+        id: tt.id.replace(existingEvent.slug, slug) // Replace old slug prefix with new one
+    }));
+    // Update the global ticketTypes record if the slug has changed
+    delete ticketTypes[existingEvent.slug];
+    ticketTypes[slug] = updatedEvent.ticketTypes;
+  } else {
+    // If slug hasn't changed, make sure the global record is up to date (in case it wasn't there before for some reason)
+     ticketTypes[slug] = updatedEvent.ticketTypes;
+  }
+  
 
   mockEvents[eventIndex] = updatedEvent;
   return updatedEvent;

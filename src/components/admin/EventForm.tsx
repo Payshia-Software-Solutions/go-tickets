@@ -57,7 +57,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     } : {
       name: "",
       slug: "",
-      date: undefined,
+      date: undefined, // Changed from new Date() to undefined for placeholder
       location: "",
       description: "",
       category: "",
@@ -67,6 +67,23 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       venueAddress: "",
     },
   });
+
+  // Auto-generate slug from name, if slug is empty and name changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      if (name === 'name' && type === 'change' && !form.getValues('slug')) { // Only if slug is empty
+        const newSlug = (value.name || '')
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '-') // Replace spaces with hyphens
+          .replace(/[^\w-]+/g, '') // Remove non-word characters (except hyphens)
+          .replace(/--+/g, '-'); // Replace multiple hyphens with single
+        form.setValue('slug', newSlug, { shouldValidate: true });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
 
   const handleFormSubmit = async (data: EventFormData) => {
     await onSubmit(data);
@@ -99,7 +116,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 <Input placeholder="e.g., annual-tech-summit" {...field} />
               </FormControl>
               <FormDescription>
-                Unique identifier for the event URL (e.g., my-event-slug). Use lowercase letters, numbers, and hyphens.
+                Unique identifier for the event URL (e.g., my-event-slug). Use lowercase letters, numbers, and hyphens. Auto-generated if left empty.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -136,7 +153,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) => date < new Date("1900-01-01")} // Optional: disable past dates
+                    disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } // Disable past dates
                     initialFocus
                   />
                 </PopoverContent>
@@ -197,7 +214,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                  <Input 
                     placeholder="Enter custom category" 
                     onChange={(e) => field.onChange(e.target.value)} 
-                    value={field.value === "Other" ? "" : field.value}
+                    // If field.value is "Other", treat it as empty for input, otherwise show current custom value
+                    value={field.value === "Other" ? "" : (categories.includes(field.value) ? "" : field.value)}
                     className="mt-2"
                  />
                 )}
