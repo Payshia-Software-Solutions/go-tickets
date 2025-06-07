@@ -12,13 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, ImageUp, Sparkles, AlertTriangle } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
 import { useToast } from "@/hooks/use-toast";
+import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
+import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Image from "next/image";
+
 
 interface EventFormProps {
   initialData?: Event | null;
@@ -33,6 +38,13 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug);
   const { toast } = useToast();
+
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
+  const [isSuggestingKeywords, setIsSuggestingKeywords] = useState(false);
+  const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     const fetchDropdownData = async () => {
@@ -51,7 +63,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       location: initialData.location,
       description: initialData.description || "<p></p>",
       category: initialData.category,
-      imageUrl: initialData.imageUrl,
+      imageUrl: initialData.imageUrl, // This might be a real URL or a data: URI if previously set by local preview
       organizerId: initialData.organizer.id,
       venueName: initialData.venue.name,
       venueAddress: initialData.venue.address || "",
@@ -83,7 +95,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         venueName: initialData.venue.name,
         venueAddress: initialData.venue.address || "",
       });
-      setSlugManuallyEdited(!!initialData.slug); 
+      setSlugManuallyEdited(!!initialData.slug);
+      setLocalImagePreview(initialData.imageUrl);
     } else {
       form.reset({ 
         name: "",
@@ -98,6 +111,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         venueAddress: "",
       });
       setSlugManuallyEdited(false);
+      setLocalImagePreview(null);
     }
   }, [initialData, form]);
 
@@ -115,19 +129,119 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         if (form.getValues('slug') !== newPotentialSlug) {
           form.setValue('slug', newPotentialSlug, { 
               shouldValidate: true, 
-              shouldDirty: form.formState.dirtyFields.slug // Only mark dirty if it was already dirty
+              shouldDirty: form.formState.dirtyFields.slug 
           });
         }
+      }
+      if (name === 'imageUrl') {
+          // If imageUrl is programmatically changed (e.g. by AI or clearing), update preview
+          // But don't override if it's a file selection initiated change.
+          if (typeof value.imageUrl === 'string' && !value.imageUrl?.startsWith('data:image')) {
+            setLocalImagePreview(value.imageUrl || null);
+          } else if (!value.imageUrl) {
+            setLocalImagePreview(null);
+          }
       }
     });
     return () => subscription.unsubscribe();
   }, [form, slugManuallyEdited]);
 
   const handleFormSubmit = async (data: EventFormData) => {
+    // If localImagePreview is a data URI from file input, and imageUrl form field still holds it,
+    // it means the user intends to use it. However, it should be uploaded first.
+    // For now, it will be saved as is.
     await onSubmit(data);
   };
 
-  const currentImageUrl = form.watch("imageUrl");
+  const currentImageUrlFieldValue = form.watch("imageUrl");
+
+  const handleAiImageAndKeywords = async () => {
+    const eventName = form.getValues("name");
+    const eventDescription = form.getValues("description");
+
+    if (!eventName) {
+      toast({
+        title: "Event Name Required",
+        description: "Please enter an event name to generate an image and keywords.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    setIsSuggestingKeywords(true);
+    setSuggestedKeywords([]);
+    toast({ title: "🤖 AI Magic in Progress...", description: "Generating image and suggesting keywords." });
+
+    try {
+      // Generate Image
+      const imageResult = await generateEventImage({ prompt: `${eventName}${eventDescription ? ` - ${eventDescription.substring(0,100)}...` : ''}` });
+      if (imageResult.imageUrl) {
+        form.setValue("imageUrl", imageResult.imageUrl, { shouldValidate: true, shouldDirty: true });
+        setLocalImagePreview(imageResult.imageUrl); // Update preview for AI generated image
+        toast({ title: "🖼️ AI Image Generated!", description: "Image URL has been updated." });
+      } else {
+        throw new Error("AI did not return an image.");
+      }
+    } catch (error) {
+      console.error("AI Image Generation Error:", error);
+      toast({ title: "🚨 AI Image Error", description: "Could not generate image. Please try again or provide a URL manually.", variant: "destructive" });
+    } finally {
+      setIsGeneratingImage(false);
+    }
+
+    try {
+      // Suggest Keywords
+      const keywordsResult = await suggestImageKeywords({ eventName, eventDescription });
+      if (keywordsResult.keywords && keywordsResult.keywords.length > 0) {
+        setSuggestedKeywords(keywordsResult.keywords);
+        toast({ title: "💡 Keywords Suggested!", description: "Found some keywords for Unsplash search." });
+      } else {
+        setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]); // Fallback
+      }
+    } catch (error) {
+      console.error("AI Keyword Suggestion Error:", error);
+      toast({ title: "🚨 AI Keyword Error", description: "Could not suggest keywords.", variant: "destructive" });
+       setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]); // Fallback
+    } finally {
+      setIsSuggestingKeywords(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select an image file (e.g., PNG, JPG, GIF).",
+          variant: "destructive",
+        });
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""; // Reset file input
+        }
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUri = reader.result as string;
+        setLocalImagePreview(dataUri);
+        form.setValue("imageUrl", dataUri, { shouldValidate: true, shouldDirty: true });
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // No file selected, or selection cleared
+      // If imageUrl was previously a data URI, clear it, otherwise leave existing URL
+      if (form.getValues("imageUrl")?.startsWith("data:image")) {
+          form.setValue("imageUrl", "", { shouldValidate: true, shouldDirty: true });
+      }
+      setLocalImagePreview(form.getValues("imageUrl") || null);
+       if (fileInputRef.current) {
+          fileInputRef.current.value = ""; // Ensure input is reset
+       }
+    }
+  };
+
 
   return (
     <Form {...form}>
@@ -305,24 +419,75 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <FormField
           control={form.control}
           name="imageUrl"
-          render={({ field }) => (
+          render={({ field }) => ( // field here is for the hidden imageUrl text input
             <FormItem>
-              <FormLabel>Image URL</FormLabel>
+              <FormLabel>Event Image</FormLabel>
+              <div className="space-y-3">
                 <FormControl>
-                  <Input type="url" placeholder="https://example.com/image.png" {...field} />
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-primary/10 file:text-primary
+                      hover:file:bg-primary/20"
+                  />
                 </FormControl>
-               {currentImageUrl && (
-                <div className="mt-2">
-                    <img src={currentImageUrl} alt="Event image preview" className="rounded-md max-h-40 w-auto border" />
-                </div>
+                 <FormDescription className="text-xs">
+                  Select an image from your computer. The preview will update below.
+                </FormDescription>
+
+                <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
+                  <AlertTriangle className="h-4 w-4 !text-amber-600" />
+                  <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
+                  <AlertDescription>
+                    The selected local image is for preview only. For the image to work in the live app,
+                    you need to implement logic to upload this file to cloud storage (e.g., Firebase Storage)
+                    and then save the public URL of the uploaded image. Currently, a temporary local preview URI will be saved.
+                  </AlertDescription>
+                </Alert>
+
+                {(localImagePreview || currentImageUrlFieldValue) && (
+                  <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
+                    <Image
+                      src={localImagePreview || currentImageUrlFieldValue!} // Prefer local preview if available
+                      alt="Event image preview"
+                      fill
+                      style={{ objectFit: 'contain' }}
+                      data-ai-hint="event poster"
+                    />
+                  </div>
                 )}
-              <FormDescription className="text-xs mt-1">
-                To use an image from your computer, upload it to a storage service (like Firebase Storage or Imgur) and paste the public URL here.
-              </FormDescription>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
+        
+        <div className="space-y-2">
+            <Button type="button" variant="outline" onClick={handleAiImageAndKeywords} disabled={isGeneratingImage || isSuggestingKeywords} className="w-full sm:w-auto">
+                {(isGeneratingImage || isSuggestingKeywords) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Sparkles className="mr-2 h-4 w-4" /> Get AI Image & Keywords (Alternative)
+            </Button>
+            {suggestedKeywords.length > 0 && (
+                <div className="pt-2">
+                    <p className="text-sm text-muted-foreground mb-1">Unsplash keyword suggestions:</p>
+                    <div className="flex flex-wrap gap-2">
+                    {suggestedKeywords.map(keyword => (
+                        <Button key={keyword} variant="outline" size="sm" asChild>
+                        <a href={`https://unsplash.com/s/photos/${encodeURIComponent(keyword)}`} target="_blank" rel="noopener noreferrer">
+                            {keyword}
+                        </a>
+                        </Button>
+                    ))}
+                    </div>
+                </div>
+            )}
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
           <FormField
@@ -393,4 +558,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
+    
+
     
