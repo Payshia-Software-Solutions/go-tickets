@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as PrismaUser, Booking as PrismaBooking, TicketType as PrismaTicketType, ShowTime as PrismaShowTime, ShowTimeTicketAvailability as PrismaShowTimeTicketAvailability, BookedTicket as PrismaBookedTicket } from '@prisma/client';
 
@@ -25,10 +26,10 @@ export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'price' |
 
 // --- ShowTime Related ---
 export const ShowTimeTicketAvailabilityFormSchema = z.object({
-  id: z.string().optional(), // For existing records
-  ticketTypeId: z.string(),
-  ticketTypeName: z.string(), // For display in form
-  availableCount: z.number().int().min(0, "Availability must be non-negative"),
+  id: z.string().optional(), // For existing records (ShowTimeTicketAvailability ID)
+  ticketTypeId: z.string().min(1, "Ticket Type ID is required"), // Refers to the ID of a TicketType (either existing DB ID or temp client ID)
+  ticketTypeName: z.string(), // For display in form, not directly saved but useful for UI
+  availableCount: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative"),
 });
 export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAvailabilityFormSchema>;
 
@@ -40,21 +41,28 @@ export const ShowTimeFormSchema = z.object({
 export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
 
 export interface ShowTimeTicketAvailability extends Omit<PrismaShowTimeTicketAvailability, 'showTimeId' | 'ticketTypeId' | 'createdAt' | 'updatedAt'> {
+  id: string;
   ticketType: Pick<TicketType, 'id' | 'name' | 'price'>; // Include basic ticket type info
+  availableCount: number;
 }
 export interface ShowTime extends Omit<PrismaShowTime, 'eventId' | 'dateTime' | 'createdAt' | 'updatedAt'> {
+  id: string;
   dateTime: string; // ISO string
   ticketAvailabilities: ShowTimeTicketAvailability[];
 }
 
 
 // --- Event Related ---
-export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'showTimes' | 'date' | 'description' | 'organizerId' | 'createdAt' | 'updatedAt'> {
+export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'showTimes' | 'date' | 'description' | 'organizerId' | 'createdAt' | 'updatedAt' | 'venueName' | 'venueAddress'> {
   date: string; // Keep as ISO string for frontend compatibility for now (main/first date)
   description: string;
   organizer: Organizer;
   ticketTypes: TicketType[];
   showTimes: ShowTime[];
+  venue: {
+    name: string;
+    address?: string | null; // Prisma type is String?
+  };
 }
 
 export const EventFormSchema = z.object({
@@ -86,12 +94,17 @@ export interface BookedTicketItem extends Omit<PrismaBookedTicket, 'id' | 'booki
   pricePerTicket: number;
   showTimeId: string; // ID of the selected ShowTime
 }
-export interface Booking extends Omit<PrismaBooking, 'eventDate' | 'bookingDate' | 'userId' | 'eventId' | 'createdAt' | 'updatedAt'> {
+export interface Booking extends Omit<PrismaBooking, 'eventDate' | 'bookingDate' | 'userId' | 'eventId' | 'createdAt' | 'updatedAt' | 'eventLocation' | 'eventName' | 'qrCodeValue' | 'totalPrice'> {
+  id: string;
+  eventId: string;
+  userId: string;
   bookingDate: string; // ISO string
   eventDate: string; // ISO string (specific showtime date)
-  // PrismaBooking relation 'bookedTickets' will provide PrismaBookedTicket[]
-  // We will map these to a simpler structure if needed or use Prisma's types directly in some contexts
-  bookedTickets: Array<Omit<PrismaBookedTicket, 'bookingId' | 'createdAt' | 'updatedAt'>>;
+  eventName: string;
+  eventLocation: string;
+  qrCodeValue: string;
+  totalPrice: number;
+  bookedTickets: Array<Omit<PrismaBookedTicket, 'bookingId' | 'createdAt' | 'updatedAt'>>; // This should likely be PrismaBookedTicket from Prisma
 }
 
 

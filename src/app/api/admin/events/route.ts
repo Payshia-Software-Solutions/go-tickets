@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { adminGetAllEvents, createEvent } from '@/lib/mockData';
 import { EventFormSchema } from '@/lib/types';
@@ -15,16 +16,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // console.log("API POST /admin/events body:", JSON.stringify(body, null, 2));
     
-    // Parse date strings into Date objects before validation for showTimes
+    // Parse date strings into Date objects before validation
     const bodyWithParsedDates = {
       ...body,
       date: body.date ? new Date(body.date) : undefined,
       showTimes: body.showTimes?.map((st: any) => ({
         ...st,
         dateTime: st.dateTime ? new Date(st.dateTime) : undefined,
+        // ticketAvailabilities are already numbers, no parsing needed for them here
       })) || [],
+      // ticketTypes prices/availability are already numbers
     };
 
     const validatedData = EventFormSchema.safeParse(bodyWithParsedDates);

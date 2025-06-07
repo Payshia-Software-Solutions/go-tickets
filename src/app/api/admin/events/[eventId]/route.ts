@@ -23,7 +23,6 @@ export async function GET(request: Request, { params }: Context) {
 export async function PUT(request: Request, { params }: Context) {
   try {
     const body = await request.json();
-    // console.log(`API PUT /admin/events/${params.eventId} body:`, JSON.stringify(body, null, 2));
 
     // Parse date strings into Date objects before validation
     const bodyWithParsedDates = {
@@ -60,4 +59,8 @@ export async function DELETE(request: Request, { params }: Context) {
   try {
     await deleteEvent(params.eventId);
     return NextResponse.json({ message: 'Event deleted successfully' }, { status: 200 });
-  } catch (error: any)
+  } catch (error: any) {
+    console.error(`API Error deleting event ${params.eventId}:`, error);
+    return NextResponse.json({ message: error.message || 'Failed to delete event' }, { status: 500 });
+  }
+}

@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
-import type { EventFormData, Organizer, TicketTypeFormData } from "@/lib/types";
+import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeFormData, ShowTimeTicketAvailabilityFormData, TicketType as AppTicketType } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, ImageUp, Sparkles, AlertTriangle, PlusCircle, Trash2, Ticket } from "lucide-react";
+import { CalendarIcon, Loader2, ImageUp, Sparkles, AlertTriangle, PlusCircle, Trash2, Ticket, Clock } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,6 +46,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const defaultShowTimeTicketAvailabilities = (formTicketTypes: TicketTypeFormData[]): ShowTimeTicketAvailabilityFormData[] => {
+    return formTicketTypes.map(tt => ({
+      ticketTypeId: tt.id || `new-${tt.name.replace(/\s+/g, '-')}-${Date.now()}`, // Use existing ID or generate a temp client ID for new types
+      ticketTypeName: tt.name,
+      availableCount: tt.availability, // Default to template availability
+    }));
+  };
+  
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
     defaultValues: initialData ? {
@@ -65,7 +73,17 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         price: tt.price,
         availability: tt.availability,
         description: tt.description || "",
-      })) || [],
+      })),
+      showTimes: initialData.showTimes.map(st => ({
+        id: st.id,
+        dateTime: new Date(st.dateTime),
+        ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
+          id: sta.id, // This is ShowTimeTicketAvailability.id
+          ticketTypeId: sta.ticketType.id, // This is TicketType.id
+          ticketTypeName: sta.ticketType.name,
+          availableCount: sta.availableCount,
+        })),
+      })),
     } : {
       name: "",
       slug: "",
@@ -78,14 +96,46 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       venueName: "",
       venueAddress: "",
       ticketTypes: [{ name: "General Admission", price: 0, availability: 100, description: "" }],
+      showTimes: [{ 
+        dateTime: new Date(), 
+        ticketAvailabilities: defaultShowTimeTicketAvailabilities([{ name: "General Admission", price: 0, availability: 100, description: "" }])
+      }],
     },
   });
 
-  const { fields: ticketTypeFields, append: appendTicketType, remove: removeTicketType } = useFieldArray({
+  const { fields: ticketTypeFields, append: appendTicketType, remove: removeTicketType, update: updateTicketType } = useFieldArray({
     control: form.control,
     name: "ticketTypes"
   });
+
+  const { fields: showTimeFields, append: appendShowTime, remove: removeShowTime } = useFieldArray({
+    control: form.control,
+    name: "showTimes"
+  });
   
+  const watchedTicketTypes = form.watch("ticketTypes");
+
+  useEffect(() => {
+    // When ticketTypes change, update all showTimes' ticketAvailabilities
+    // to reflect these changes (add/remove/update ticketTypeName)
+    const currentShowTimes = form.getValues("showTimes");
+    const newShowTimes = currentShowTimes.map(st => {
+      const existingAvailabilities = st.ticketAvailabilities || [];
+      const newAvailabilities: ShowTimeTicketAvailabilityFormData[] = watchedTicketTypes.map(tt => {
+        const existingSta = existingAvailabilities.find(sta => sta.ticketTypeId === (tt.id || sta.ticketTypeId)); // Match by ID if tt.id exists, otherwise try to keep existing by its own ticketTypeId if names match etc.
+        return {
+          id: existingSta?.id,
+          ticketTypeId: tt.id || `new-${tt.name.replace(/\s+/g, '-')}-${Date.now()}`, // Important: use actual ID if available for existing TTs
+          ticketTypeName: tt.name,
+          availableCount: existingSta ? existingSta.availableCount : tt.availability, // Use existing count or default from template
+        };
+      });
+      return { ...st, ticketAvailabilities: newAvailabilities };
+    });
+    form.setValue("showTimes", newShowTimes, { shouldValidate: false }); // Avoid immediate validation during this sync
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedTicketTypes, form.setValue]); // Only run when watchedTicketTypes explicitly changes
+
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
@@ -108,6 +158,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   
   useEffect(() => {
     if (initialData) {
+      const ticketTypesFormData = initialData.ticketTypes.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        price: tt.price,
+        availability: tt.availability,
+        description: tt.description || "",
+      }));
+
       form.reset({
         name: initialData.name,
         slug: initialData.slug,
@@ -119,17 +177,22 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         organizerId: initialData.organizer.id,
         venueName: initialData.venue.name,
         venueAddress: initialData.venue.address || "",
-        ticketTypes: initialData.ticketTypes.map(tt => ({
-          id: tt.id,
-          name: tt.name,
-          price: tt.price,
-          availability: tt.availability,
-          description: tt.description || "",
+        ticketTypes: ticketTypesFormData,
+        showTimes: initialData.showTimes.map(st => ({
+          id: st.id,
+          dateTime: new Date(st.dateTime),
+          ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
+            id: sta.id,
+            ticketTypeId: sta.ticketType.id,
+            ticketTypeName: sta.ticketType.name,
+            availableCount: sta.availableCount,
+          })),
         })),
       });
       setSlugManuallyEdited(!!initialData.slug);
       setLocalImagePreview(initialData.imageUrl);
     } else {
+       const defaultTTs = [{ name: "General Admission", price: 0, availability: 100, description: "" }];
       form.reset({ 
         name: "",
         slug: "",
@@ -141,7 +204,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         organizerId: "",
         venueName: "",
         venueAddress: "",
-        ticketTypes: [{ name: "General Admission", price: 0, availability: 100, description: "" }],
+        ticketTypes: defaultTTs,
+        showTimes: [{ dateTime: new Date(), ticketAvailabilities: defaultShowTimeTicketAvailabilities(defaultTTs) }],
       });
       setSlugManuallyEdited(false);
       setLocalImagePreview(null);
@@ -256,20 +320,26 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       };
       reader.readAsDataURL(file);
     } else {
-      // If file input is cleared, but there was a data URI, clear it from form.
-      // If it was a regular URL, keep it.
       if (form.getValues("imageUrl")?.startsWith("data:image")) {
           form.setValue("imageUrl", "", { shouldValidate: true, shouldDirty: true });
           setLocalImagePreview(null);
       } else {
-          // If it was a non-data URI (e.g. manually pasted URL or previous AI gen), keep it.
           setLocalImagePreview(form.getValues("imageUrl") || null);
       }
        if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Ensure file input field is visually cleared
+          fileInputRef.current.value = ""; 
        }
     }
   };
+  
+  const handleAddNewShowTime = () => {
+    const currentTicketTypes = form.getValues("ticketTypes");
+    appendShowTime({
+      dateTime: new Date(),
+      ticketAvailabilities: defaultShowTimeTicketAvailabilities(currentTicketTypes),
+    });
+  };
+
 
   return (
     <Form {...form}>
@@ -323,7 +393,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 name="date"
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
-                    <FormLabel>Event Date & Time</FormLabel>
+                    <FormLabel>Main Event Date</FormLabel>
                     <Popover>
                     <PopoverTrigger asChild>
                         <FormControl>
@@ -335,9 +405,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                             )}
                         >
                             {field.value ? (
-                            format(field.value, "PPP HH:mm") 
+                            format(field.value, "PPP") 
                             ) : (
-                            <span>Pick a date and time</span>
+                            <span>Pick a date</span>
                             )}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -351,24 +421,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
                         initialFocus
                         />
-                        <div className="p-2 border-t border-border">
-                            <Input
-                                type="time"
-                                value={field.value ? format(field.value, "HH:mm") : ""}
-                                onChange={(e) => {
-                                    const newTime = e.target.value;
-                                    const currentDate = field.value || new Date();
-                                    const [hours, minutes] = newTime.split(':').map(Number);
-                                    const newDate = new Date(currentDate);
-                                    newDate.setHours(hours);
-                                    newDate.setMinutes(minutes);
-                                    field.onChange(newDate);
-                                }}
-                                className="w-full"
-                            />
-                        </div>
                     </PopoverContent>
                     </Popover>
+                    <FormDescription className="text-xs">The primary date for the event listing.</FormDescription>
                     <FormMessage />
                 </FormItem>
                 )}
@@ -450,17 +505,16 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <FormField
             control={form.control}
             name="imageUrl"
-            render={({ field }) => ( // field.value is the string URL or data URI
+            render={({ field }) => ( 
                 <FormItem>
                 <FormLabel>Event Image</FormLabel>
                 <div className="space-y-3">
                     <FormControl>
-                    {/* Input for file selection */}
                     <Input
                         type="file"
                         accept="image/*"
                         ref={fileInputRef}
-                        onChange={handleFileChange} // This sets localImagePreview and form.setValue("imageUrl", dataUri)
+                        onChange={handleFileChange} 
                         className="block w-full text-sm text-slate-500
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-full file:border-0
@@ -470,31 +524,26 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     />
                     </FormControl>
                     <FormDescription className="text-xs">
-                    Select local image, or use AI generation, or paste a URL.
+                    Select local image, use AI generation, or paste a URL below.
                     </FormDescription>
-
-                    {/* Input for URL for manual paste / AI Gen */}
                     <Input 
                         placeholder="Or paste image URL here / Use AI Gen"
                         value={field.value?.startsWith("data:image/") ? "(Local image selected or AI generated)" : field.value || ""}
                         onChange={(e) => {
                             field.onChange(e.target.value);
                             setLocalImagePreview(e.target.value);
-                            if (fileInputRef.current) fileInputRef.current.value = ""; // Clear file input if URL is typed
+                            if (fileInputRef.current) fileInputRef.current.value = ""; 
                         }}
-                        disabled={field.value?.startsWith("data:image/")} // Disable if local/AI image is set
+                        disabled={field.value?.startsWith("data:image/")} 
                     />
-
-
-                    <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
-                    <AlertTriangle className="h-4 w-4 !text-amber-600" />
-                    <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
-                    <AlertDescription>
-                        If using a local image, it's for preview. Production apps need to upload files to cloud storage and use the returned URL.
-                        AI-generated images are data URIs, which are large and also best uploaded for production.
-                    </AlertDescription>
+                     <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
+                      <AlertTriangle className="h-4 w-4 !text-amber-600" />
+                      <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
+                      <AlertDescription>
+                          If using a local image, it's for preview. Production apps need to upload files to cloud storage and use the returned URL.
+                          AI-generated images are data URIs, which are large and also best uploaded for production.
+                      </AlertDescription>
                     </Alert>
-
                     {(localImagePreview || currentImageUrlFieldValue) && (
                     <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
                         <Image
@@ -504,8 +553,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         style={{ objectFit: 'contain' }}
                         data-ai-hint="event poster"
                         onError={() => {
-                            // If URL is invalid and causes an error, clear preview
-                            // setLocalImagePreview(null);
+                            // If URL is invalid, could clear preview, but might conflict with valid data URIs
                         }}
                         />
                     </div>
@@ -595,7 +643,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         {/* Ticket Types Section */}
         <section className="space-y-4 p-1">
             <div className="flex justify-between items-center border-b pb-2">
-                <h3 className="text-lg font-medium flex items-center"><Ticket className="mr-2 h-5 w-5" /> Ticket Types</h3>
+                <h3 className="text-lg font-medium flex items-center"><Ticket className="mr-2 h-5 w-5" /> Ticket Types (Templates)</h3>
                 <Button
                     type="button"
                     variant="outline"
@@ -605,6 +653,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
                 </Button>
             </div>
+            <FormDescription>Define the types of tickets available. These settings act as templates for individual showtimes.</FormDescription>
 
             {ticketTypeFields.map((field, index) => (
             <div key={field.id} className="p-4 border rounded-md space-y-4 relative bg-muted/20">
@@ -645,7 +694,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     name={`ticketTypes.${index}.availability`}
                     render={({ field: rhfField }) => (
                     <FormItem>
-                        <FormLabel>Availability</FormLabel>
+                        <FormLabel>Default Availability</FormLabel>
                         <FormControl>
                         <Input 
                             type="number" 
@@ -654,6 +703,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                             onChange={e => rhfField.onChange(parseInt(e.target.value, 10) || 0)}
                         />
                         </FormControl>
+                        <FormDescription className="text-xs">Template count for new showtimes.</FormDescription>
                         <FormMessage />
                     </FormItem>
                     )}
@@ -686,15 +736,144 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 )}
             </div>
             ))}
-            {form.formState.errors.ticketTypes && !form.formState.errors.ticketTypes.root && ( // Show root array errors
-                <p className="text-sm font-medium text-destructive">{form.formState.errors.ticketTypes.message}</p>
+            {form.formState.errors.ticketTypes && !form.formState.errors.ticketTypes.root && Array.isArray(form.formState.errors.ticketTypes) && (
+                 form.formState.errors.ticketTypes.map((error, index) => (
+                    error && <p key={index} className="text-sm font-medium text-destructive">Error in ticket type {index + 1}.</p>
+                ))
             )}
              {form.formState.errors.ticketTypes?.root && (
                 <p className="text-sm font-medium text-destructive">{form.formState.errors.ticketTypes.root.message}</p>
             )}
-
         </section>
-        
+
+         {/* ShowTimes Section */}
+        <section className="space-y-4 p-1">
+          <div className="flex justify-between items-center border-b pb-2">
+            <h3 className="text-lg font-medium flex items-center">
+              <Clock className="mr-2 h-5 w-5" /> Showtimes & Specific Availability
+            </h3>
+            <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowTime}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
+            </Button>
+          </div>
+           <FormDescription>Define specific dates, times, and ticket counts for each performance or session.</FormDescription>
+
+          {showTimeFields.map((showTimeItem, showTimeIndex) => (
+            <div key={showTimeItem.id} className="p-4 border rounded-md space-y-6 bg-card shadow">
+              <div className="flex justify-between items-start">
+                <h4 className="text-md font-semibold text-primary">Showtime {showTimeIndex + 1}</h4>
+                {showTimeFields.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeShowTime(showTimeIndex)}
+                    className="text-destructive hover:bg-destructive/10"
+                    title="Remove Showtime"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" /> Remove
+                  </Button>
+                )}
+              </div>
+              
+              <FormField
+                control={form.control}
+                name={`showTimes.${showTimeIndex}.dateTime`}
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date & Time</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn("w-full md:w-1/2 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                          >
+                            {field.value ? format(field.value, "PPP HH:mm") : <span>Pick date & time</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
+                          initialFocus
+                        />
+                        <div className="p-2 border-t border-border">
+                          <Input
+                            type="time"
+                            value={field.value ? format(field.value, "HH:mm") : ""}
+                            onChange={(e) => {
+                              const newTime = e.target.value;
+                              const currentDate = field.value || new Date();
+                              const [hours, minutes] = newTime.split(':').map(Number);
+                              const newDate = new Date(currentDate);
+                              newDate.setHours(hours);
+                              newDate.setMinutes(minutes);
+                              field.onChange(newDate);
+                            }}
+                            className="w-full"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div>
+                <h5 className="text-sm font-medium mb-2 text-muted-foreground">Ticket Availability for this Showtime:</h5>
+                {form.watch(`showTimes.${showTimeIndex}.ticketAvailabilities`).map((availabilityItem, availabilityIndex) => {
+                   const ticketTypeDefinition = watchedTicketTypes.find(tt => tt.id === availabilityItem.ticketTypeId || tt.name === availabilityItem.ticketTypeName); // Match by ID or name
+                  return (
+                    <div key={availabilityItem.ticketTypeId || availabilityIndex} className="grid grid-cols-2 gap-4 items-center mb-2 p-3 border-l-2 border-accent bg-muted/30 rounded-r-md">
+                      <FormLabel className="text-sm">
+                        {availabilityItem.ticketTypeName || `Ticket Type ${availabilityIndex + 1}`}
+                        {ticketTypeDefinition && <span className="text-xs text-muted-foreground ml-1">(Template: {ticketTypeDefinition.availability})</span>}
+                      </FormLabel>
+                      <FormField
+                        control={form.control}
+                        name={`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.availableCount`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="Count"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                       {/* Hidden field for ticketTypeId */}
+                       <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.ticketTypeId`)} />
+                       <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.ticketTypeName`)} />
+                       {form.watch(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.id`) && (
+                          <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.id`)} />
+                       )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+            {form.formState.errors.showTimes && !form.formState.errors.showTimes.root && Array.isArray(form.formState.errors.showTimes) && (
+                 form.formState.errors.showTimes.map((error, index) => (
+                    error && <p key={index} className="text-sm font-medium text-destructive">Error in showtime {index + 1}.</p>
+                ))
+            )}
+             {form.formState.errors.showTimes?.root && (
+                <p className="text-sm font-medium text-destructive">{form.formState.errors.showTimes.root.message}</p>
+            )}
+        </section>
+
         <div className="flex gap-2 justify-end pt-4">
             {onCancel && (
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -710,3 +889,4 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
+
