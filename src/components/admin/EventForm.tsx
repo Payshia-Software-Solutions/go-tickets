@@ -12,15 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, Sparkles } from "lucide-react";
+import { CalendarIcon, Loader2, Sparkles, ExternalLink } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
 import { generateEventImage } from '@/ai/flows/generate-event-image-flow';
+import { suggestImageKeywords } from '@/ai/flows/suggest-image-keywords-flow';
 import { useToast } from "@/hooks/use-toast";
-
+import Link from "next/link";
 
 interface EventFormProps {
   initialData?: Event | null;
@@ -34,7 +35,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [categories, setCategories] = useState<string[]>([]);
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingAiSuggestions, setIsGeneratingAiSuggestions] = useState(false);
+  const [aiSuggestedKeywords, setAiSuggestedKeywords] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -126,34 +128,82 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     return () => subscription.unsubscribe();
   }, [form, slugManuallyEdited]);
 
-  const handleGenerateImage = async () => {
+  const handleAiImageSuggestions = async () => {
     const eventName = form.getValues("name");
     if (!eventName.trim()) {
       toast({
-        title: "Cannot Generate Image",
-        description: "Please enter an event name first to generate an image.",
+        title: "Cannot Generate Suggestions",
+        description: "Please enter an event name first.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsGeneratingImage(true);
+    setIsGeneratingAiSuggestions(true);
+    setAiSuggestedKeywords([]); // Reset previous keywords
+    toast({ title: "🤖 AI Working...", description: "Generating image and keywords..." });
+
+    // Extract text from description
+    let descriptionText = "";
+    const descriptionHtml = form.getValues("description");
+    if (descriptionHtml && typeof window !== 'undefined') {
+        try {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = descriptionHtml;
+            descriptionText = tempDiv.textContent || tempDiv.innerText || "";
+            descriptionText = descriptionText.replace(/\s+/g, ' ').trim().substring(0, 200); // Limit length
+        } catch (e) {
+            console.warn("Could not parse description HTML for AI prompt", e);
+        }
+    }
+    
+    const imageGenPrompt = `Generate a vibrant and exciting event poster or promotional image for an event titled "${eventName}". ${descriptionText ? `The event is about: "${descriptionText}".` : ''} The image should be suitable for a website. Focus on conveying energy and appeal.`;
+
     try {
-      const result = await generateEventImage({ prompt: `Event poster for: ${eventName}` });
-      form.setValue("imageUrl", result.imageUrl, { shouldValidate: true, shouldDirty: true });
-      toast({
-        title: "Image Generated",
-        description: "AI has generated an image URL for your event.",
-      });
+      // Generate Image
+      const imagePromise = generateEventImage({ prompt: imageGenPrompt });
+      // Suggest Keywords
+      const keywordsPromise = suggestImageKeywords({ eventName, eventDescription: descriptionText });
+
+      const [imageResult, keywordsResult] = await Promise.allSettled([imagePromise, keywordsPromise]);
+
+      if (imageResult.status === 'fulfilled' && imageResult.value.imageUrl) {
+        form.setValue("imageUrl", imageResult.value.imageUrl, { shouldValidate: true, shouldDirty: true });
+        toast({
+          title: "AI Image Generated!",
+          description: "Image URL has been set.",
+        });
+      } else {
+        toast({
+          title: "AI Image Generation Failed",
+          description: imageResult.status === 'rejected' ? (imageResult.reason as Error)?.message || "Could not generate image." : "No image URL returned.",
+          variant: "destructive",
+        });
+      }
+
+      if (keywordsResult.status === 'fulfilled' && keywordsResult.value.keywords) {
+        setAiSuggestedKeywords(keywordsResult.value.keywords);
+        toast({
+          title: "AI Keywords Suggested!",
+          description: "Check below the image field for Unsplash search links.",
+        });
+      } else {
+         toast({
+          title: "AI Keyword Suggestion Failed",
+          description: keywordsResult.status === 'rejected' ? (keywordsResult.reason as Error)?.message || "Could not suggest keywords." : "No keywords returned.",
+          variant: "destructive",
+        });
+      }
+
     } catch (error) {
-      console.error("AI Image Generation Error:", error);
+      console.error("AI Image/Keyword Suggestion Error:", error);
       toast({
-        title: "Image Generation Failed",
-        description: "Could not generate an image. Please try again or enter a URL manually.",
+        title: "AI Suggestion Failed",
+        description: "An unexpected error occurred. Please try again or enter details manually.",
         variant: "destructive",
       });
     } finally {
-      setIsGeneratingImage(false);
+      setIsGeneratingAiSuggestions(false);
     }
   };
 
@@ -161,6 +211,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const handleFormSubmit = async (data: EventFormData) => {
     await onSubmit(data);
   };
+
+  const currentImageUrl = form.watch("imageUrl");
 
   return (
     <Form {...form}>
@@ -197,7 +249,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
-                  Auto-updated from name. Edit manually to customize. Uniqueness handled on save.
+                  Auto-updates from name if not manually edited. Uniqueness handled on save.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -223,7 +275,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "PPP HH:mm") // Added HH:mm for time
+                          format(field.value, "PPP HH:mm") 
                         ) : (
                           <span>Pick a date and time</span>
                         )}
@@ -341,27 +393,49 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           render={({ field }) => (
             <FormItem>
               <FormLabel>Image URL</FormLabel>
-              <div className="flex items-center gap-2">
+              <div className="flex items-start gap-2">
                 <FormControl className="flex-grow">
                   <Input type="url" placeholder="https://example.com/image.png or use AI" {...field} />
                 </FormControl>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleGenerateImage}
-                  disabled={isGeneratingImage || isSubmitting}
+                  onClick={handleAiImageSuggestions}
+                  disabled={isGeneratingAiSuggestions || isSubmitting}
                   size="sm"
+                  className="shrink-0"
                 >
-                  {isGeneratingImage ? (
+                  {isGeneratingAiSuggestions ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Sparkles className="mr-2 h-4 w-4" />
                   )}
-                  AI Generate
+                  AI Image & Keywords
                 </Button>
               </div>
-              <FormDescription className="text-xs">
-                Provide an image URL or let AI generate one based on the event name.
+               {currentImageUrl && (
+                <div className="mt-2">
+                    <img src={currentImageUrl} alt="Event image preview" className="rounded-md max-h-40 w-auto border" />
+                </div>
+                )}
+              {aiSuggestedKeywords.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground">Try searching Unsplash for:</p>
+                  <ul className="flex flex-wrap gap-2">
+                    {aiSuggestedKeywords.map(keyword => (
+                      <li key={keyword}>
+                        <Button variant="link" size="sm" asChild className="p-0 h-auto text-xs">
+                          <Link href={`https://unsplash.com/s/photos/${encodeURIComponent(keyword)}`} target="_blank" rel="noopener noreferrer">
+                            {keyword} <ExternalLink className="ml-1 h-3 w-3" />
+                          </Link>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <FormDescription className="text-xs mt-1">
+                Provide an image URL or use AI to generate one and get keyword suggestions for Unsplash.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -424,12 +498,12 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         
         <div className="flex gap-2 justify-end pt-4">
             {onCancel && (
-                <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting || isGeneratingImage}>
+                <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting || isGeneratingAiSuggestions}>
                     Cancel
                 </Button>
             )}
-            <Button type="submit" disabled={isSubmitting || isGeneratingImage}>
-                {(isSubmitting || isGeneratingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={isSubmitting || isGeneratingAiSuggestions}>
+                {(isSubmitting || isGeneratingAiSuggestions) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {submitButtonText}
             </Button>
         </div>
@@ -437,3 +511,4 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
+
