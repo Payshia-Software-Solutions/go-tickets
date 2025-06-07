@@ -135,12 +135,30 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
               />
             </CardContent>
           </Card>
+        </div>
 
-          {/* Showtimes and Tickets Section */}
+        {/* Right Column: Organizer and Showtimes */}
+        <div className="space-y-6 lg:sticky lg:top-24">
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" /> Organizer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-semibold text-lg">{event.organizer.name}</p>
+              <p className="text-sm text-muted-foreground">{event.organizer.contactEmail}</p>
+              {event.organizer.website && (
+                <a href={event.organizer.website} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
+                  Visit Website
+                </a>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Showtimes and Tickets Section - MOVED HERE */}
           {event.showTimes && event.showTimes.length > 0 && (
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes & Tickets</CardTitle>
+                <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes &amp; Tickets</CardTitle>
                 <CardDescription>Select tickets for your preferred showtime on the booking page.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -180,26 +198,7 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
             </Card>
           )}
         </div>
-
-        {/* Right Column: Organizer and other details */}
-        <div className="space-y-6 lg:sticky lg:top-24">
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle className="flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" /> Organizer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-semibold text-lg">{event.organizer.name}</p>
-              <p className="text-sm text-muted-foreground">{event.organizer.contactEmail}</p>
-              {event.organizer.website && (
-                <a href={event.organizer.website} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
-                  Visit Website
-                </a>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );
 }
-
