@@ -7,24 +7,39 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox'; // Added Checkbox
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // Added Form components
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking } from '@/lib/mockData'; 
-import type { Event } from '@/lib/types';
+import { createBooking, processMockPayment, updateUser } from '@/lib/mockData'; 
+import type { BillingAddress } from '@/lib/types';
+import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { AlertCircle, Trash2, ShoppingCart, Loader2 } from 'lucide-react'; // Added Loader2
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck } from 'lucide-react'; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, login } = useAuth(); // Assuming login might re-fetch user with updated address
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
-  // No longer need eventDetailsCache as cart items should have sufficient info, 
-  // and createBooking now takes eventId directly.
+  const [saveAddress, setSaveAddress] = useState(true);
+
+  const billingForm = useForm<BillingAddress>({
+    resolver: zodResolver(BillingAddressSchema),
+    defaultValues: {
+      street: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "",
+    },
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -32,7 +47,16 @@ const CheckoutPage = () => {
     }
   }, []);
 
-  const handleConfirmBooking = async () => {
+  useEffect(() => {
+    if (user?.billingAddress) {
+      billingForm.reset(user.billingAddress);
+      setSaveAddress(false); // User already has a saved address, so don't save by default unless they opt-in
+    } else {
+      setSaveAddress(true); // No saved address, so default to saving
+    }
+  }, [user, billingForm]);
+
+  const handleConfirmBooking = async (billingData: BillingAddress) => {
     if (!user) {
       toast({
         title: "Login Required",
@@ -44,28 +68,46 @@ const CheckoutPage = () => {
     }
 
     if (cart.length === 0) {
-      toast({
-        title: "Empty Cart",
-        description: "Your cart is empty. Please add some tickets.",
-        variant: "destructive",
-      });
+      toast({ title: "Empty Cart", description: "Your cart is empty.", variant: "destructive" });
       return;
     }
     
     setIsProcessing(true);
     
-    // createBooking now primarily needs eventId and showTimeId from the cart items.
-    // Assuming all items in the cart are for the same event (a common cart behavior).
-    // If cart can contain multiple events, this needs more complex handling (e.g., separate bookings).
     const primaryEventId = cart[0]?.eventId; 
     if (!primaryEventId) {
-         toast({ title: "Error", description: "Event ID missing from cart. Cannot proceed.", variant: "destructive" });
+         toast({ title: "Error", description: "Event ID missing from cart.", variant: "destructive" });
          setIsProcessing(false);
          return;
     }
+    const taxes = totalPrice * 0.1; // Mock 10% tax
+    const finalTotal = totalPrice + taxes;
 
     try {
-      // The `tickets` array for createBooking is directly derived from cart items
+      // Simulate payment
+      const paymentResult = await processMockPayment({ 
+        amount: finalTotal, 
+        billingAddress: billingData,
+        // Add other mock card details if needed by processMockPayment
+      });
+
+      if (!paymentResult.success) {
+        toast({ title: "Payment Failed", description: paymentResult.message || "Your payment could not be processed.", variant: "destructive" });
+        setIsProcessing(false);
+        return;
+      }
+
+      toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
+
+      // Save billing address if user opted in
+      if (saveAddress) {
+        await updateUser(user.id, { billingAddress: billingData });
+        // Optionally, re-fetch user or update context if needed immediately elsewhere
+        // For simplicity, we assume the AuthContext user might not reflect this immediately
+        // without a full re-login or specific context update mechanism.
+         toast({ title: "Address Saved", description: "Your billing address has been saved for future use." });
+      }
+      
       const bookingPayload = {
         eventId: primaryEventId,
         userId: user.id,
@@ -75,9 +117,10 @@ const CheckoutPage = () => {
             ticketTypeName: item.ticketTypeName, 
             quantity: item.quantity,
             pricePerTicket: item.pricePerTicket,
-            showTimeId: item.showTimeId, // Pass the showTimeId
+            showTimeId: item.showTimeId,
         })),
-        totalPrice,
+        totalPrice: finalTotal, // Use final total including taxes
+        billingAddress: billingData,
       };
 
       const newBooking = await createBooking(bookingPayload);
@@ -133,7 +176,7 @@ const CheckoutPage = () => {
           <Card>
             <CardHeader>
               <CardTitle>Order Summary</CardTitle>
-              <CardDescription>Review your selected tickets before payment.</CardDescription>
+              <CardDescription>Review your selected tickets.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {cart.map(item => (
@@ -141,7 +184,7 @@ const CheckoutPage = () => {
                   <div>
                     <p className="font-semibold">{item.eventName} - {item.ticketTypeName}</p>
                     <p className="text-sm text-muted-foreground">
-                      Showtime ID: {item.showTimeId.substring(0,8)}... {/* Display part of showtime ID for differentiation */}
+                      Showtime ID: {item.showTimeId.substring(0,8)}... 
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {item.quantity} x LKR {item.pricePerTicket.toFixed(2)}
@@ -181,33 +224,112 @@ const CheckoutPage = () => {
               </AlertDescription>
             </Alert>
           )}
+        
+          <Form {...billingForm}>
+            <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Billing Address</CardTitle>
+                  <CardDescription>Enter your billing information.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={billingForm.control}
+                    name="street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Street Address</FormLabel>
+                        <FormControl><Input placeholder="123 Main St" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={billingForm.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl><Input placeholder="Anytown" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={billingForm.control}
+                      name="state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State / Province</FormLabel>
+                          <FormControl><Input placeholder="CA" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={billingForm.control}
+                      name="postalCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Postal / Zip Code</FormLabel>
+                          <FormControl><Input placeholder="90210" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={billingForm.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <FormControl><Input placeholder="United States" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Checkbox
+                      id="saveAddress"
+                      checked={saveAddress}
+                      onCheckedChange={(checked) => setSaveAddress(checked as boolean)}
+                    />
+                    <Label htmlFor="saveAddress" className="text-sm font-normal">
+                      Save this address for future payments
+                    </Label>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Details (Mock)</CardTitle>
-              <CardDescription>This is a simulated payment process.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="cardNumber">Card Number</Label>
-                <Input id="cardNumber" placeholder="**** **** **** ****" disabled />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="expiryDate">Expiry Date</Label>
-                  <Input id="expiryDate" placeholder="MM/YY" disabled />
-                </div>
-                <div>
-                  <Label htmlFor="cvc">CVC</Label>
-                  <Input id="cvc" placeholder="***" disabled />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="cardName">Name on Card</Label>
-                <Input id="cardName" placeholder="John Doe" disabled />
-              </div>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Details (Mock)</CardTitle>
+                  <CardDescription>This is a simulated payment process. No real card needed.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="cardNumber">Card Number</Label>
+                    <Input id="cardNumber" placeholder="**** **** **** **** (mock)" defaultValue="4242 4242 4242 4242" disabled />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="expiryDate">Expiry Date</Label>
+                      <Input id="expiryDate" placeholder="MM/YY (mock)" defaultValue="12/25" disabled />
+                    </div>
+                    <div>
+                      <Label htmlFor="cvc">CVC</Label>
+                      <Input id="cvc" placeholder="*** (mock)" defaultValue="123" disabled />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {/* The main submit button is now part of the summary card on the right */}
+            </form>
+          </Form>
         </div>
 
         <div className="lg:col-span-1">
@@ -226,10 +348,10 @@ const CheckoutPage = () => {
               <Button 
                 size="lg" 
                 className="w-full" 
-                onClick={handleConfirmBooking} 
-                disabled={!user || isProcessing || cart.length === 0}
+                onClick={billingForm.handleSubmit(handleConfirmBooking)} // Trigger form submit
+                disabled={!user || isProcessing || cart.length === 0 || !billingForm.formState.isValid && billingForm.formState.isSubmitted}
               >
-                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : 'Confirm & Pay (Mock)'}
+                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Pay (Mock)</>}
               </Button>
             </CardFooter>
           </Card>

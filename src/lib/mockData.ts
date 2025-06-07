@@ -1,11 +1,11 @@
 
-import type { Event, Booking, User, Organizer, TicketType, ShowTime, ShowTimeTicketAvailability, EventFormData, OrganizerFormData, BookedTicketItem, TicketTypeFormData, ShowTimeFormData, BookedTicket } from './types';
+import type { Event, Booking, User, Organizer, TicketType, ShowTime, ShowTimeTicketAvailability, EventFormData, OrganizerFormData, BookedTicketItem, TicketTypeFormData, ShowTimeFormData, BookedTicket, BillingAddress } from './types';
 import { format } from 'date-fns';
 
 // In-memory data stores
 let mockUsers: User[] = [
-  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
 ];
 let mockOrganizers: Organizer[] = [
   { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date(), updatedAt: new Date() },
@@ -31,12 +31,31 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
     email: userData.email,
     name: userData.name || '',
     isAdmin: userData.isAdmin || false,
+    billingAddress: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
   mockUsers.push(newUser);
   return newUser;
 };
+
+export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
+  const userIndex = mockUsers.findIndex(u => u.id === userId);
+  if (userIndex === -1) return null;
+  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date() };
+  // Simulate updating localStorage if AuthContext was doing so
+  if (typeof localStorage !== 'undefined') {
+    const storedUser = localStorage.getItem('mypassUser');
+    if (storedUser) {
+      const parsedUser: User = JSON.parse(storedUser);
+      if (parsedUser.id === userId) {
+        localStorage.setItem('mypassUser', JSON.stringify(mockUsers[userIndex]));
+      }
+    }
+  }
+  return mockUsers[userIndex];
+};
+
 
 // --- Organizer Management ---
 export const adminGetAllOrganizers = async (): Promise<Organizer[]> => {
@@ -302,14 +321,42 @@ export const deleteEvent = async (eventId: string): Promise<boolean> => {
   return mockEvents.length < initialLength;
 };
 
+// --- Payment Simulation ---
+export const processMockPayment = async (
+  details: { 
+    amount: number; 
+    billingAddress: BillingAddress; 
+    // cardDetails could be added here for more realism if needed
+  }
+): Promise<{ success: boolean; transactionId?: string; message?: string }> => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Simulate success/failure, e.g., based on amount or a mock card number
+      if (details.amount > 0) {
+        resolve({ 
+          success: true, 
+          transactionId: `txn_${generateId('pay')}`,
+          message: "Payment successful." 
+        });
+      } else {
+        resolve({ 
+          success: false, 
+          message: "Payment failed (mock: amount was zero or invalid)." 
+        });
+      }
+    }, 1500); // Simulate network delay
+  });
+};
+
+
 // --- Booking Management ---
 export const createBooking = async (
   bookingData: {
     eventId: string;
     userId: string;
-    tickets: BookedTicketItem[]; // These now include showTimeId
+    tickets: BookedTicketItem[];
     totalPrice: number;
-    // event: Pick<Event, 'name' | 'location' | 'slug'>; // This is not needed if we fetch event by eventId
+    billingAddress: BillingAddress; // Added billingAddress
   }
 ): Promise<Booking> => {
   const user = mockUsers.find(u => u.id === bookingData.userId);
@@ -318,18 +365,17 @@ export const createBooking = async (
   const event = mockEvents.find(e => e.id === bookingData.eventId);
   if (!event) throw new Error("Event not found for booking.");
 
-  // All tickets in a single booking must be for the same showtime.
-  // Take the showTimeId from the first ticket item.
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
   
-  const showTime = event.showTimes.find(st => st.id === showTimeId);
-  if (!showTime) throw new Error(`ShowTime with ID ${showTimeId} not found for this event.`);
+  const showTimeIndex = event.showTimes.findIndex(st => st.id === showTimeId);
+  if (showTimeIndex === -1) throw new Error(`ShowTime with ID ${showTimeId} not found for this event.`);
+  const showTime = event.showTimes[showTimeIndex];
 
-  // Check and decrement availability for each ticket item against the selected showTime
+
   for (const ticketItem of bookingData.tickets) {
     if (ticketItem.showTimeId !== showTimeId) {
-        throw new Error("All tickets in a single booking must be for the same showtime. This is a system constraint.");
+        throw new Error("All tickets in a single booking must be for the same showtime.");
     }
     const staIndex = showTime.ticketAvailabilities.findIndex(sta => sta.ticketType.id === ticketItem.ticketTypeId);
     if (staIndex === -1) {
@@ -338,8 +384,8 @@ export const createBooking = async (
     if (showTime.ticketAvailabilities[staIndex].availableCount < ticketItem.quantity) {
       throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName} for showtime ${new Date(showTime.dateTime).toLocaleString()}. Requested: ${ticketItem.quantity}, Available: ${showTime.ticketAvailabilities[staIndex].availableCount}`);
     }
-    // Decrement in the mock data
-    showTime.ticketAvailabilities[staIndex].availableCount -= ticketItem.quantity;
+    
+    event.showTimes[showTimeIndex].ticketAvailabilities[staIndex].availableCount -= ticketItem.quantity;
   }
   
   const bookingId = generateId('bk');
@@ -350,19 +396,20 @@ export const createBooking = async (
     bookedTickets: bookingData.tickets.map(ticket => ({
       id: generateId('btk'),
       bookingId: bookingId,
-      eventNsid: event.slug, // Use event's slug
+      eventNsid: event.slug,
       ticketTypeId: ticket.ticketTypeId,
       ticketTypeName: ticket.ticketTypeName,
       quantity: ticket.quantity,
       pricePerTicket: ticket.pricePerTicket,
-      showTimeId: ticket.showTimeId, // Store showTimeId
+      showTimeId: ticket.showTimeId,
       createdAt: new Date(),
       updatedAt: new Date()
     })),
     totalPrice: bookingData.totalPrice,
+    billingAddress: bookingData.billingAddress, // Store billing address
     bookingDate: new Date().toISOString(),
     eventName: event.name,
-    eventDate: new Date(showTime.dateTime).toISOString(), // Date of the specific showtime
+    eventDate: new Date(showTime.dateTime).toISOString(), 
     eventLocation: event.location,
     qrCodeValue: `EVENT:${event.slug},BOOKING_ID:${bookingId},SHOWTIME:${showTime.dateTime}`,
     createdAt: new Date(),
@@ -370,14 +417,9 @@ export const createBooking = async (
   };
   mockBookings.push(newBooking);
 
-  // Persist change to mockEvents (for availability counts on the specific showtime)
-  const eventIdx = mockEvents.findIndex(e => e.id === event.id);
-  if(eventIdx > -1) {
-      const showTimeIdx = mockEvents[eventIdx].showTimes.findIndex(st => st.id === showTimeId);
-      if (showTimeIdx > -1) {
-          mockEvents[eventIdx].showTimes[showTimeIdx] = {...showTime};
-      }
-  }
+  // No need to update mockEvents here as we directly mutated the nested array above.
+  // This is a side effect of working with in-memory objects.
+  // If it were a real DB, you'd update the specific ShowTimeTicketAvailability records.
 
   return newBooking;
 };
@@ -403,8 +445,6 @@ export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => 
 };
 
 export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
-  // Mock: Sort by number of ticket types (as a proxy for popularity) then take upcoming.
-  // A real implementation would use booking counts or other metrics.
   const allUpcoming = await getEvents();
   return allUpcoming
     .sort((a, b) => (b.ticketTypes?.length || 0) - (a.ticketTypes?.length || 0))
@@ -468,7 +508,7 @@ export const searchEvents = async (query?: string, category?: string, date?: str
             return meetsMin && meetsMax;
         })
       ) || 
-      (!event.showTimes.length && event.ticketTypes.some(tt => { // Fallback for events somehow without showtimes
+      (!event.showTimes.length && event.ticketTypes.some(tt => { 
             const price = tt.price;
             const meetsMin = minPrice !== undefined ? price >= minPrice : true;
             const meetsMax = maxPrice !== undefined ? price <= maxPrice : true;
@@ -493,7 +533,7 @@ const initMockData = async () => {
         {
             name: "Summer Music Fest 2025",
             slug: "summer-music-fest-2025",
-            date: new Date(new Date().getFullYear() + 1, 5, 15), // June 15th next year
+            date: new Date(new Date().getFullYear() + 1, 5, 15), 
             location: "Grand Park, Downtown",
             description: "<p>Join us for the biggest music festival of the summer! Three days of non-stop music, food, and fun under the sun. Featuring top artists from around the globe.</p>",
             category: "Festivals",
@@ -506,13 +546,13 @@ const initMockData = async () => {
                 { id: generateId('tt'), name: "VIP Pass", price: 250, availability: 100, description: "VIP lounge, front stage access, free merch." }
             ],
             showTimes: [
-                { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 15, 18, 0), // Day 1, 6 PM
+                { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 15, 18, 0), 
                   ticketAvailabilities: [
                     { ticketTypeId: "NEEDS_REPLACEMENT_GA", ticketTypeName: "General Admission", availableCount: 200 },
                     { ticketTypeId: "NEEDS_REPLACEMENT_VIP", ticketTypeName: "VIP Pass", availableCount: 50 }
                   ]
                 },
-                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 16, 18, 0), // Day 2, 6 PM
+                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 16, 18, 0), 
                   ticketAvailabilities: [
                     { ticketTypeId: "NEEDS_REPLACEMENT_GA", ticketTypeName: "General Admission", availableCount: 150 },
                     { ticketTypeId: "NEEDS_REPLACEMENT_VIP", ticketTypeName: "VIP Pass", availableCount: 30 }
@@ -523,7 +563,7 @@ const initMockData = async () => {
         {
             name: "Future of AI Conference 2025",
             slug: "future-of-ai-conf-2025",
-            date: new Date(new Date().getFullYear() + 1, 7, 20), // Aug 20th next year
+            date: new Date(new Date().getFullYear() + 1, 7, 20), 
             location: "Innovation Hub",
             description: "<p>Explore the cutting edge of Artificial Intelligence with leading researchers and industry pioneers. Keynotes, workshops, and networking opportunities.</p>",
             category: "Technology",
@@ -536,7 +576,7 @@ const initMockData = async () => {
                 { id: generateId('tt'), name: "Student Ticket", price: 99, availability: 100, description: "Requires valid student ID." }
             ],
             showTimes: [
-                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 7, 20, 9, 0), // Day 1, 9 AM
+                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 7, 20, 9, 0), 
                   ticketAvailabilities: [
                     { ticketTypeId: "NEEDS_REPLACEMENT_STD", ticketTypeName: "Standard Ticket", availableCount: 150 },
                     { ticketTypeId: "NEEDS_REPLACEMENT_STU", ticketTypeName: "Student Ticket", availableCount: 50 }
@@ -547,22 +587,19 @@ const initMockData = async () => {
     ];
 
     for (const eventData of defaultEventDataList) {
-        // Correctly map ticketTypeId for showTime.ticketAvailabilities using the IDs from eventData.ticketTypes
-        const finalTicketTypes = eventData.ticketTypes; // these now have IDs
+        const finalTicketTypes = eventData.ticketTypes; 
         const finalShowTimes = eventData.showTimes.map(st => {
             const newTicketAvailabilities = st.ticketAvailabilities.map(sta => {
                 const parentTicketType = finalTicketTypes.find(tt => tt.name === sta.ticketTypeName);
                 if (!parentTicketType || !parentTicketType.id) {
                     console.error(`Error in mock data: Could not find parent ticket type for ${sta.ticketTypeName}`);
-                    return { ...sta, ticketTypeId: 'error-tt-id' }; // Fallback
+                    return { ...sta, ticketTypeId: 'error-tt-id' }; 
                 }
                 return { ...sta, ticketTypeId: parentTicketType.id };
             });
             return { ...st, ticketAvailabilities: newTicketAvailabilities };
         });
 
-        // Use a predefined ID for easier testing if needed, or let createEvent generate one
-        // For this example, let createEvent handle ID generation to avoid clashes
         const createdEvent = await createEvent({ ...eventData, ticketTypes: finalTicketTypes, showTimes: finalShowTimes });
         if(eventData.name.includes("Summer Music Fest")) createdEvent.id = 'evt-predefined-1';
         if(eventData.name.includes("Future of AI")) createdEvent.id = 'evt-predefined-2';

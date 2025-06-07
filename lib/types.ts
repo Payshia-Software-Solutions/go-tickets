@@ -2,11 +2,21 @@
 import { z } from 'zod';
 
 // --- User Related ---
+export const BillingAddressSchema = z.object({
+  street: z.string().min(3, "Street address is required."),
+  city: z.string().min(2, "City is required."),
+  state: z.string().min(2, "State/Province is required."),
+  postalCode: z.string().min(3, "Postal/Zip code is required."),
+  country: z.string().min(2, "Country is required."),
+});
+export type BillingAddress = z.infer<typeof BillingAddressSchema>;
+
 export interface User {
   id: string;
   email: string;
   name?: string | null;
   isAdmin?: boolean;
+  billingAddress?: BillingAddress | null; // Added
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -151,6 +161,7 @@ export interface Booking {
   eventLocation: string;
   qrCodeValue: string;
   totalPrice: number;
+  billingAddress: BillingAddress; // Added
   bookedTickets: BookedTicket[]; // Array of specific tickets part of this booking
   createdAt?: Date;
   updatedAt?: Date;
