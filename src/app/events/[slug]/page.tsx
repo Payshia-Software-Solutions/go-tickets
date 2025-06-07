@@ -104,7 +104,8 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
                   <MapPin className="mr-3 h-5 w-5 text-accent" />
                   <span>{event.location}</span>
                 </div>
-                <div className="flex items-center">
+                {/* Venue details now in sidebar, this specific line can be removed or kept for redundancy depending on preference */}
+                {/* <div className="flex items-center">
                   <Building className="mr-3 h-5 w-5 text-accent" />
                   <span>Venue: {event.venue.name} {event.venue.address && `(${event.venue.address})`}</span>
                 </div>
@@ -112,7 +113,7 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
                   <a href={event.venue.mapLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block pl-8">
                     View on map
                   </a>
-                )}
+                )} */}
               </div>
             </CardContent>
              <CardFooter className="p-6 border-t">
@@ -137,7 +138,7 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
           </Card>
         </div>
 
-        {/* Right Column: Organizer and Showtimes */}
+        {/* Right Column: Organizer, Venue, and Showtimes */}
         <div className="space-y-6 lg:sticky lg:top-24">
           <Card className="shadow-md">
             <CardHeader>
@@ -154,7 +155,26 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
             </CardContent>
           </Card>
 
-          {/* Showtimes and Tickets Section - MOVED HERE */}
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center"><Building className="mr-2 h-5 w-5 text-primary" /> Venue Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-semibold text-lg">{event.venue.name}</p>
+              {event.venue.address && (
+                <p className="text-sm text-muted-foreground">{event.venue.address}</p>
+              )}
+              {event.venue.mapLink && (
+                <a href={event.venue.mapLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
+                  View on Map
+                </a>
+              )}
+               {!event.venue.address && !event.venue.mapLink && (
+                 <p className="text-sm text-muted-foreground">Detailed venue information not available.</p>
+               )}
+            </CardContent>
+          </Card>
+
           {event.showTimes && event.showTimes.length > 0 && (
             <Card className="shadow-lg">
               <CardHeader>
