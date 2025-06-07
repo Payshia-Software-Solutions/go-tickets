@@ -1,10 +1,33 @@
 
 import { z } from 'zod';
-import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as PrismaUser, Booking as PrismaBooking, TicketType as PrismaTicketType, ShowTime as PrismaShowTime, ShowTimeTicketAvailability as PrismaShowTimeTicketAvailability, BookedTicket as PrismaBookedTicket } from '@prisma/client';
 
-// We can use Prisma's generated types directly or extend them if needed
-export type User = PrismaUser;
-export type Organizer = PrismaOrganizer;
+// --- User Related ---
+export interface User {
+  id: string;
+  email: string;
+  name?: string | null; // Prisma allows null names
+  isAdmin?: boolean;
+  // Timestamps might not be managed by mock data, but good to have for type consistency
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// --- Organizer Related ---
+export interface Organizer {
+  id:string;
+  name: string;
+  contactEmail: string;
+  website?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+export const OrganizerFormSchema = z.object({
+  name: z.string().min(2, "Organizer name must be at least 2 characters."),
+  contactEmail: z.string().email("Invalid email address."),
+  website: z.string().url("Invalid URL.").optional().or(z.literal('')),
+});
+export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
+
 
 // --- TicketType Related ---
 export const TicketTypeFormSchema = z.object({
@@ -16,12 +39,15 @@ export const TicketTypeFormSchema = z.object({
 });
 export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 
-export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'price' | 'availability' | 'description' | 'createdAt' | 'updatedAt'> {
+export interface TicketType {
   id: string;
+  eventId?: string; // Link back to event if needed directly on TT (Prisma does this)
   name: string;
   price: number;
   availability: number; // Template availability
   description?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // --- ShowTime Related ---
@@ -40,35 +66,46 @@ export const ShowTimeFormSchema = z.object({
 });
 export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
 
-export interface ShowTimeTicketAvailability extends Omit<PrismaShowTimeTicketAvailability, 'showTimeId' | 'ticketTypeId' | 'createdAt' | 'updatedAt'> {
+export interface ShowTimeTicketAvailability {
   id: string;
-  ticketType: Pick<TicketType, 'id' | 'name' | 'price'>; // Include basic ticket type info
+  showTimeId?: string; // Link to showtime
+  ticketTypeId?: string; // Link to ticket type
+  ticketType: Pick<TicketType, 'id' | 'name' | 'price'>; // Embed basic ticket type info
   availableCount: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
-export interface ShowTime extends Omit<PrismaShowTime, 'eventId' | 'dateTime' | 'createdAt' | 'updatedAt'> {
+export interface ShowTime {
   id: string;
+  eventId?: string; // Link back to event
   dateTime: string; // ISO string
   ticketAvailabilities: ShowTimeTicketAvailability[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 
 // --- Event Related ---
-export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'showTimes' | 'date' | 'description' | 'organizerId' | 'createdAt' | 'updatedAt' | 'venueName' | 'venueAddress'> {
-  id: string; // Added to ensure Event always has an id
-  name: string; // Added
-  slug: string; // Added
-  date: string; 
-  location: string; // Added
+export interface Event {
+  id: string;
+  name: string;
+  slug: string;
+  date: string; // ISO string for main event date
+  location: string;
   description: string;
-  category: string; // Added
-  imageUrl: string; // Added
-  organizer: Organizer;
+  category: string;
+  imageUrl: string;
+  organizer: Organizer; // Embed full organizer object
+  organizerId?: string; // Store organizer ID
   ticketTypes: TicketType[];
   showTimes: ShowTime[];
   venue: {
     name: string;
-    address?: string | null; 
+    address?: string | null;
+    mapLink?: string | null;
   };
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export const EventFormSchema = z.object({
@@ -76,11 +113,11 @@ export const EventFormSchema = z.object({
   slug: z.string()
     .min(3, "Slug must be at least 3 characters")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen."),
-  date: z.date({ required_error: "Main event date is required" }), 
+  date: z.date({ required_error: "Main event date is required" }),
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(3, "Category is required"),
-  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
+  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")), // Allow data URIs
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
@@ -91,8 +128,38 @@ export type EventFormData = z.infer<typeof EventFormSchema>;
 
 
 // --- Booking Related ---
-export interface BookedTicketItem { // Used for cart and creating bookings
-  eventId: string; 
+// Represents a line item in a booking, linking to a specific ticket type and showtime
+export interface BookedTicket {
+  id: string; // Unique ID for this booked ticket instance
+  bookingId?: string; // Link to Booking
+  ticketTypeId: string;
+  ticketTypeName: string; // Denormalized for convenience
+  showTimeId: string; // Specifies which showtime this ticket is for
+  quantity: number;
+  pricePerTicket: number; // Price at the time of booking
+  eventNsid: string; // event slug
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Booking {
+  id: string;
+  eventId: string;
+  userId: string;
+  bookingDate: string; // ISO string
+  eventDate: string; // ISO string (specific showtime date for this booking)
+  eventName: string;
+  eventLocation: string;
+  qrCodeValue: string;
+  totalPrice: number;
+  bookedTickets: BookedTicket[]; // Array of specific tickets part of this booking
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Used for cart and for creating bookings (input to createBooking service)
+export interface BookedTicketItem {
+  eventId: string;
   eventNsid: string; // event slug
   ticketTypeId: string;
   ticketTypeName: string;
@@ -100,25 +167,8 @@ export interface BookedTicketItem { // Used for cart and creating bookings
   pricePerTicket: number;
   showTimeId: string; // ID of the selected ShowTime
 }
-export interface Booking extends Omit<PrismaBooking, 'eventDate' | 'bookingDate' | 'userId' | 'eventId' | 'createdAt' | 'updatedAt' | 'eventLocation' | 'eventName' | 'qrCodeValue' | 'totalPrice'> {
-  id: string;
-  eventId: string;
-  userId: string;
-  bookingDate: string; // ISO string
-  eventDate: string; // ISO string (specific showtime date)
-  eventName: string;
-  eventLocation: string;
-  qrCodeValue: string;
-  totalPrice: number;
-  // This was 'tickets' before, changed to 'bookedTickets' to match Prisma relation and avoid confusion with TicketType
-  bookedTickets: Array<Omit<PrismaBookedTicket, 'bookingId' | 'createdAt' | 'updatedAt' | 'id'> & { id: string }>; 
+
+// Cart Item - similar to BookedTicketItem but might exist before a booking is finalized
+export interface CartItem extends BookedTicketItem {
+  eventName: string; // For display in cart
 }
-
-
-// --- Organizer Types --- (already defined from previous step, keep as is)
-export const OrganizerFormSchema = z.object({
-  name: z.string().min(2, "Organizer name must be at least 2 characters."),
-  contactEmail: z.string().email("Invalid email address."),
-  website: z.string().url("Invalid URL.").optional().or(z.literal('')),
-});
-export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
