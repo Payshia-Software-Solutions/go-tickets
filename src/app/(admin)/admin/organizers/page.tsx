@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Organizer, OrganizerFormData } from '@/lib/types';
-import { adminGetAllOrganizers, deleteOrganizer, createOrganizer, updateOrganizer } from '@/lib/mockData';
+// Removed direct imports: adminGetAllOrganizers, deleteOrganizer, createOrganizer, updateOrganizer
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import OrganizerForm from '@/components/admin/OrganizerForm';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export default function AdminOrganizersPage() {
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
@@ -45,9 +47,23 @@ export default function AdminOrganizersPage() {
 
   const fetchOrganizers = async () => {
     setIsLoading(true);
-    const allOrganizers = await adminGetAllOrganizers();
-    setOrganizers(allOrganizers);
-    setIsLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/organizers`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch organizers');
+      }
+      const allOrganizers: Organizer[] = await response.json();
+      setOrganizers(allOrganizers);
+    } catch (error) {
+      console.error("Error fetching organizers:", error);
+      toast({
+        title: "Error Fetching Organizers",
+        description: "Could not load organizers from the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteClick = (organizer: Organizer) => {
@@ -58,17 +74,23 @@ export default function AdminOrganizersPage() {
   const handleConfirmDelete = async () => {
     if (!organizerToDelete) return;
     setIsLoading(true);
-    const success = await deleteOrganizer(organizerToDelete.id);
-    if (success) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/organizers/${organizerToDelete.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete organizer and parse error' }));
+        throw new Error(errorData.message || 'Failed to delete organizer');
+      }
       toast({
         title: "Organizer Deleted",
         description: `"${organizerToDelete.name}" has been successfully deleted.`,
       });
-      fetchOrganizers(); 
-    } else {
+      fetchOrganizers();
+    } catch (error: any) {
       toast({
         title: "Error Deleting Organizer",
-        description: "Could not delete the organizer. It might be in use or an error occurred.",
+        description: error.message || "Could not delete the organizer. It might be in use or an error occurred.",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -83,6 +105,9 @@ export default function AdminOrganizersPage() {
   };
 
   const handleOpenEditModal = (organizer: Organizer) => {
+    // Unlike events, organizer data is likely complete in list view.
+    // If not, fetch full data like in events page:
+    // const response = await fetch(`${API_BASE_URL}/admin/organizers/${organizer.id}`);
     setCurrentOrganizerForEdit(organizer);
     setShowEditModal(true);
   };
@@ -90,18 +115,27 @@ export default function AdminOrganizersPage() {
   const handleCreateOrganizerSubmit = async (data: OrganizerFormData) => {
     setIsSubmitting(true);
     try {
-      const newOrganizer = await createOrganizer(data);
+      const response = await fetch(`${API_BASE_URL}/admin/organizers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create organizer and parse error' }));
+        throw new Error(errorData.message || 'Failed to create organizer');
+      }
+      const newOrganizer = await response.json();
       toast({
         title: "Organizer Created",
         description: `"${newOrganizer.name}" has been successfully created.`,
       });
       setShowCreateModal(false);
       fetchOrganizers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create organizer:", error);
       toast({
         title: "Error Creating Organizer",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -113,27 +147,28 @@ export default function AdminOrganizersPage() {
     if (!currentOrganizerForEdit) return;
     setIsSubmitting(true);
     try {
-      const updatedOrganizer = await updateOrganizer(currentOrganizerForEdit.id, data);
-      if (updatedOrganizer) {
-        toast({
-          title: "Organizer Updated",
-          description: `"${updatedOrganizer.name}" has been successfully updated.`,
-        });
-        setShowEditModal(false);
-        setCurrentOrganizerForEdit(null);
-        fetchOrganizers();
-      } else {
-        toast({
-          title: "Error Updating Organizer",
-          description: "Could not find the organizer to update.",
-          variant: "destructive",
-        });
+      const response = await fetch(`${API_BASE_URL}/admin/organizers/${currentOrganizerForEdit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update organizer and parse error' }));
+        throw new Error(errorData.message || 'Failed to update organizer');
       }
-    } catch (error) {
+      const updatedOrganizer = await response.json();
+      toast({
+        title: "Organizer Updated",
+        description: `"${updatedOrganizer.name}" has been successfully updated.`,
+      });
+      setShowEditModal(false);
+      setCurrentOrganizerForEdit(null);
+      fetchOrganizers();
+    } catch (error: any) {
       console.error("Failed to update organizer:", error);
       toast({
         title: "Error Updating Organizer",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {

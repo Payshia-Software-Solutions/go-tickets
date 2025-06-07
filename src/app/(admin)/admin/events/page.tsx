@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Event, EventFormData } from '@/lib/types';
-import { adminGetAllEvents, deleteEvent, createEvent, updateEvent } from '@/lib/mockData';
+// Removed direct imports: adminGetAllEvents, deleteEvent, createEvent, updateEvent
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import EventForm from '@/components/admin/EventForm';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -45,9 +47,23 @@ export default function AdminEventsPage() {
 
   const fetchEvents = async () => {
     setIsLoading(true);
-    const allEvents = await adminGetAllEvents();
-    setEvents(allEvents);
-    setIsLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/events`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch events');
+      }
+      const allEvents: Event[] = await response.json();
+      setEvents(allEvents);
+    } catch (error) {
+      console.error("Error fetching events:", error);
+      toast({
+        title: "Error Fetching Events",
+        description: "Could not load events from the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteClick = (event: Event) => {
@@ -57,18 +73,24 @@ export default function AdminEventsPage() {
 
   const handleConfirmDelete = async () => {
     if (!eventToDelete) return;
-    setIsLoading(true);
-    const success = await deleteEvent(eventToDelete.id);
-    if (success) {
+    setIsLoading(true); // Or a specific delete loading state
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/events/${eventToDelete.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete event and parse error' }));
+        throw new Error(errorData.message || 'Failed to delete event');
+      }
       toast({
         title: "Event Deleted",
-        description: `"${eventToDelete.name}" has been successfully deleted.`,
+        description: \`"\${eventToDelete.name}" has been successfully deleted.\`,
       });
-      fetchEvents();
-    } else {
+      fetchEvents(); // Re-fetch events
+    } catch (error: any) {
       toast({
         title: "Error Deleting Event",
-        description: "Could not delete the event.",
+        description: error.message || "Could not delete the event.",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -82,26 +104,46 @@ export default function AdminEventsPage() {
     setShowCreateModal(true);
   };
 
-  const handleOpenEditModal = (event: Event) => {
-    setCurrentEventForEdit(event);
-    setShowEditModal(true);
+  const handleOpenEditModal = async (event: Event) => {
+    // Fetch the full event data in case list view is partial
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/events/${event.id}`);
+      if (!response.ok) throw new Error('Failed to fetch event details');
+      const fullEventData = await response.json();
+      setCurrentEventForEdit(fullEventData);
+      setShowEditModal(true);
+    } catch (error) {
+      toast({ title: "Error", description: "Could not load event details for editing.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreateEventSubmit = async (data: EventFormData) => {
     setIsSubmitting(true);
     try {
-      const newEvent = await createEvent(data);
+      const response = await fetch(`${API_BASE_URL}/admin/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create event and parse error' }));
+        throw new Error(errorData.message || 'Failed to create event');
+      }
+      const newEvent = await response.json();
       toast({
         title: "Event Created",
-        description: `"${newEvent.name}" has been successfully created.`,
+        description: \`"\${newEvent.name}" has been successfully created.\`,
       });
       setShowCreateModal(false);
       fetchEvents();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create event:", error);
       toast({
         title: "Error Creating Event",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -113,34 +155,34 @@ export default function AdminEventsPage() {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      const updatedEvent = await updateEvent(currentEventForEdit.id, data);
-      if (updatedEvent) {
-        toast({
-          title: "Event Updated",
-          description: `"${updatedEvent.name}" has been successfully updated.`,
-        });
-        setShowEditModal(false);
-        setCurrentEventForEdit(null);
-        fetchEvents();
-      } else {
-        toast({
-          title: "Error Updating Event",
-          description: "Could not find the event to update.",
-          variant: "destructive",
-        });
+      const response = await fetch(`${API_BASE_URL}/admin/events/${currentEventForEdit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to update event and parse error' }));
+        throw new Error(errorData.message || 'Failed to update event');
       }
-    } catch (error) {
+      const updatedEvent = await response.json();
+      toast({
+        title: "Event Updated",
+        description: \`"\${updatedEvent.name}" has been successfully updated.\`,
+      });
+      setShowEditModal(false);
+      setCurrentEventForEdit(null);
+      fetchEvents();
+    } catch (error: any) {
       console.error("Failed to update event:", error);
       toast({
         title: "Error Updating Event",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-
 
   if (isLoading && events.length === 0) {
     return (

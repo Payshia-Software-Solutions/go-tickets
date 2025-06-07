@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2, ImageUp, Sparkles, AlertTriangle } from "lucide-react";
 import type { Event } from "@/lib/types";
-import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData";
+// Removed direct imports: getEventCategories, adminGetAllOrganizers
 import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
@@ -24,10 +24,11 @@ import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 interface EventFormProps {
   initialData?: Event | null;
-  onSubmit: (data: EventFormData) => Promise<void>;
+  onSubmit: (data: EventFormData) => Promise<void>; // This prop will now be called by the page after API success
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
@@ -45,14 +46,25 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-
   useEffect(() => {
     const fetchDropdownData = async () => {
-      setCategories(await getEventCategories());
-      setOrganizers(await adminGetAllOrganizers());
+      try {
+        const catResponse = await fetch(`${API_BASE_URL}/events/categories`);
+        if (!catResponse.ok) throw new Error('Failed to fetch categories');
+        const catData = await catResponse.json();
+        setCategories(catData);
+
+        const orgResponse = await fetch(`${API_BASE_URL}/admin/organizers`);
+        if (!orgResponse.ok) throw new Error('Failed to fetch organizers');
+        const orgData = await orgResponse.json();
+        setOrganizers(orgData);
+      } catch (error) {
+        console.error("Error fetching form dropdown data:", error);
+        toast({ title: "Error", description: "Could not load necessary data for the form.", variant: "destructive" });
+      }
     };
     fetchDropdownData();
-  }, []);
+  }, [toast]);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
@@ -63,7 +75,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       location: initialData.location,
       description: initialData.description || "<p></p>",
       category: initialData.category,
-      imageUrl: initialData.imageUrl, // This might be a real URL or a data: URI if previously set by local preview
+      imageUrl: initialData.imageUrl,
       organizerId: initialData.organizer.id,
       venueName: initialData.venue.name,
       venueAddress: initialData.venue.address || "",
@@ -134,8 +146,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         }
       }
       if (name === 'imageUrl') {
-          // If imageUrl is programmatically changed (e.g. by AI or clearing), update preview
-          // But don't override if it's a file selection initiated change.
           if (typeof value.imageUrl === 'string' && !value.imageUrl?.startsWith('data:image')) {
             setLocalImagePreview(value.imageUrl || null);
           } else if (!value.imageUrl) {
@@ -146,10 +156,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     return () => subscription.unsubscribe();
   }, [form, slugManuallyEdited]);
 
+  // The onSubmit prop is now called by the parent page after successful API call
+  // This form's handleFormSubmit just passes data to the parent's handler
   const handleFormSubmit = async (data: EventFormData) => {
-    // If localImagePreview is a data URI from file input, and imageUrl form field still holds it,
-    // it means the user intends to use it. However, it should be uploaded first.
-    // For now, it will be saved as is.
     await onSubmit(data);
   };
 
@@ -174,11 +183,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     toast({ title: "🤖 AI Magic in Progress...", description: "Generating image and suggesting keywords." });
 
     try {
-      // Generate Image
       const imageResult = await generateEventImage({ prompt: `${eventName}${eventDescription ? ` - ${eventDescription.substring(0,100)}...` : ''}` });
       if (imageResult.imageUrl) {
         form.setValue("imageUrl", imageResult.imageUrl, { shouldValidate: true, shouldDirty: true });
-        setLocalImagePreview(imageResult.imageUrl); // Update preview for AI generated image
+        setLocalImagePreview(imageResult.imageUrl);
         toast({ title: "🖼️ AI Image Generated!", description: "Image URL has been updated." });
       } else {
         throw new Error("AI did not return an image.");
@@ -191,18 +199,17 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     }
 
     try {
-      // Suggest Keywords
       const keywordsResult = await suggestImageKeywords({ eventName, eventDescription });
       if (keywordsResult.keywords && keywordsResult.keywords.length > 0) {
         setSuggestedKeywords(keywordsResult.keywords);
         toast({ title: "💡 Keywords Suggested!", description: "Found some keywords for Unsplash search." });
       } else {
-        setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]); // Fallback
+        setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]);
       }
     } catch (error) {
       console.error("AI Keyword Suggestion Error:", error);
       toast({ title: "🚨 AI Keyword Error", description: "Could not suggest keywords.", variant: "destructive" });
-       setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]); // Fallback
+       setSuggestedKeywords([eventName.toLowerCase().replace(/\s+/g, ' ').trim()]);
     } finally {
       setIsSuggestingKeywords(false);
     }
@@ -218,7 +225,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           variant: "destructive",
         });
         if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Reset file input
+          fileInputRef.current.value = "";
         }
         return;
       }
@@ -230,18 +237,15 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       };
       reader.readAsDataURL(file);
     } else {
-      // No file selected, or selection cleared
-      // If imageUrl was previously a data URI, clear it, otherwise leave existing URL
       if (form.getValues("imageUrl")?.startsWith("data:image")) {
           form.setValue("imageUrl", "", { shouldValidate: true, shouldDirty: true });
       }
       setLocalImagePreview(form.getValues("imageUrl") || null);
        if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Ensure input is reset
+          fileInputRef.current.value = "";
        }
     }
   };
-
 
   return (
     <Form {...form}>
@@ -419,7 +423,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <FormField
           control={form.control}
           name="imageUrl"
-          render={({ field }) => ( // field here is for the hidden imageUrl text input
+          render={({ field }) => (
             <FormItem>
               <FormLabel>Event Image</FormLabel>
               <div className="space-y-3">
@@ -448,13 +452,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     The selected local image is for preview only. For the image to work in the live app,
                     you need to implement logic to upload this file to cloud storage (e.g., Firebase Storage)
                     and then save the public URL of the uploaded image. Currently, a temporary local preview URI will be saved.
+                    If you use the AI generation, it provides a data URI which also has similar limitations for production use (large size, better to upload).
                   </AlertDescription>
                 </Alert>
 
                 {(localImagePreview || currentImageUrlFieldValue) && (
                   <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
                     <Image
-                      src={localImagePreview || currentImageUrlFieldValue!} // Prefer local preview if available
+                      src={localImagePreview || currentImageUrlFieldValue!}
                       alt="Event image preview"
                       fill
                       style={{ objectFit: 'contain' }}
@@ -471,7 +476,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <div className="space-y-2">
             <Button type="button" variant="outline" onClick={handleAiImageAndKeywords} disabled={isGeneratingImage || isSuggestingKeywords} className="w-full sm:w-auto">
                 {(isGeneratingImage || isSuggestingKeywords) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Sparkles className="mr-2 h-4 w-4" /> Get AI Image & Keywords (Alternative)
+                <Sparkles className="mr-2 h-4 w-4" /> Get AI Image & Keywords
             </Button>
             {suggestedKeywords.length > 0 && (
                 <div className="pt-2">
@@ -558,6 +563,3 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
-    
-
-    

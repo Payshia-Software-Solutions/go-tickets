@@ -3,13 +3,15 @@
 
 import { useEffect, useState } from 'react';
 import type { Booking } from '@/lib/types';
-import { adminGetAllBookings } from '@/lib/mockData';
+// Removed: import { adminGetAllBookings } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Loader2, Ticket, ExternalLink, Mail, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -25,9 +27,23 @@ export default function AdminBookingsPage() {
 
   const fetchBookings = async () => {
     setIsLoading(true);
-    const allBookings = await adminGetAllBookings();
-    setBookings(allBookings);
-    setIsLoading(false);
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/bookings`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch bookings');
+      }
+      const allBookings: Booking[] = await response.json();
+      setBookings(allBookings);
+    } catch (error) {
+       console.error("Error fetching bookings:", error);
+       toast({
+        title: "Error Fetching Bookings",
+        description: "Could not load bookings from the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSendEmail = (bookingId: string) => {
@@ -43,7 +59,6 @@ export default function AdminBookingsPage() {
       description: `Booking details SMS sent for booking ID: ${bookingId} (mock).`,
     });
   };
-
 
   if (isLoading) {
     return (

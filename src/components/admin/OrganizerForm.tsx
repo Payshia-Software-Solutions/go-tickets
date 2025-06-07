@@ -12,9 +12,11 @@ import { Loader2 } from "lucide-react";
 import type { Organizer } from "@/lib/types";
 import { useEffect } from "react";
 
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'; // This will be passed by the page
+
 interface OrganizerFormProps {
   initialData?: Organizer | null;
-  onSubmit: (data: OrganizerFormData) => Promise<void>;
+  onSubmit: (data: OrganizerFormData) => Promise<void>; // Prop called by parent page after API interaction
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
@@ -57,7 +59,7 @@ export default function OrganizerForm({
   }, [initialData, form]);
 
   const handleFormSubmit = async (data: OrganizerFormData) => {
-    await onSubmit(data);
+    await onSubmit(data); // Parent page handles API call
   };
 
   return (

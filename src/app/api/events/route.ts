@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 // You can also implement POST, PUT, DELETE handlers in this file
-// export async function POST(request: Request) {
+// export async function POST(reques7t: Request) {
 //   // ... logic to create an event
 //   try {
 //     const body = await request.json();
