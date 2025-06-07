@@ -1,7 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import { adminGetAllEvents, createEvent, getEventById } from '@/lib/mockData';
+import { adminGetAllEvents, createEvent } from '@/lib/mockData'; // getEventById removed as it's not used here
 import type { EventFormData } from '@/lib/types';
+import { EventFormSchema } from '@/lib/types'; // Import Zod schema for validation
 
 export async function GET() {
   try {
@@ -15,15 +16,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body: EventFormData = await request.json();
-    const newEvent = await createEvent(body);
-    return NextResponse.json(newEvent, { status: 201 });
-  } catch (error) {
-    console.error('API Error creating event:', error);
-    // Add more specific error handling based on Zod validation or Prisma errors if needed
-    if (error instanceof Error && error.message.includes('validation')) { // Basic check for Zod-like error
-        return NextResponse.json({ message: 'Invalid event data provided', details: error.message }, { status: 400 });
+    const body = await request.json();
+    const validatedData = EventFormSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      console.error('API Validation Error creating event:', validatedData.error.flatten().fieldErrors);
+      return NextResponse.json(
+        { message: 'Invalid event data provided', errors: validatedData.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
-    return NextResponse.json({ message: 'Failed to create event' }, { status: 500 });
+    
+    const newEvent = await createEvent(validatedData.data);
+    return NextResponse.json(newEvent, { status: 201 });
+  } catch (error: any) {
+    console.error('API Error creating event:', error);
+    return NextResponse.json({ message: error.message || 'Failed to create event' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getEventById, updateEvent, deleteEvent } from '@/lib/mockData';
 import type { EventFormData } from '@/lib/types';
+import { EventFormSchema } from '@/lib/types'; // Import Zod schema for validation
 
 interface Context {
   params: { eventId: string };
@@ -22,30 +23,38 @@ export async function GET(request: Request, { params }: Context) {
 
 export async function PUT(request: Request, { params }: Context) {
   try {
-    const body: EventFormData = await request.json();
-    const updated = await updateEvent(params.eventId, body);
+    const body = await request.json();
+    const validatedData = EventFormSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      console.error(`API Validation Error updating event ${params.eventId}:`, validatedData.error.flatten().fieldErrors);
+      return NextResponse.json(
+        { message: 'Invalid event data provided', errors: validatedData.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const updated = await updateEvent(params.eventId, validatedData.data);
     if (!updated) {
       return NextResponse.json({ message: 'Event not found or update failed' }, { status: 404 });
     }
     return NextResponse.json(updated);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`API Error updating event ${params.eventId}:`, error);
-    if (error instanceof Error && error.message.includes('validation')) {
-        return NextResponse.json({ message: 'Invalid event data provided', details: error.message }, { status: 400 });
-    }
-    return NextResponse.json({ message: 'Failed to update event' }, { status: 500 });
+    return NextResponse.json({ message: error.message || 'Failed to update event' }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request, { params }: Context) {
   try {
-    const success = await deleteEvent(params.eventId);
-    if (!success) {
-      return NextResponse.json({ message: 'Event not found or deletion failed' }, { status: 404 });
-    }
+    await deleteEvent(params.eventId);
     return NextResponse.json({ message: 'Event deleted successfully' }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error(`API Error deleting event ${params.eventId}:`, error);
+     // If the service layer threw a specific error message, use it
+    if (error.message) {
+        return NextResponse.json({ message: error.message }, { status: 400 }); // Or appropriate status
+    }
     return NextResponse.json({ message: 'Failed to delete event' }, { status: 500 });
   }
 }

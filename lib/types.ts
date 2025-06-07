@@ -10,7 +10,7 @@ import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as Prisma
 export type User = PrismaUser;
 export type Organizer = PrismaOrganizer;
 
-export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'id' | 'price' | 'availability'> {
+export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'id' | 'price' | 'availability' | 'description'> {
   // Prisma's TicketType is good, but our app used it slightly differently as an array on Event.
   // This interface tries to bridge that. For a full Prisma integration, you might embed TicketType generation
   // more directly or change how EventForm handles ticketTypes.
@@ -18,12 +18,13 @@ export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'id' | 'p
   name: string;
   price: number;
   availability: number;
-  description?: string;
+  description?: string | null; // Prisma description can be null
 }
 
 // Event type combining Prisma's Event with a potentially richer TicketType array
-export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'date'> {
+export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'date' | 'description'> {
   date: string; // Keep as ISO string for frontend compatibility for now
+  description: string; // Ensure description is always string for app logic, Prisma might allow null
   ticketTypes: TicketType[]; // Array of our specific TicketType
 }
 
@@ -54,6 +55,17 @@ export interface Booking extends Omit<PrismaBooking, 'eventDate' | 'bookingDate'
 }
 
 
+// Zod schema for individual ticket type in the form
+export const TicketTypeFormSchema = z.object({
+  id: z.string().optional(), // For existing ticket types during update
+  name: z.string().min(1, "Ticket type name is required"),
+  price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
+  availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative"),
+  description: z.string().optional(),
+});
+export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
+
+
 // Zod schema for event form validation
 export const EventFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -68,6 +80,7 @@ export const EventFormSchema = z.object({
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
+  ticketTypes: z.array(TicketTypeFormSchema).min(1, "At least one ticket type is required."),
 });
 export type EventFormData = z.infer<typeof EventFormSchema>;
 
