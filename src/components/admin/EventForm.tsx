@@ -17,7 +17,7 @@ import type { Event } from "@/lib/types";
 import { getEventCategories } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import RichTextEditor from '@/components/shared/RichTextEditor'; // Import the RichTextEditor
+import RichTextEditor from '@/components/shared/RichTextEditor';
 
 interface EventFormProps {
   initialData?: Event | null;
@@ -55,7 +55,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       slug: "",
       date: undefined,
       location: "",
-      description: "<p></p>", // Initialize with an empty paragraph for Tiptap
+      description: "<p></p>",
       category: "",
       imageUrl: "",
       organizerName: "",
@@ -71,7 +71,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         slug: initialData.slug,
         date: new Date(initialData.date),
         location: initialData.location,
-        description: initialData.description || "<p></p>", // Ensure description is not undefined
+        description: initialData.description || "<p></p>",
         category: initialData.category,
         imageUrl: initialData.imageUrl,
         organizerName: initialData.organizer.name,
@@ -84,7 +84,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         slug: "",
         date: undefined,
         location: "",
-        description: "<p></p>", // Default empty state for Tiptap
+        description: "<p></p>",
         category: "",
         imageUrl: "",
         organizerName: "",
@@ -98,24 +98,23 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
       if (name === 'name' && type === 'change') {
-        // Only auto-generate slug if slug field is empty or if it was auto-generated from the current name
         const currentSlug = form.getValues('slug');
         const nameValue = (value.name || '').trim();
-        const potentialOldSlug = nameValue
+        
+        // Generate a potential slug from the current name value
+        const newPotentialSlug = nameValue
           .toLowerCase()
-          .trim()
-          .replace(/\s+/g, '-') 
-          .replace(/[^\w-]+/g, '') 
-          .replace(/--+/g, '-');
+          .replace(/\s+/g, '-')          // Replace spaces with -
+          .replace(/[^\w-]+/g, '')       // Remove all non-word chars
+          .replace(/--+/g, '-');         // Replace multiple - with single -
 
-        if (!currentSlug || currentSlug === potentialOldSlug || !form.formState.dirtyFields.slug) {
-          const newSlug = nameValue
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, '-') 
-            .replace(/[^\w-]+/g, '') 
-            .replace(/--+/g, '-'); 
-          form.setValue('slug', newSlug, { shouldValidate: true, shouldDirty: !currentSlug });
+        // Only update if the slug field is empty or if the current slug was clearly auto-generated
+        // from a previous version of the name. This allows manual edits to stick.
+        if (!form.formState.dirtyFields.slug) {
+            form.setValue('slug', newPotentialSlug, { 
+                shouldValidate: true, 
+                shouldDirty: !!currentSlug // Only mark dirty if there was already a slug, to not make it dirty on first auto-gen
+            });
         }
       }
     });
@@ -130,76 +129,112 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Event Name</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Annual Tech Summit" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Event Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Annual Tech Summit" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Event Slug</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., annual-tech-summit" {...field} />
-              </FormControl>
-              <FormDescription>
-                Unique identifier for the event URL. Auto-generated if left empty or as you type the name.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="slug"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Event Slug</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., annual-tech-summit" {...field} />
+                </FormControl>
+                <FormDescription className="text-xs">
+                  Unique URL part. Auto-generated from name.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+          <FormField
+            control={form.control}
+            name="date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Event Date</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="date"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Event Date</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Category</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                   <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value ? (
-                        format(field.value, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
                   </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
-                    initialFocus
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                    <SelectItem value="Other">Other (Type below if not listed)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.watch("category") === "Other" && !categories.includes(field.value) && (
+                  <Input 
+                      placeholder="Enter custom category" 
+                      onChange={(e) => field.onChange(e.target.value)} 
+                      value={field.value === "Other" ? "" : (categories.includes(field.value) ? "" : field.value)}
+                      className="mt-2"
                   />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                  )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -233,7 +268,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                   )}
                 />
               </FormControl>
-              <FormDescription>
+              <FormDescription className="text-xs">
                 Use the rich text editor to format your event description.
               </FormDescription>
               <FormMessage />
@@ -241,38 +276,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           )}
         />
         
-        <FormField
-          control={form.control}
-          name="category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                   <SelectItem value="Other">Other (Type below if not listed)</SelectItem>
-                </SelectContent>
-              </Select>
-               {form.watch("category") === "Other" && !categories.includes(field.value) && ( // Ensure it doesn't show if "Other" is typed but then matches existing
-                 <Input 
-                    placeholder="Enter custom category" 
-                    onChange={(e) => field.onChange(e.target.value)} 
-                    value={field.value === "Other" ? "" : (categories.includes(field.value) ? "" : field.value)}
-                    className="mt-2"
-                 />
-                )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <FormField
           control={form.control}
           name="imageUrl"
@@ -286,34 +289,36 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="organizerName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Organizer Name</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., EventCorp LLC" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         
-        <FormField
-          control={form.control}
-          name="venueName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Venue Name</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Grand Hall" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+          <FormField
+            control={form.control}
+            name="organizerName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Organizer Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., EventCorp LLC" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="venueName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Venue Name</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Grand Hall" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -344,3 +349,4 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
+
