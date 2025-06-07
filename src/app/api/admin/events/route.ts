@@ -1,8 +1,6 @@
-
 import { NextResponse } from 'next/server';
-import { adminGetAllEvents, createEvent } from '@/lib/mockData'; // getEventById removed as it's not used here
-import type { EventFormData } from '@/lib/types';
-import { EventFormSchema } from '@/lib/types'; // Import Zod schema for validation
+import { adminGetAllEvents, createEvent } from '@/lib/mockData';
+import { EventFormSchema } from '@/lib/types';
 
 export async function GET() {
   try {
@@ -17,7 +15,19 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const validatedData = EventFormSchema.safeParse(body);
+    // console.log("API POST /admin/events body:", JSON.stringify(body, null, 2));
+    
+    // Parse date strings into Date objects before validation for showTimes
+    const bodyWithParsedDates = {
+      ...body,
+      date: body.date ? new Date(body.date) : undefined,
+      showTimes: body.showTimes?.map((st: any) => ({
+        ...st,
+        dateTime: st.dateTime ? new Date(st.dateTime) : undefined,
+      })) || [],
+    };
+
+    const validatedData = EventFormSchema.safeParse(bodyWithParsedDates);
 
     if (!validatedData.success) {
       console.error('API Validation Error creating event:', validatedData.error.flatten().fieldErrors);

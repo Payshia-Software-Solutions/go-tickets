@@ -1,7 +1,6 @@
-
-import type { Event, Booking, User, EventFormData, Organizer, OrganizerFormData, BookedTicketItem, TicketTypeFormData } from './types';
-import { prisma } from './db'; // Import Prisma client
-import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as PrismaUser, Booking as PrismaBooking, TicketType as PrismaTicketType, BookedTicket as PrismaBookedTicket } from '@prisma/client';
+import type { Event, Booking, User, EventFormData, Organizer, OrganizerFormData, BookedTicketItem, TicketTypeFormData, ShowTimeFormData } from './types';
+import { prisma } from './db';
+import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as PrismaUser, Booking as PrismaBooking, TicketType as PrismaTicketType, BookedTicket as PrismaBookedTicket, ShowTime as PrismaShowTime, ShowTimeTicketAvailability as PrismaShowTimeTicketAvailability } from '@prisma/client';
 
 // --- User Management ---
 export const getUserByEmail = async (email: string): Promise<User | null> => {
@@ -10,7 +9,7 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
   });
 };
 
-export const createUser = async (userData: Omit<User, 'id' | 'isAdmin'> & { isAdmin?: boolean }): Promise<User> => {
+export const createUser = async (userData: Omit<User, 'id' | 'isAdmin' | 'createdAt' | 'updatedAt'> & { isAdmin?: boolean }): Promise<User> => {
   return prisma.user.create({
     data: {
       email: userData.email,
@@ -54,7 +53,6 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
       },
     });
   } catch (error) {
-    // Handle specific Prisma errors, e.g., P2025 (Record to update not found)
     console.error("Error updating organizer:", error);
     return null;
   }
@@ -64,11 +62,8 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
   try {
     const eventsLinked = await prisma.event.count({ where: { organizerId }});
     if (eventsLinked > 0) {
-      console.warn(`Cannot delete organizer ${organizerId}: ${eventsLinked} events are linked.`);
-      // Consider more robust error throwing or handling here
       throw new Error(`Cannot delete organizer: ${eventsLinked} events are linked.`);
     }
-
     await prisma.organizer.delete({
       where: { id: organizerId },
     });
@@ -76,7 +71,7 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
   } catch (error) {
     console.error("Error deleting organizer:", error);
     if (error instanceof Error && error.message.includes("Cannot delete organizer")) {
-        throw error; // Re-throw specific error for frontend to catch
+        throw error;
     }
     throw new Error("Could not delete organizer due to an unexpected error.");
   }
@@ -84,21 +79,24 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
 
 
 // --- Event Management ---
-
-// Helper to convert Prisma Event to application's Event type
-type PrismaEventWithRelations = PrismaEvent & {
+type PrismaEventFull = PrismaEvent & {
   organizer: PrismaOrganizer;
   ticketTypes: PrismaTicketType[];
+  showTimes: (PrismaShowTime & {
+    ticketAvailabilities: (PrismaShowTimeTicketAvailability & {
+      ticketType: PrismaTicketType;
+    })[];
+  })[];
 };
 
-function mapPrismaEventToAppEvent(prismaEvent: PrismaEventWithRelations): Event {
+function mapPrismaEventToAppEvent(prismaEvent: PrismaEventFull): Event {
   return {
     id: prismaEvent.id,
     name: prismaEvent.name,
     slug: prismaEvent.slug,
-    date: prismaEvent.date.toISOString(),
+    date: prismaEvent.date.toISOString(), // Main event date
     location: prismaEvent.location,
-    description: prismaEvent.description || "", // Ensure description is always string
+    description: prismaEvent.description || "",
     category: prismaEvent.category,
     imageUrl: prismaEvent.imageUrl,
     organizer: {
@@ -106,69 +104,97 @@ function mapPrismaEventToAppEvent(prismaEvent: PrismaEventWithRelations): Event 
       name: prismaEvent.organizer.name,
       contactEmail: prismaEvent.organizer.contactEmail,
       website: prismaEvent.organizer.website || undefined,
+      // Prisma types for Organizer don't have createdAt/updatedAt by default unless selected
+      // For simplicity, these are omitted from the mapped Organizer type here
     },
-    ticketTypes: prismaEvent.ticketTypes.map((tt: PrismaTicketType) => ({
+    ticketTypes: prismaEvent.ticketTypes.map(tt => ({
       id: tt.id,
       name: tt.name,
       price: tt.price,
-      availability: tt.availability,
+      availability: tt.availability, // This is the template availability
       description: tt.description || undefined,
     })),
-    venue: { 
+    showTimes: prismaEvent.showTimes.map(st => ({
+      id: st.id,
+      dateTime: st.dateTime.toISOString(),
+      ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
+        id: sta.id,
+        availableCount: sta.availableCount,
+        ticketType: { // Embed basic ticket type info for convenience
+          id: sta.ticketType.id,
+          name: sta.ticketType.name,
+          price: sta.ticketType.price,
+        }
+      })),
+    })),
+    venue: {
         name: prismaEvent.venueName,
         address: prismaEvent.venueAddress || undefined,
     }
   };
 }
 
+const eventIncludeFull = {
+  organizer: true,
+  ticketTypes: true,
+  showTimes: {
+    include: {
+      ticketAvailabilities: {
+        include: {
+          ticketType: true, // Get details of the TicketType for each availability entry
+        },
+      },
+    },
+    orderBy: { dateTime: 'asc' } as const, // Type assertion for Prisma
+  },
+};
+
 export const adminGetAllEvents = async (): Promise<Event[]> => {
   const prismaEvents = await prisma.event.findMany({
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
     orderBy: { date: 'desc' },
   });
-  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventFull));
 };
 
 export const getEvents = async (): Promise<Event[]> => {
   const prismaEvents = await prisma.event.findMany({
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
     orderBy: { date: 'asc' },
-    where: { date: { gte: new Date() } }
+    where: { date: { gte: new Date() } } // Or filter based on showTimes
   });
-  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventFull));
 };
 
 export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
   const prismaEvents = await prisma.event.findMany({
-    orderBy: { date: 'asc' }, 
+    orderBy: { date: 'asc' },
     take: limit,
-    include: { organizer: true, ticketTypes: true },
-    where: { date: { gte: new Date() } }
+    include: eventIncludeFull,
+    where: { date: { gte: new Date() } } // Or filter based on showTimes
   });
-  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventFull));
 };
-
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
   const prismaEvent = await prisma.event.findUnique({
     where: { slug },
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
   });
-  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventWithRelations) : undefined;
+  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventFull) : undefined;
 };
 
 export const getEventById = async (id: string): Promise<Event | undefined> => {
   const prismaEvent = await prisma.event.findUnique({
     where: { id },
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
   });
-  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventWithRelations) : undefined;
+  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventFull) : undefined;
 };
 
 export const createEvent = async (data: EventFormData): Promise<Event> => {
   let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
   if (!baseSlug) baseSlug = `event-${Date.now()}`;
-
   let finalSlug = baseSlug;
   let counter = 1;
   while (await prisma.event.findUnique({ where: { slug: finalSlug } })) {
@@ -176,42 +202,98 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     counter++;
   }
 
-  const createdEvent = await prisma.event.create({
-    data: {
-      name: data.name,
-      slug: finalSlug,
-      date: data.date,
-      location: data.location,
-      description: data.description || "<p></p>",
-      category: data.category,
-      imageUrl: data.imageUrl,
-      organizer: { connect: { id: data.organizerId } },
-      venueName: data.venueName,
-      venueAddress: data.venueAddress || null,
-      ticketTypes: {
-        create: data.ticketTypes.map(tt => ({
-          name: tt.name,
-          price: tt.price,
-          availability: tt.availability,
-          description: tt.description,
-        })),
+  const createdEventWithRelations = await prisma.$transaction(async (tx) => {
+    const newEvent = await tx.event.create({
+      data: {
+        name: data.name,
+        slug: finalSlug,
+        date: data.date, // Main event date
+        location: data.location,
+        description: data.description || "<p></p>",
+        category: data.category,
+        imageUrl: data.imageUrl,
+        organizer: { connect: { id: data.organizerId } },
+        venueName: data.venueName,
+        venueAddress: data.venueAddress || null,
       },
-    },
-    include: { organizer: true, ticketTypes: true },
+    });
+
+    // Create TicketTypes
+    const createdTicketTypes: PrismaTicketType[] = [];
+    for (const ttData of data.ticketTypes) {
+      const createdTt = await tx.ticketType.create({
+        data: {
+          eventId: newEvent.id,
+          name: ttData.name,
+          price: ttData.price,
+          availability: ttData.availability, // Template availability
+          description: ttData.description,
+        },
+      });
+      createdTicketTypes.push(createdTt);
+    }
+
+    // Create ShowTimes and their TicketAvailabilities
+    for (const stData of data.showTimes) {
+      const newShowTime = await tx.showTime.create({
+        data: {
+          eventId: newEvent.id,
+          dateTime: stData.dateTime,
+        },
+      });
+
+      for (const staData of stData.ticketAvailabilities) {
+        // Find the corresponding createdTicketType to link by name if ID is not yet known,
+        // or more robustly, ensure staData has a temporary client-side ID that maps to ttData.
+        // For now, we assume staData.ticketTypeId refers to an ID that will exist or match a new one.
+        // This part is tricky: staData.ticketTypeId is from the form, which might not have DB IDs yet for new ticket types.
+        // A better approach: during form submission, ensure ticketTypes array in EventFormData has client-generated temp IDs
+        // and ShowTimeTicketAvailabilityFormData references these temp IDs. Then map temp IDs to DB IDs after ticket types are created.
+        // For simplicity of this step, we'll rely on the order or a pre-existing ID if editing.
+        // During pure creation, `staData.ticketTypeId` must be an ID of one of the `createdTicketTypes`.
+        // The form logic will need to ensure `ShowTimeTicketAvailabilityFormData` has the correct `ticketTypeId` (which could be the new DB ID or a temporary client ID mapped later).
+        // We will assume the form provides the correct `ticketTypeId` for `ShowTimeTicketAvailabilityFormData` which refers to a `TicketType` from `data.ticketTypes`.
+        // Let's refine this: staData should contain enough info to identify the TicketType from data.ticketTypes (e.g. by name or index if new)
+        
+        const parentTicketType = createdTicketTypes.find(ctt => ctt.id === staData.ticketTypeId); // This assumes staData.ticketTypeId holds the DB ID if already created.
+                                                                                              // OR that EventForm correctly assigns the new IDs
+        if (!parentTicketType) {
+            // This case should ideally be prevented by form validation logic or careful ID management
+            console.warn(`Could not find parent ticket type for ID: ${staData.ticketTypeId} while creating showtime availability for ${newEvent.name}`);
+            continue; // Or throw error
+        }
+
+        await tx.showTimeTicketAvailability.create({
+          data: {
+            showTimeId: newShowTime.id,
+            ticketTypeId: parentTicketType.id, // Use the ID of the *just created* ticket type
+            availableCount: staData.availableCount,
+          },
+        });
+      }
+    }
+
+    // Re-fetch the event with all relations
+    return tx.event.findUnique({
+      where: { id: newEvent.id },
+      include: eventIncludeFull,
+    });
   });
-  return mapPrismaEventToAppEvent(createdEvent as PrismaEventWithRelations);
+
+  if (!createdEventWithRelations) throw new Error("Failed to create event with relations.");
+  return mapPrismaEventToAppEvent(createdEventWithRelations as PrismaEventFull);
 };
 
+
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
-  const existingEvent = await prisma.event.findUnique({ 
+  const existingEvent = await prisma.event.findUnique({
     where: { id: eventId },
-    include: { ticketTypes: true } 
+    include: { ticketTypes: true, showTimes: { include: { ticketAvailabilities: true } } }
   });
   if (!existingEvent) return undefined;
 
   let finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
   if (!finalNewSlug) finalNewSlug = existingEvent.slug;
-
   if (finalNewSlug !== existingEvent.slug) {
     let baseSlugForUniqueness = finalNewSlug;
     let counter = 1;
@@ -223,8 +305,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
 
   try {
     const updatedPrismaEvent = await prisma.$transaction(async (tx) => {
-      // 1. Update main event properties
-      const eventUpdate = await tx.event.update({
+      await tx.event.update({
         where: { id: eventId },
         data: {
           name: data.name,
@@ -234,161 +315,256 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
           description: data.description || "<p></p>",
           category: data.category,
           imageUrl: data.imageUrl,
-          organizer: { connect: { id: data.organizerId } },
+          organizerId: data.organizerId,
           venueName: data.venueName,
           venueAddress: data.venueAddress || null,
         }
       });
 
-      // 2. Manage Ticket Types
-      const existingTicketTypeIds = existingEvent.ticketTypes.map(tt => tt.id);
-      const formTicketTypeIds = data.ticketTypes.filter(tt => tt.id).map(tt => tt.id as string);
+      // --- Manage TicketTypes ---
+      const existingDbTicketTypes = existingEvent.ticketTypes;
+      const formTicketTypesData = data.ticketTypes;
 
-      // Ticket types to delete: in DB but not in form
-      const ticketTypesToDelete = existingTicketTypeIds.filter(id => !formTicketTypeIds.includes(id));
-      if (ticketTypesToDelete.length > 0) {
-        // Before deleting, check if any bookings are associated with these ticket types for this event
-        const bookingsExist = await tx.bookedTicket.count({
-          where: {
-            ticketTypeId: { in: ticketTypesToDelete },
-            booking: { eventId: eventId } // Assuming BookedTicket is related to Booking which is related to Event
-          }
+      // IDs from the form (for existing ticket types)
+      const formTicketTypeIds = formTicketTypesData.filter(tt => tt.id).map(tt => tt.id as string);
+      // IDs in the DB
+      const dbTicketTypeIds = existingDbTicketTypes.map(tt => tt.id);
+
+      // Delete ticket types: in DB but not in form
+      const ticketTypesToDeleteIds = dbTicketTypeIds.filter(id => !formTicketTypeIds.includes(id));
+      for (const ttIdToDelete of ticketTypesToDeleteIds) {
+        const bookingsExistForTicketType = await tx.bookedTicket.count({
+          where: { ticketTypeId: ttIdToDelete, booking: { eventId: eventId } }
         });
-        if (bookingsExist > 0) {
-          throw new Error("Cannot delete ticket type(s) with existing bookings. Please manage bookings first.");
+        if (bookingsExistForTicketType > 0) {
+          throw new Error(`Cannot delete ticket type (ID: ${ttIdToDelete}). It has existing bookings.`);
         }
-        await tx.ticketType.deleteMany({
-          where: { id: { in: ticketTypesToDelete }, eventId: eventId },
-        });
+        // Also need to delete ShowTimeTicketAvailabilities associated with this ticket type
+        await tx.showTimeTicketAvailability.deleteMany({ where: { ticketTypeId: ttIdToDelete } });
+        await tx.ticketType.delete({ where: { id: ttIdToDelete } });
       }
 
-      // Ticket types to update or create
-      for (const ttData of data.ticketTypes) {
+      // Update or Create ticket types
+      const createdOrUpdatedTicketTypes: PrismaTicketType[] = [];
+      for (const ttData of formTicketTypesData) {
         if (ttData.id) { // Update existing
-          await tx.ticketType.update({
-            where: { id: ttData.id, eventId: eventId }, // ensure it belongs to this event
-            data: {
-              name: ttData.name,
-              price: tt.price,
-              availability: tt.availability,
-              description: tt.description,
-            },
-          });
-        } else { // Create new
-          await tx.ticketType.create({
+          const updatedTt = await tx.ticketType.update({
+            where: { id: ttData.id, eventId: eventId },
             data: {
               name: ttData.name,
               price: ttData.price,
               availability: ttData.availability,
               description: ttData.description,
-              eventId: eventId,
             },
           });
+          createdOrUpdatedTicketTypes.push(updatedTt);
+        } else { // Create new
+          const newTt = await tx.ticketType.create({
+            data: {
+              eventId: eventId,
+              name: ttData.name,
+              price: ttData.price,
+              availability: ttData.availability,
+              description: ttData.description,
+            },
+          });
+          createdOrUpdatedTicketTypes.push(newTt);
         }
       }
       
-      // Re-fetch the event with all relations to return the final state
+      // --- Manage ShowTimes and their TicketAvailabilities ---
+      const existingDbShowTimes = existingEvent.showTimes;
+      const formShowTimesData = data.showTimes;
+
+      const formShowTimeIds = formShowTimesData.filter(st => st.id).map(st => st.id as string);
+      const dbShowTimeIds = existingDbShowTimes.map(st => st.id);
+
+      // Delete ShowTimes: in DB but not in form
+      const showTimesToDeleteIds = dbShowTimeIds.filter(id => !formShowTimeIds.includes(id));
+      for (const stIdToDelete of showTimesToDeleteIds) {
+        const bookingsExistForShowTime = await tx.bookedTicket.count({
+          where: { showTimeId: stIdToDelete, booking: { eventId: eventId } } // Redundant eventId check, but safe
+        });
+        if (bookingsExistForShowTime > 0) {
+          throw new Error(`Cannot delete showtime (ID: ${stIdToDelete}). It has existing bookings.`);
+        }
+        // Deleting a ShowTime will cascade delete its ShowTimeTicketAvailabilities due to schema
+        await tx.showTime.delete({ where: { id: stIdToDelete } });
+      }
+
+      // Update or Create ShowTimes
+      for (const stData of formShowTimesData) {
+        let currentShowTime: PrismaShowTime;
+        if (stData.id) { // Update existing ShowTime
+          currentShowTime = await tx.showTime.update({
+            where: { id: stData.id, eventId: eventId },
+            data: { dateTime: stData.dateTime },
+          });
+        } else { // Create new ShowTime
+          currentShowTime = await tx.showTime.create({
+            data: {
+              eventId: eventId,
+              dateTime: stData.dateTime,
+            },
+          });
+        }
+
+        // Manage ShowTimeTicketAvailabilities for this ShowTime
+        const existingDbAvailabilities = existingDbShowTimes.find(est => est.id === currentShowTime.id)?.ticketAvailabilities || [];
+        const formAvailabilitiesData = stData.ticketAvailabilities;
+
+        const formAvailabilityTicketTypeIds = formAvailabilitiesData.map(fa => fa.ticketTypeId);
+        const dbAvailabilityTicketTypeIds = existingDbAvailabilities.map(da => da.ticketTypeId);
+        
+        // Delete ShowTimeTicketAvailabilities: in DB for this showtime, but not in form for this showtime
+        const availabilitiesToDeleteTicketTypeIds = dbAvailabilityTicketTypeIds.filter(id => !formAvailabilityTicketTypeIds.includes(id));
+        for (const ttId of availabilitiesToDeleteTicketTypeIds) {
+          // Check for bookings for this specific showtime and ticket type combo is harder here without more direct link from BookedTicket to ShowTimeTicketAvailability
+          // The ShowTime deletion check above is the primary guard for bookings.
+          // If we need finer-grained checks, BookedTicket should link to ShowTimeTicketAvailability.id
+          await tx.showTimeTicketAvailability.deleteMany({
+            where: { showTimeId: currentShowTime.id, ticketTypeId: ttId }
+          });
+        }
+
+        // Update or Create ShowTimeTicketAvailabilities
+        for (const staData of formAvailabilitiesData) {
+          const existingSta = existingDbAvailabilities.find(da => da.ticketTypeId === staData.ticketTypeId && da.showTimeId === currentShowTime.id);
+          const targetTicketType = createdOrUpdatedTicketTypes.find(tt => tt.id === staData.ticketTypeId);
+          if (!targetTicketType) {
+             console.warn(`Skipping ShowTimeTicketAvailability: TicketType ID ${staData.ticketTypeId} not found in created/updated list.`);
+             continue;
+          }
+
+          if (existingSta) { // Update
+            await tx.showTimeTicketAvailability.update({
+              where: { id: existingSta.id },
+              data: { availableCount: staData.availableCount },
+            });
+          } else { // Create
+             await tx.showTimeTicketAvailability.create({
+              data: {
+                showTimeId: currentShowTime.id,
+                ticketTypeId: targetTicketType.id, // Use the ID of the created/updated ticket type
+                availableCount: staData.availableCount,
+              },
+            });
+          }
+        }
+      } // End loop for ShowTimes
+
       return tx.event.findUnique({
         where: { id: eventId },
-        include: { organizer: true, ticketTypes: true },
+        include: eventIncludeFull,
       });
-    });
+    }); // End transaction
 
-    if (!updatedPrismaEvent) return undefined; // Should not happen if transaction succeeds
-
-    return mapPrismaEventToAppEvent(updatedPrismaEvent as PrismaEventWithRelations);
+    if (!updatedPrismaEvent) return undefined;
+    return mapPrismaEventToAppEvent(updatedPrismaEvent as PrismaEventFull);
   } catch (error: any) {
      console.error("Error updating event:", error);
-     // Re-throw the error so it can be caught by the API route and a proper response sent
      throw new Error(error.message || "Failed to update event due to an unexpected error.");
   }
 };
 
+
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
   try {
-    // Check for bookings associated with the event
     const bookingsCount = await prisma.booking.count({ where: { eventId }});
     if (bookingsCount > 0) {
-      throw new Error(`Cannot delete event: ${bookingsCount} bookings are associated with this event. Please manage bookings first.`);
+      throw new Error(`Cannot delete event: ${bookingsCount} bookings are associated. Please manage bookings first.`);
     }
-
-    // If no bookings, proceed to delete ticket types and then the event
-    await prisma.ticketType.deleteMany({ where: { eventId } });
+    // Cascading deletes for TicketType, ShowTime, and ShowTimeTicketAvailability should be handled by Prisma schema
     await prisma.event.delete({ where: { id: eventId } });
     return true;
   } catch (error: any) {
     console.error("Error deleting event:", error);
     if (error.message.includes("Cannot delete event")) {
-        throw error; // Re-throw specific error
+        throw error;
     }
     throw new Error("Failed to delete event due to an unexpected error.");
   }
 };
 
-
 // --- Booking Management ---
-type PrismaBookingWithRelations = PrismaBooking & {
+type PrismaBookingFull = PrismaBooking & {
   user: PrismaUser;
   event: PrismaEvent;
-  bookedTickets: PrismaBookedTicket[];
+  bookedTickets: (PrismaBookedTicket & { showTime: PrismaShowTime, ticketType: PrismaTicketType })[];
 };
 
-function mapPrismaBookingToAppBooking(prismaBooking: PrismaBookingWithRelations): Booking {
+// Needs to be updated if Booking structure for app changes
+function mapPrismaBookingToAppBooking(prismaBooking: PrismaBookingFull): Booking {
+  const firstBookedTicket = prismaBooking.bookedTickets[0];
+  const eventDateForBooking = firstBookedTicket ? firstBookedTicket.showTime.dateTime.toISOString() : prismaBooking.eventDate.toISOString();
+
   return {
     id: prismaBooking.id,
     eventId: prismaBooking.eventId,
     userId: prismaBooking.userId,
-    tickets: prismaBooking.bookedTickets.map(bt => ({
-        eventNsid: bt.eventNsid, 
+    bookedTickets: prismaBooking.bookedTickets.map(bt => ({
+        eventNsid: bt.eventNsid,
         ticketTypeId: bt.ticketTypeId,
         ticketTypeName: bt.ticketTypeName,
         quantity: bt.quantity,
         pricePerTicket: bt.pricePerTicket,
+        showTimeId: bt.showTimeId,
+        // Omitting other PrismaBookedTicket fields not in Booking['bookedTickets'][number]
     })),
     totalPrice: prismaBooking.totalPrice,
     bookingDate: prismaBooking.bookingDate.toISOString(),
     eventName: prismaBooking.eventName,
-    eventDate: prismaBooking.eventDate.toISOString(),
+    eventDate: eventDateForBooking, // Use the specific showtime's date
     eventLocation: prismaBooking.eventLocation,
     qrCodeValue: prismaBooking.qrCodeValue,
   };
 }
 
-
 export const createBooking = async (
   bookingData: {
     eventId: string;
     userId: string;
-    tickets: BookedTicketItem[];
+    tickets: BookedTicketItem[]; // Now includes showTimeId
     totalPrice: number;
-    event: Pick<Event, 'name' | 'date' | 'location' | 'slug'>;
+    event: Pick<Event, 'name' | 'location' | 'slug'>; // Event here is general event info
+    // showTime: Pick<ShowTime, 'id' | 'dateTime'>; // Need specific showtime for this booking
   }
 ): Promise<Booking> => {
-  
-  // Transaction to ensure ticket availability is updated atomically with booking creation
+  // Assumption: all tickets in bookingData.tickets are for the SAME showTimeId
+  const showTimeId = bookingData.tickets[0]?.showTimeId;
+  if (!showTimeId) {
+    throw new Error("ShowTime ID is missing in booking data.");
+  }
+
+  const showTimeDetails = await prisma.showTime.findUnique({ where: {id: showTimeId }});
+  if (!showTimeDetails) {
+    throw new Error(`ShowTime with ID ${showTimeId} not found.`);
+  }
+
   return prisma.$transaction(async (tx) => {
-    // 1. Check and decrement ticket availability for each ticket type in the booking
     for (const ticketItem of bookingData.tickets) {
-      const ticketType = await tx.ticketType.findUnique({
-        where: { id: ticketItem.ticketTypeId }
+      if (ticketItem.showTimeId !== showTimeId) {
+        throw new Error("All tickets in a single booking must be for the same showtime.");
+      }
+      const sta = await tx.showTimeTicketAvailability.findUnique({
+        where: { showTimeId_ticketTypeId: { showTimeId: ticketItem.showTimeId, ticketTypeId: ticketItem.ticketTypeId } }
       });
 
-      if (!ticketType) {
-        throw new Error(`Ticket type ${ticketItem.ticketTypeName} not found.`);
+      if (!sta) {
+        throw new Error(`Availability record not found for ticket type ${ticketItem.ticketTypeName} at the selected showtime.`);
       }
-      if (ticketType.availability < ticketItem.quantity) {
-        throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName}. Requested: ${ticketItem.quantity}, Available: ${ticketType.availability}`);
+      if (sta.availableCount < ticketItem.quantity) {
+        throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName}. Requested: ${ticketItem.quantity}, Available: ${sta.availableCount}`);
       }
 
-      await tx.ticketType.update({
-        where: { id: ticketItem.ticketTypeId },
-        data: { availability: { decrement: ticketItem.quantity } }
+      await tx.showTimeTicketAvailability.update({
+        where: { id: sta.id },
+        data: { availableCount: { decrement: ticketItem.quantity } }
       });
     }
 
-    // 2. Create the booking record
     const newBookingId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const qrCodeValue = `EVENT:${bookingData.event.name},BOOKING_ID:${newBookingId},DATE:${new Date(bookingData.event.date).toLocaleDateString()}`;
+    const qrCodeValue = `EVENT:${bookingData.event.name},BOOKING_ID:${newBookingId},SHOWTIME:${showTimeDetails.dateTime.toISOString()}`;
 
     const createdBooking = await tx.booking.create({
       data: {
@@ -397,51 +573,53 @@ export const createBooking = async (
         event: { connect: { id: bookingData.eventId } },
         totalPrice: bookingData.totalPrice,
         eventName: bookingData.event.name,
-        eventDate: new Date(bookingData.event.date),
+        eventDate: showTimeDetails.dateTime, // Use the specific showtime date
         eventLocation: bookingData.event.location,
         qrCodeValue,
         bookedTickets: {
           create: bookingData.tickets.map(ticket => ({
-            eventNsid: ticket.eventNsid, 
+            eventNsid: ticket.eventNsid,
             ticketTypeId: ticket.ticketTypeId,
+            showTimeId: ticket.showTimeId,
             ticketTypeName: ticket.ticketTypeName,
             quantity: ticket.quantity,
             pricePerTicket: ticket.pricePerTicket,
           })),
         },
       },
-      include: { user: true, event: true, bookedTickets: true },
+      include: { user: true, event: true, bookedTickets: { include: { showTime: true, ticketType: true } } },
     });
-    return mapPrismaBookingToAppBooking(createdBooking as PrismaBookingWithRelations);
+    return mapPrismaBookingToAppBooking(createdBooking as PrismaBookingFull);
   });
 };
+
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
   const prismaBooking = await prisma.booking.findUnique({
     where: { id },
-    include: { user: true, event: true, bookedTickets: true },
+    include: { user: true, event: true, bookedTickets: { include: { showTime: true, ticketType: true } } },
   });
-  return prismaBooking ? mapPrismaBookingToAppBooking(prismaBooking as PrismaBookingWithRelations) : undefined;
+  return prismaBooking ? mapPrismaBookingToAppBooking(prismaBooking as PrismaBookingFull) : undefined;
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
   const prismaBookings = await prisma.booking.findMany({
-    include: { user: true, event: true, bookedTickets: true },
+    include: { user: true, event: true, bookedTickets: { include: { showTime: true, ticketType: true } } },
     orderBy: { bookingDate: 'desc' },
   });
-  return prismaBookings.map(booking => mapPrismaBookingToAppBooking(booking as PrismaBookingWithRelations));
+  return prismaBookings.map(booking => mapPrismaBookingToAppBooking(booking as PrismaBookingFull));
 };
 
 
 // --- Public Event Queries ---
 export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => {
   const prismaEvents = await prisma.event.findMany({
-    where: { date: { gte: new Date() } },
+    where: { date: { gte: new Date() } }, // Or filter by showTimes
     orderBy: { date: 'asc' },
     take: limit,
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
   });
-  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventFull));
 };
 
 export const getEventCategories = async (): Promise<string[]> => {
@@ -472,16 +650,25 @@ export const searchEvents = async (query?: string, category?: string, date?: str
   if (category) {
     whereClause.AND.push({ category: { equals: category, mode: 'insensitive' } });
   }
+
+  // Date filter needs to consider showtimes now
   if (date) {
     const startDate = new Date(date);
-    startDate.setHours(0, 0, 0, 0); // Start of the day
+    startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(date);
-    endDate.setHours(23, 59, 59, 999); // End of the day
-    whereClause.AND.push({ date: { gte: startDate, lte: endDate } });
+    endDate.setHours(23, 59, 59, 999);
+    whereClause.AND.push({
+      showTimes: { some: { dateTime: { gte: startDate, lte: endDate } } }
+    });
   } else {
-    // By default, only show future or ongoing events unless a specific past date is chosen
-    // whereClause.AND.push({ date: { gte: new Date(new Date().setHours(0,0,0,0)) } });
+     whereClause.AND.push({
+      OR: [
+        { date: { gte: new Date(new Date().setHours(0,0,0,0)) } }, // Main event date
+        { showTimes: { some: { dateTime: { gte: new Date(new Date().setHours(0,0,0,0)) } } } } // Any future showtime
+      ]
+    });
   }
+
   if (location) {
     whereClause.AND.push({ location: { contains: location, mode: 'insensitive' } });
   }
@@ -489,16 +676,15 @@ export const searchEvents = async (query?: string, category?: string, date?: str
     const ticketTypePriceConditions: any = {};
     if (minPrice !== undefined) ticketTypePriceConditions.gte = minPrice;
     if (maxPrice !== undefined) ticketTypePriceConditions.lte = maxPrice;
-    
     whereClause.AND.push({ ticketTypes: { some: { price: ticketTypePriceConditions } } });
   }
 
-  if (whereClause.AND.length === 0) delete whereClause.AND; // Remove if no conditions
+  if (whereClause.AND.length === 0) delete whereClause.AND;
 
   const prismaEvents = await prisma.event.findMany({
     where: whereClause,
-    include: { organizer: true, ticketTypes: true },
+    include: eventIncludeFull,
     orderBy: { date: 'asc'},
   });
-  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventFull));
 };

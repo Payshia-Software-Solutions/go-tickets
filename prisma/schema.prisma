@@ -1,11 +1,10 @@
+datasource db {
+  provider = "sqlite" // or "postgresql", "mysql", "sqlserver", "cockroachdb"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "sqlite" // Change this to "postgresql", "mysql", etc. based on your database
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -14,69 +13,128 @@ model User {
   name      String?
   isAdmin   Boolean   @default(false)
   bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Organizer {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  contactEmail  String
+  contactEmail  String   @unique
   website       String?
   events        Event[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Event {
-  id            String      @id @default(cuid())
-  slug          String      @unique
-  name          String
-  date          DateTime
-  location      String
-  description   String
-  category      String
-  imageUrl      String
-  organizer     Organizer   @relation(fields: [organizerId], references: [id])
-  organizerId   String
-  venueName     String
-  venueAddress  String?
-  venueMapLink  String?
-  ticketTypes   TicketType[]
-  bookings      Booking[]
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  date            DateTime // This can now represent the *main* or *first* date, or be less significant if all shows have specific dates.
+  location        String
+  description     String?
+  category        String
+  imageUrl        String
+  organizerId     String
+  organizer       Organizer    @relation(fields: [organizerId], references: [id])
+  venueName       String
+  venueAddress    String?
+  ticketTypes     TicketType[]
+  showTimes       ShowTime[]   // Relation to ShowTime
+  bookings        Booking[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizerId])
+  @@index([date])
+  @@index([category])
 }
 
 model TicketType {
-  id            String  @id @default(cuid())
-  name          String  // e.g., General Admission, VIP
-  price         Float
-  availability  Int
-  description   String?
-  event         Event   @relation(fields: [eventId], references: [id])
-  eventId       String
-  
-  @@unique([eventId, name]) // Ensure ticket type names are unique per event
+  id                      String                         @id @default(cuid())
+  name                    String // e.g., General Admission, VIP
+  price                   Float
+  description             String?
+  availability            Int // Template/Default availability for new showtimes
+  event                   Event                          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId                 String
+  showTimeAvailabilities  ShowTimeTicketAvailability[] // Relation to specific showtime availabilities
+  bookedTickets           BookedTicket[]                 // Relation to booked tickets of this type (across all showtimes)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
 }
 
-// Represents a purchased ticket in a booking
+model ShowTime {
+  id                      String                         @id @default(cuid())
+  dateTime                DateTime
+  event                   Event                          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId                 String
+  ticketAvailabilities    ShowTimeTicketAvailability[]
+  bookedTickets           BookedTicket[]                 // Tickets booked for this specific showtime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId, dateTime])
+}
+
+model ShowTimeTicketAvailability {
+  id               String     @id @default(cuid())
+  showTime         ShowTime   @relation(fields: [showTimeId], references: [id], onDelete: Cascade)
+  showTimeId       String
+  ticketType       TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade) // Cascade if TicketType is deleted (should be handled carefully if bookings exist)
+  ticketTypeId     String
+  availableCount   Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([showTimeId, ticketTypeId])
+  @@index([ticketTypeId])
+}
+
 model BookedTicket {
-  id              String    @id @default(cuid())
-  booking         Booking   @relation(fields: [bookingId], references: [id])
-  bookingId       String
-  eventNsid       String    // Storing slug for reference, though eventId links to Event
-  ticketTypeId    String    // This might refer to an original TicketType's ID or its name if not strictly relational
-  ticketTypeName  String
-  quantity        Int
-  pricePerTicket  Float
+  id             String     @id @default(cuid())
+  booking        Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId      String
+  eventNsid      String     // Storing slug for potential historical reference
+  ticketType     TicketType @relation(fields: [ticketTypeId], references: [id], onDelete:Restrict) // Restrict deletion of TicketType if booked
+  ticketTypeId   String
+  showTime       ShowTime   @relation(fields: [showTimeId], references: [id], onDelete: Restrict) // Restrict deletion of ShowTime if booked
+  showTimeId     String
+  ticketTypeName String     // Denormalized for easier display on booking
+  quantity       Int
+  pricePerTicket Float      // Price at the time of booking
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([ticketTypeId])
+  @@index([showTimeId])
 }
 
 model Booking {
-  id              String          @id @default(cuid())
-  user            User            @relation(fields: [userId], references: [id])
-  userId          String
-  event           Event           @relation(fields: [eventId], references: [id])
-  eventId         String
-  bookedTickets   BookedTicket[]
-  totalPrice      Float
-  bookingDate     DateTime        @default(now())
-  eventName       String          // Denormalized for easier display
-  eventDate       DateTime        // Denormalized for easier display
-  eventLocation   String          // Denormalized for easier display
-  qrCodeValue     String          @unique
+  id            String         @id @default(cuid())
+  user          User           @relation(fields: [userId], references: [id])
+  userId        String
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Restrict) // Restrict event deletion if bookings exist
+  eventId       String
+  totalPrice    Float
+  bookingDate   DateTime       @default(now())
+  eventName     String         // Denormalized
+  eventDate     DateTime       // Denormalized - this should now be the specific show's date/time
+  eventLocation String         // Denormalized
+  qrCodeValue   String         @unique
+  bookedTickets BookedTicket[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
 }
