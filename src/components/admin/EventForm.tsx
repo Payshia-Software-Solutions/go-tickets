@@ -29,6 +29,7 @@ interface EventFormProps {
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<string[]>([]);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -78,6 +79,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         venueName: initialData.venue.name,
         venueAddress: initialData.venue.address || "",
       });
+      // If there's initial data, assume slug might have been set, so treat it as "manually edited"
+      // unless it's an exact match of a slug generated from the initial name.
+      // For simplicity, if editing, we often assume the loaded slug is intentional.
+      // Or, set to true only if initialData.slug is not empty.
+      setSlugManuallyEdited(!!initialData.slug); 
     } else {
       form.reset({ 
         name: "",
@@ -91,39 +97,37 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         venueName: "",
         venueAddress: "",
       });
+      setSlugManuallyEdited(false); // For new events, allow auto-generation initially
     }
   }, [initialData, form]);
 
 
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
-      if (name === 'name' && type === 'change') {
-        const currentSlug = form.getValues('slug');
+      if (name === 'name' && type === 'change' && !slugManuallyEdited) {
         const nameValue = (value.name || '').trim();
-        
-        // Generate a potential slug from the current name value
         const newPotentialSlug = nameValue
           .toLowerCase()
           .replace(/\s+/g, '-')          // Replace spaces with -
           .replace(/[^\w-]+/g, '')       // Remove all non-word chars
           .replace(/--+/g, '-');         // Replace multiple - with single -
-
-        // Only update if the slug field is empty or if the current slug was clearly auto-generated
-        // from a previous version of the name. This allows manual edits to stick.
-        if (!form.formState.dirtyFields.slug) {
-            form.setValue('slug', newPotentialSlug, { 
-                shouldValidate: true, 
-                shouldDirty: !!currentSlug // Only mark dirty if there was already a slug, to not make it dirty on first auto-gen
-            });
+        
+        if (form.getValues('slug') !== newPotentialSlug) {
+          form.setValue('slug', newPotentialSlug, { 
+              shouldValidate: true, 
+              shouldDirty: false // Programmatic changes shouldn't mark field dirty initially
+          });
         }
       }
     });
     return () => subscription.unsubscribe();
-  }, [form]);
+  }, [form, slugManuallyEdited]);
 
 
   const handleFormSubmit = async (data: EventFormData) => {
     await onSubmit(data);
+    // After submission, reset manual edit flag for new forms or if form is reused
+    // setSlugManuallyEdited(false); // This depends on whether the form instance is reused or re-created
   };
 
   return (
@@ -151,10 +155,17 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <FormItem>
                 <FormLabel>Event Slug</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., annual-tech-summit" {...field} />
+                  <Input 
+                    placeholder="e.g., annual-tech-summit" 
+                    {...field} 
+                    onChange={(e) => {
+                      field.onChange(e); // Propagate change to RHF
+                      setSlugManuallyEdited(true); // Mark as manually edited
+                    }}
+                  />
                 </FormControl>
                 <FormDescription className="text-xs">
-                  Unique URL part. Auto-generated from name.
+                  Unique URL part. Auto-generated from name. Can be manually edited.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -349,4 +360,3 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
-
