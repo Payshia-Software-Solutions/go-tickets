@@ -1,6 +1,7 @@
 
 import type { Event, Booking, TicketType, User, EventFormData, Organizer, OrganizerFormData, BookedTicketItem } from './types';
 import { prisma } from './db'; // Import Prisma client
+import type { Event as PrismaEvent, Organizer as PrismaOrganizer, User as PrismaUser, Booking as PrismaBooking, TicketType as PrismaTicketType, BookedTicket as PrismaBookedTicket } from '@prisma/client';
 
 // --- User Management ---
 export const getUserByEmail = async (email: string): Promise<User | null> => {
@@ -9,7 +10,7 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
   });
 };
 
-export const createUser = async (userData: Omit<User, 'id' | 'bookings' | 'isAdmin'> & { isAdmin?: boolean }): Promise<User> => {
+export const createUser = async (userData: Omit<User, 'id' | 'isAdmin'> & { isAdmin?: boolean }): Promise<User> => {
   return prisma.user.create({
     data: {
       email: userData.email,
@@ -61,16 +62,10 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
 
 export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
   try {
-    // Before deleting an organizer, you might need to handle related events.
-    // For example, disassociate them or prevent deletion if events exist.
-    // This example directly attempts deletion.
     const eventsLinked = await prisma.event.count({ where: { organizerId }});
     if (eventsLinked > 0) {
       console.warn(`Cannot delete organizer ${organizerId}: ${eventsLinked} events are linked.`);
-      // Optionally, throw an error or return a specific status
-      // For now, returning false to indicate deletion failed due to links.
-      // Or, you could update events to have a null organizerId if your schema allows.
-      return false; 
+      return false;
     }
 
     await prisma.organizer.delete({
@@ -87,25 +82,43 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
 // --- Event Management ---
 
 // Helper to convert Prisma Event to application's Event type
-function mapPrismaEventToAppEvent(prismaEvent: any): Event {
+type PrismaEventWithRelations = PrismaEvent & {
+  organizer: PrismaOrganizer;
+  ticketTypes: PrismaTicketType[];
+};
+
+function mapPrismaEventToAppEvent(prismaEvent: PrismaEventWithRelations): Event {
   return {
-    ...prismaEvent,
-    date: prismaEvent.date.toISOString(), // Convert Date to ISO string
-    // Prisma's `ticketTypes` relation will be an array of PrismaTicketType.
-    // We need to map them if the structure differs significantly or if we want to ensure our app's TicketType shape.
-    // For this example, assuming the structure is similar enough or can be adapted.
-    // If ticketTypes are stored as a JSON blob or handled differently, adjust here.
-    ticketTypes: prismaEvent.ticketTypes.map((tt: any) => ({
+    id: prismaEvent.id,
+    name: prismaEvent.name,
+    slug: prismaEvent.slug,
+    date: prismaEvent.date.toISOString(),
+    location: prismaEvent.location,
+    description: prismaEvent.description,
+    category: prismaEvent.category,
+    imageUrl: prismaEvent.imageUrl,
+    organizer: {
+      id: prismaEvent.organizer.id,
+      name: prismaEvent.organizer.name,
+      contactEmail: prismaEvent.organizer.contactEmail,
+      website: prismaEvent.organizer.website || undefined,
+    },
+    ticketTypes: prismaEvent.ticketTypes.map((tt: PrismaTicketType) => ({
       id: tt.id,
       name: tt.name,
       price: tt.price,
       availability: tt.availability,
-      description: tt.description,
+      description: tt.description || undefined,
     })),
+    venue: { // Added venue mapping
+        name: prismaEvent.venueName,
+        address: prismaEvent.venueAddress || undefined,
+        // mapLink is not in Prisma schema, so it'll be undefined or you can construct it
+    }
   };
 }
 
-const defaultTicketTypesSeed: Omit<TicketType, 'id' | 'eventId'>[] = [
+const defaultTicketTypesSeed: Omit<TicketType, 'id'>[] = [
     { name: 'Standard Ticket', price: 50, availability: 100, description: 'General access.' },
     { name: 'VIP Ticket', price: 150, availability: 20, description: 'VIP benefits included.' },
 ];
@@ -116,25 +129,35 @@ export const adminGetAllEvents = async (): Promise<Event[]> => {
     include: { organizer: true, ticketTypes: true },
     orderBy: { date: 'desc' },
   });
-  return prismaEvents.map(mapPrismaEventToAppEvent);
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
 };
 
 export const getEvents = async (): Promise<Event[]> => {
-  // Similar to adminGetAllEvents, but could have different sorting/filtering for public view
   const prismaEvents = await prisma.event.findMany({
     include: { organizer: true, ticketTypes: true },
-    orderBy: { date: 'asc' }, // Public view might prefer upcoming first
-    where: { date: { gte: new Date() } } // Example: only show future events
+    orderBy: { date: 'asc' },
+    where: { date: { gte: new Date() } }
   });
-  return prismaEvents.map(mapPrismaEventToAppEvent);
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
 };
+
+export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
+  const prismaEvents = await prisma.event.findMany({
+    orderBy: { date: 'asc' }, // Example: popular events are upcoming ones
+    take: limit,
+    include: { organizer: true, ticketTypes: true },
+    where: { date: { gte: new Date() } }
+  });
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
+};
+
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
   const prismaEvent = await prisma.event.findUnique({
     where: { slug },
     include: { organizer: true, ticketTypes: true },
   });
-  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent) : undefined;
+  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventWithRelations) : undefined;
 };
 
 export const getEventById = async (id: string): Promise<Event | undefined> => {
@@ -142,16 +165,15 @@ export const getEventById = async (id: string): Promise<Event | undefined> => {
     where: { id },
     include: { organizer: true, ticketTypes: true },
   });
-  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent) : undefined;
+  return prismaEvent ? mapPrismaEventToAppEvent(prismaEvent as PrismaEventWithRelations) : undefined;
 };
 
 export const createEvent = async (data: EventFormData): Promise<Event> => {
   let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
   if (!baseSlug) baseSlug = `event-${Date.now()}`;
-  
+
   let finalSlug = baseSlug;
   let counter = 1;
-  // Check for slug uniqueness
   while (await prisma.event.findUnique({ where: { slug: finalSlug } })) {
     finalSlug = `${baseSlug}-${counter}`;
     counter++;
@@ -161,7 +183,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     data: {
       name: data.name,
       slug: finalSlug,
-      date: data.date, // Prisma expects DateTime
+      date: data.date,
       location: data.location,
       description: data.description || "<p></p>",
       category: data.category,
@@ -169,7 +191,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       organizer: { connect: { id: data.organizerId } },
       venueName: data.venueName,
       venueAddress: data.venueAddress || null,
-      // Create default ticket types for the new event
       ticketTypes: {
         create: defaultTicketTypesSeed.map(tt => ({
           name: tt.name,
@@ -181,7 +202,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     },
     include: { organizer: true, ticketTypes: true },
   });
-  return mapPrismaEventToAppEvent(createdEvent);
+  return mapPrismaEventToAppEvent(createdEvent as PrismaEventWithRelations);
 };
 
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
@@ -199,7 +220,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       counter++;
     }
   }
-  
+
   try {
     const updatedPrismaEvent = await prisma.event.update({
       where: { id: eventId },
@@ -214,16 +235,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         organizer: { connect: { id: data.organizerId } },
         venueName: data.venueName,
         venueAddress: data.venueAddress || null,
-        // Ticket types update logic would be more complex:
-        // - Delete existing ones not in new set?
-        // - Update existing ones?
-        // - Create new ones?
-        // For simplicity, this example doesn't modify ticket types on event update.
-        // You would need a more sophisticated approach here for full CRUD on ticket types.
       },
       include: { organizer: true, ticketTypes: true },
     });
-    return mapPrismaEventToAppEvent(updatedPrismaEvent);
+    return mapPrismaEventToAppEvent(updatedPrismaEvent as PrismaEventWithRelations);
   } catch (error) {
      console.error("Error updating event:", error);
      return undefined;
@@ -232,11 +247,8 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
   try {
-    // Prisma will cascade delete related TicketTypes and Bookings if schema is set up for it.
-    // Or handle manually:
-    // await prisma.bookedTicket.deleteMany({ where: { booking: { eventId } } }); // If BookedTicket references eventId directly
-    await prisma.booking.deleteMany({ where: { eventId }}); // Delete bookings first
-    await prisma.ticketType.deleteMany({ where: { eventId } }); // Then ticket types
+    await prisma.booking.deleteMany({ where: { eventId }});
+    await prisma.ticketType.deleteMany({ where: { eventId } });
     await prisma.event.delete({ where: { id: eventId } });
     return true;
   } catch (error) {
@@ -247,12 +259,30 @@ export const deleteEvent = async (eventId: string): Promise<boolean> => {
 
 
 // --- Booking Management ---
-function mapPrismaBookingToAppBooking(prismaBooking: any): Booking {
+type PrismaBookingWithRelations = PrismaBooking & {
+  user: PrismaUser;
+  event: PrismaEvent;
+  bookedTickets: PrismaBookedTicket[];
+};
+
+function mapPrismaBookingToAppBooking(prismaBooking: PrismaBookingWithRelations): Booking {
   return {
-    ...prismaBooking,
+    id: prismaBooking.id,
+    eventId: prismaBooking.eventId,
+    userId: prismaBooking.userId,
+    tickets: prismaBooking.bookedTickets.map(bt => ({
+        eventNsid: bt.eventNsid, // Make sure BookedTicket model in Prisma has this
+        ticketTypeId: bt.ticketTypeId,
+        ticketTypeName: bt.ticketTypeName,
+        quantity: bt.quantity,
+        pricePerTicket: bt.pricePerTicket,
+    })),
+    totalPrice: prismaBooking.totalPrice,
     bookingDate: prismaBooking.bookingDate.toISOString(),
+    eventName: prismaBooking.eventName,
     eventDate: prismaBooking.eventDate.toISOString(),
-    // bookedTickets should already be in the correct format from Prisma include
+    eventLocation: prismaBooking.eventLocation,
+    qrCodeValue: prismaBooking.qrCodeValue,
   };
 }
 
@@ -261,9 +291,9 @@ export const createBooking = async (
   bookingData: {
     eventId: string;
     userId: string;
-    tickets: BookedTicketItem[]; // Use the defined type
+    tickets: BookedTicketItem[];
     totalPrice: number;
-    event: Pick<Event, 'name' | 'date' | 'location'>; // Only pick necessary event fields
+    event: Pick<Event, 'name' | 'date' | 'location' | 'slug'>;
   }
 ): Promise<Booking> => {
   const newBookingId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -271,18 +301,18 @@ export const createBooking = async (
 
   const createdBooking = await prisma.booking.create({
     data: {
-      id: newBookingId, // Manually set if not using cuid() or uuid() as default for booking id
+      id: newBookingId,
       user: { connect: { id: bookingData.userId } },
       event: { connect: { id: bookingData.eventId } },
       totalPrice: bookingData.totalPrice,
       eventName: bookingData.event.name,
-      eventDate: new Date(bookingData.event.date), // Store as DateTime
+      eventDate: new Date(bookingData.event.date),
       eventLocation: bookingData.event.location,
       qrCodeValue,
       bookedTickets: {
         create: bookingData.tickets.map(ticket => ({
-          eventNsid: ticket.eventNsid,
-          ticketTypeId: ticket.ticketTypeId, // This assumes ticketTypeId on BookedTicketItem is the actual ID from TicketType model.
+          eventNsid: ticket.eventNsid, // ensure this aligns with your BookedTicket model
+          ticketTypeId: ticket.ticketTypeId,
           ticketTypeName: ticket.ticketTypeName,
           quantity: ticket.quantity,
           pricePerTicket: ticket.pricePerTicket,
@@ -291,7 +321,7 @@ export const createBooking = async (
     },
     include: { user: true, event: true, bookedTickets: true },
   });
-  return mapPrismaBookingToAppBooking(createdBooking);
+  return mapPrismaBookingToAppBooking(createdBooking as PrismaBookingWithRelations);
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
@@ -299,7 +329,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
     where: { id },
     include: { user: true, event: true, bookedTickets: true },
   });
-  return prismaBooking ? mapPrismaBookingToAppBooking(prismaBooking) : undefined;
+  return prismaBooking ? mapPrismaBookingToAppBooking(prismaBooking as PrismaBookingWithRelations) : undefined;
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
@@ -307,19 +337,19 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
     include: { user: true, event: true, bookedTickets: true },
     orderBy: { bookingDate: 'desc' },
   });
-  return prismaBookings.map(mapPrismaBookingToAppBooking);
+  return prismaBookings.map(booking => mapPrismaBookingToAppBooking(booking as PrismaBookingWithRelations));
 };
 
 
 // --- Public Event Queries ---
 export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => {
   const prismaEvents = await prisma.event.findMany({
-    where: { date: { gte: new Date() } }, // Events from now onwards
+    where: { date: { gte: new Date() } },
     orderBy: { date: 'asc' },
     take: limit,
     include: { organizer: true, ticketTypes: true },
   });
-  return prismaEvents.map(mapPrismaEventToAppEvent);
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
 };
 
 export const getEventCategories = async (): Promise<string[]> => {
@@ -327,7 +357,7 @@ export const getEventCategories = async (): Promise<string[]> => {
     select: { category: true },
     distinct: ['category'],
   });
-  return events.map(event => event.category);
+  return events.map(event => event.category).filter(category => category !== null) as string[];
 };
 
 export const searchEvents = async (query?: string, category?: string, date?: string, location?: string, minPrice?: number, maxPrice?: number): Promise<Event[]> => {
@@ -349,10 +379,9 @@ export const searchEvents = async (query?: string, category?: string, date?: str
     whereClause.AND.push({ category: { equals: category, mode: 'insensitive' } });
   }
   if (date) {
-    // Assumes date is in 'yyyy-MM-dd' format. Adjust parsing as needed.
     const startDate = new Date(date);
-    const endDate = new Date(date);
-    endDate.setDate(startDate.getDate() + 1);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 1); // Search for the entire day
     whereClause.AND.push({ date: { gte: startDate, lt: endDate } });
   }
   if (location) {
@@ -362,15 +391,16 @@ export const searchEvents = async (query?: string, category?: string, date?: str
     const ticketTypeConditions: any = {};
     if (minPrice !== undefined) ticketTypeConditions.gte = minPrice;
     if (maxPrice !== undefined) ticketTypeConditions.lte = maxPrice;
+    // This condition ensures at least one ticket type meets the price criteria
     whereClause.AND.push({ ticketTypes: { some: { price: ticketTypeConditions } } });
   }
-  
-  if (whereClause.AND.length === 0) delete whereClause.AND; // Remove if no conditions
+
+  if (whereClause.AND.length === 0) delete whereClause.AND;
 
   const prismaEvents = await prisma.event.findMany({
     where: whereClause,
     include: { organizer: true, ticketTypes: true },
     orderBy: { date: 'asc'},
   });
-  return prismaEvents.map(mapPrismaEventToAppEvent);
+  return prismaEvents.map(event => mapPrismaEventToAppEvent(event as PrismaEventWithRelations));
 };

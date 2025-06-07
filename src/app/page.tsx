@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, mockEvents } from '@/lib/mockData';
+import { getUpcomingEvents, getEventCategories, getPopularEvents } from '@/lib/mockData';
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { searchEvents } from '@/lib/mockData'; // For hero search suggestions
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
   Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
@@ -49,22 +50,29 @@ export default function HomePage() {
     const fetchData = async () => {
       setUpcomingEvents(await getUpcomingEvents(4));
       setCategories(await getEventCategories());
-      setPopularEvents(mockEvents.slice(0, 4));
+      setPopularEvents(await getPopularEvents(4));
     };
     fetchData();
   }, []);
 
   useEffect(() => {
-    if (heroSearchQuery.trim().length > 1) {
-      const filtered = mockEvents.filter(event =>
-        event.name.toLowerCase().includes(heroSearchQuery.toLowerCase())
-      ).slice(0, 5);
-      setSuggestedEvents(filtered);
-      setShowSuggestions(filtered.length > 0);
-    } else {
-      setSuggestedEvents([]);
-      setShowSuggestions(false);
-    }
+    const fetchSuggestions = async () => {
+      if (heroSearchQuery.trim().length > 1) {
+        const filtered = await searchEvents(heroSearchQuery.trim(), undefined, undefined, undefined, undefined, undefined);
+        setSuggestedEvents(filtered.slice(0,5));
+        setShowSuggestions(filtered.length > 0);
+      } else {
+        setSuggestedEvents([]);
+        setShowSuggestions(false);
+      }
+    };
+    
+    const debounceTimer = setTimeout(() => {
+      fetchSuggestions();
+    }, 300); // Debounce API call
+
+    return () => clearTimeout(debounceTimer);
+
   }, [heroSearchQuery]);
 
   useEffect(() => {
@@ -319,5 +327,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
