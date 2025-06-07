@@ -2,7 +2,8 @@
 import type { Event, Booking, TicketType, User } from './types';
 
 const users: User[] = [
-  { id: 'user1', email: 'test@example.com', name: 'Test User' },
+  { id: 'user1', email: 'test@example.com', name: 'Test User', isAdmin: false },
+  { id: 'adminUser', email: 'admin@example.com', name: 'Admin User', isAdmin: true },
 ];
 
 const ticketTypes: Record<string, TicketType[]> = {
@@ -135,6 +136,11 @@ export const mockEvents: Event[] = [
 
 const mockBookings: Booking[] = [];
 
+// Admin function to get all events
+export const adminGetAllEvents = async (): Promise<Event[]> => {
+  return mockEvents;
+};
+
 export const getEvents = async (): Promise<Event[]> => {
   return mockEvents;
 };
@@ -173,7 +179,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
   return mockBookings.find(booking => booking.id === id);
 };
 
-export const getUpcomingEvents = async (limit: number = 6): Promise<Event[]> => {
+export const getUpcomingEvents = async (limit: number = 4): Promise<Event[]> => {
   return mockEvents
     .filter(event => new Date(event.date) > new Date())
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -225,4 +231,3 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
   users.push(newUser);
   return newUser;
 };
-

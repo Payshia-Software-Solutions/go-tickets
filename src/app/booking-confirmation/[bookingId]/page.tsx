@@ -113,7 +113,7 @@ export default async function BookingConfirmationPage({ params: { bookingId } }:
           </div>
 
           <div className="text-center mt-6">
-            <Link href="/dashboard" className="text-primary hover:underline">
+            <Link href="/account_dashboard" className="text-primary hover:underline">
               View all your bookings
             </Link>
              <span className="mx-2 text-muted-foreground">|</span>

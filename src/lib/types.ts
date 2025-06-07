@@ -1,3 +1,4 @@
+
 export interface TicketType {
   id: string;
   name: string; // e.g., General Admission, VIP
@@ -55,4 +56,5 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  isAdmin?: boolean;
 }

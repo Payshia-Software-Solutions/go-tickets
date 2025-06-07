@@ -51,7 +51,7 @@ const SignupPage = () => {
     const success = await signup(name, email, password);
     if (success) {
       toast({ title: "Signup Successful", description: "Welcome! Your account has been created." });
-      const redirectUrl = searchParams.get('redirect') || '/dashboard';
+      const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
     } else {
       toast({ title: "Signup Failed", description: "This email may already be in use or an error occurred.", variant: "destructive" });

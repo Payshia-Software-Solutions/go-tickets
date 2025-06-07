@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -33,7 +33,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       document.title = 'Login | MyPass.lk';
     }
@@ -45,7 +45,7 @@ const LoginPage = () => {
     const success = await login(email, password);
     if (success) {
       toast({ title: "Login Successful", description: "Welcome back!" });
-      const redirectUrl = searchParams.get('redirect') || '/dashboard';
+      const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
     } else {
       toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });

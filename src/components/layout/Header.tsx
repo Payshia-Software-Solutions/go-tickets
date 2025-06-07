@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart } from 'lucide-react';
+import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart, ShieldCheck } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 
 const Header = () => {
@@ -52,10 +52,16 @@ const Header = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/dashboard')}>
+            <DropdownMenuItem onClick={() => router.push('/account_dashboard')}>
               <Ticket className="mr-2 h-4 w-4" />
               <span>My Bookings</span>
             </DropdownMenuItem>
+            {user.isAdmin && (
+              <DropdownMenuItem onClick={() => router.push('/admin/dashboard')}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                <span>Admin Panel</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
@@ -128,11 +134,11 @@ const Header = () => {
                    <span className="sr-only">Open menu</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[280px]"> {/* Default p-6 from sheetVariants */}
-                <SheetHeader> {/* No explicit padding, uses SheetContent's padding */}
+              <SheetContent side="right" className="w-[280px]">
+                <SheetHeader>
                   <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
-                <div className="mt-6"> {/* Add margin after header */}
+                <div className="mt-6">
                   <div className="flex flex-col space-y-4">
                     <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
                        <span className="text-xl font-bold font-headline">MyPass<span className="text-primary">.</span><span className="text-accent">lk</span></span>
@@ -166,9 +172,14 @@ const Header = () => {
                                   <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                               </div>
                           </div>
-                          <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/dashboard'); setIsMobileMenuOpen(false); }}>
+                          <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/account_dashboard'); setIsMobileMenuOpen(false); }}>
                             <Ticket className="mr-2 h-4 w-4" /> My Bookings
                           </Button>
+                          {user.isAdmin && (
+                            <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/admin/dashboard'); setIsMobileMenuOpen(false); }}>
+                              <ShieldCheck className="mr-2 h-4 w-4" /> Admin Panel
+                            </Button>
+                          )}
                           <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
                             <LogOut className="mr-2 h-4 w-4" /> Logout
                           </Button>
