@@ -8,7 +8,7 @@ export type Organizer = PrismaOrganizer;
 
 // --- TicketType Related ---
 export const TicketTypeFormSchema = z.object({
-  id: z.string().optional(), // For existing ticket types during update
+  id: z.string().optional(), // For existing ticket types during update. For new ones, it's a client-side temp ID.
   name: z.string().min(1, "Ticket type name is required"),
   price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
   availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative").describe("Default/template availability for new showtimes"),
@@ -26,15 +26,15 @@ export interface TicketType extends Omit<PrismaTicketType, 'eventId' | 'price' |
 
 // --- ShowTime Related ---
 export const ShowTimeTicketAvailabilityFormSchema = z.object({
-  id: z.string().optional(), // For existing records (ShowTimeTicketAvailability ID)
-  ticketTypeId: z.string().min(1, "Ticket Type ID is required"), // Refers to the ID of a TicketType (either existing DB ID or temp client ID)
-  ticketTypeName: z.string(), // For display in form, not directly saved but useful for UI
+  id: z.string().optional(), // For existing records (ShowTimeTicketAvailability ID from DB)
+  ticketTypeId: z.string().min(1, "Ticket Type ID is required"), // Refers to the ID of a TicketType (either existing DB ID or temp client ID from TicketTypeFormSchema)
+  ticketTypeName: z.string(), // For display in form, not directly saved to STTA but useful for UI
   availableCount: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative"),
 });
 export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAvailabilityFormSchema>;
 
 export const ShowTimeFormSchema = z.object({
-  id: z.string().optional(), // For existing showtimes
+  id: z.string().optional(), // For existing showtimes from DB
   dateTime: z.date({ required_error: "Show date and time is required" }),
   ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema).min(1, "At least one ticket type's availability must be specified for the showtime."),
 });
@@ -54,14 +54,20 @@ export interface ShowTime extends Omit<PrismaShowTime, 'eventId' | 'dateTime' | 
 
 // --- Event Related ---
 export interface Event extends Omit<PrismaEvent, 'ticketTypes' | 'showTimes' | 'date' | 'description' | 'organizerId' | 'createdAt' | 'updatedAt' | 'venueName' | 'venueAddress'> {
-  date: string; // Keep as ISO string for frontend compatibility for now (main/first date)
+  id: string; // Added to ensure Event always has an id
+  name: string; // Added
+  slug: string; // Added
+  date: string; 
+  location: string; // Added
   description: string;
+  category: string; // Added
+  imageUrl: string; // Added
   organizer: Organizer;
   ticketTypes: TicketType[];
   showTimes: ShowTime[];
   venue: {
     name: string;
-    address?: string | null; // Prisma type is String?
+    address?: string | null; 
   };
 }
 
@@ -70,7 +76,7 @@ export const EventFormSchema = z.object({
   slug: z.string()
     .min(3, "Slug must be at least 3 characters")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen."),
-  date: z.date({ required_error: "Main event date is required" }), // Main/first event date
+  date: z.date({ required_error: "Main event date is required" }), 
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(3, "Category is required"),
@@ -85,8 +91,8 @@ export type EventFormData = z.infer<typeof EventFormSchema>;
 
 
 // --- Booking Related ---
-export interface BookedTicketItem extends Omit<PrismaBookedTicket, 'id' | 'bookingId' | 'ticketTypeId' | 'showTimeId' | 'createdAt' | 'updatedAt'> {
-  // For cart and creating bookings
+export interface BookedTicketItem { // Used for cart and creating bookings
+  eventId: string; 
   eventNsid: string; // event slug
   ticketTypeId: string;
   ticketTypeName: string;
@@ -104,7 +110,8 @@ export interface Booking extends Omit<PrismaBooking, 'eventDate' | 'bookingDate'
   eventLocation: string;
   qrCodeValue: string;
   totalPrice: number;
-  bookedTickets: Array<Omit<PrismaBookedTicket, 'bookingId' | 'createdAt' | 'updatedAt'>>; // This should likely be PrismaBookedTicket from Prisma
+  // This was 'tickets' before, changed to 'bookedTickets' to match Prisma relation and avoid confusion with TicketType
+  bookedTickets: Array<Omit<PrismaBookedTicket, 'bookingId' | 'createdAt' | 'updatedAt' | 'id'> & { id: string }>; 
 }
 
 

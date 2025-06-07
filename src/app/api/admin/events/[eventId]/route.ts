@@ -46,7 +46,8 @@ export async function PUT(request: Request, { params }: Context) {
 
     const updated = await updateEvent(params.eventId, validatedData.data);
     if (!updated) {
-      return NextResponse.json({ message: 'Event not found or update failed' }, { status: 404 });
+      // updateEvent might throw specific errors (e.g., about bookings) which will be caught below
+      return NextResponse.json({ message: 'Event not found or update failed (no specific error from service)' }, { status: 404 });
     }
     return NextResponse.json(updated);
   } catch (error: any) {

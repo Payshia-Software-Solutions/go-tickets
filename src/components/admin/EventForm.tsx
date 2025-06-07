@@ -2,8 +2,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
-import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeFormData, ShowTimeTicketAvailabilityFormData, TicketType as AppTicketType } from "@/lib/types";
+import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
+import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeFormData, ShowTimeTicketAvailabilityFormData } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -34,6 +34,10 @@ interface EventFormProps {
   onCancel?: () => void;
 }
 
+// Helper to generate a unique client-side ID for new form array items
+const generateClientTempId = (prefix: string = 'client') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<string[]>([]);
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
@@ -46,64 +50,71 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const defaultShowTimeTicketAvailabilities = (formTicketTypes: TicketTypeFormData[]): ShowTimeTicketAvailabilityFormData[] => {
-    return formTicketTypes.map(tt => ({
-      ticketTypeId: tt.id || `new-${tt.name.replace(/\s+/g, '-')}-${Date.now()}`, // Use existing ID or generate a temp client ID for new types
-      ticketTypeName: tt.name,
-      availableCount: tt.availability, // Default to template availability
+  const mapEventToFormData = (event: Event | null | undefined): EventFormData => {
+    if (!event) {
+      const defaultTicketType: TicketTypeFormData = { 
+        id: generateClientTempId('tt'), 
+        name: "General Admission", 
+        price: 0, 
+        availability: 100, 
+        description: "" 
+      };
+      return {
+        name: "", slug: "", date: new Date(), location: "", description: "<p></p>", category: "", imageUrl: "",
+        organizerId: "", venueName: "", venueAddress: "",
+        ticketTypes: [defaultTicketType],
+        showTimes: [{
+          id: generateClientTempId('st'),
+          dateTime: new Date(),
+          ticketAvailabilities: [{
+            id: generateClientTempId('sta'),
+            ticketTypeId: defaultTicketType.id!, // Use the ID from the default ticket type
+            ticketTypeName: defaultTicketType.name,
+            availableCount: defaultTicketType.availability
+          }]
+        }],
+      };
+    }
+
+    const ticketTypesFormData = event.ticketTypes.map(tt => ({
+      id: tt.id, // DB ID
+      name: tt.name,
+      price: tt.price,
+      availability: tt.availability, // Template availability
+      description: tt.description || "",
     }));
+
+    return {
+      name: event.name,
+      slug: event.slug,
+      date: new Date(event.date),
+      location: event.location,
+      description: event.description || "<p></p>",
+      category: event.category,
+      imageUrl: event.imageUrl,
+      organizerId: event.organizer.id,
+      venueName: event.venue.name,
+      venueAddress: event.venue.address || "",
+      ticketTypes: ticketTypesFormData,
+      showTimes: event.showTimes.map(st => ({
+        id: st.id, // DB ID
+        dateTime: new Date(st.dateTime),
+        ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
+          id: sta.id, // DB ID
+          ticketTypeId: sta.ticketType.id, // DB ID from related TicketType
+          ticketTypeName: sta.ticketType.name, // For display
+          availableCount: sta.availableCount,
+        })),
+      })),
+    };
   };
   
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
-    defaultValues: initialData ? {
-      name: initialData.name,
-      slug: initialData.slug,
-      date: new Date(initialData.date),
-      location: initialData.location,
-      description: initialData.description || "<p></p>",
-      category: initialData.category,
-      imageUrl: initialData.imageUrl,
-      organizerId: initialData.organizer.id,
-      venueName: initialData.venue.name,
-      venueAddress: initialData.venue.address || "",
-      ticketTypes: initialData.ticketTypes.map(tt => ({
-        id: tt.id,
-        name: tt.name,
-        price: tt.price,
-        availability: tt.availability,
-        description: tt.description || "",
-      })),
-      showTimes: initialData.showTimes.map(st => ({
-        id: st.id,
-        dateTime: new Date(st.dateTime),
-        ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-          id: sta.id, // This is ShowTimeTicketAvailability.id
-          ticketTypeId: sta.ticketType.id, // This is TicketType.id
-          ticketTypeName: sta.ticketType.name,
-          availableCount: sta.availableCount,
-        })),
-      })),
-    } : {
-      name: "",
-      slug: "",
-      date: undefined,
-      location: "",
-      description: "<p></p>",
-      category: "",
-      imageUrl: "",
-      organizerId: "",
-      venueName: "",
-      venueAddress: "",
-      ticketTypes: [{ name: "General Admission", price: 0, availability: 100, description: "" }],
-      showTimes: [{ 
-        dateTime: new Date(), 
-        ticketAvailabilities: defaultShowTimeTicketAvailabilities([{ name: "General Admission", price: 0, availability: 100, description: "" }])
-      }],
-    },
+    defaultValues: mapEventToFormData(initialData),
   });
 
-  const { fields: ticketTypeFields, append: appendTicketType, remove: removeTicketType, update: updateTicketType } = useFieldArray({
+  const { fields: ticketTypeFields, append: appendTicketType, remove: removeTicketType } = useFieldArray({
     control: form.control,
     name: "ticketTypes"
   });
@@ -113,28 +124,49 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     name: "showTimes"
   });
   
-  const watchedTicketTypes = form.watch("ticketTypes");
+  const watchedTicketTypes = useWatch({ control: form.control, name: "ticketTypes" });
 
+  // Effect to synchronize showTime.ticketAvailabilities with the master ticketTypes (templates)
   useEffect(() => {
-    // When ticketTypes change, update all showTimes' ticketAvailabilities
-    // to reflect these changes (add/remove/update ticketTypeName)
     const currentShowTimes = form.getValues("showTimes");
+    let formChanged = false;
+
     const newShowTimes = currentShowTimes.map(st => {
       const existingAvailabilities = st.ticketAvailabilities || [];
-      const newAvailabilities: ShowTimeTicketAvailabilityFormData[] = watchedTicketTypes.map(tt => {
-        const existingSta = existingAvailabilities.find(sta => sta.ticketTypeId === (tt.id || sta.ticketTypeId)); // Match by ID if tt.id exists, otherwise try to keep existing by its own ticketTypeId if names match etc.
-        return {
-          id: existingSta?.id,
-          ticketTypeId: tt.id || `new-${tt.name.replace(/\s+/g, '-')}-${Date.now()}`, // Important: use actual ID if available for existing TTs
-          ticketTypeName: tt.name,
-          availableCount: existingSta ? existingSta.availableCount : tt.availability, // Use existing count or default from template
-        };
+      const newAvailabilitiesMap = new Map<string, ShowTimeTicketAvailabilityFormData>();
+
+      // Add or update based on master ticket types
+      watchedTicketTypes.forEach(masterTt => {
+        const masterTtId = masterTt.id || `client-${masterTt.name}`; // Ensure a key for matching
+        const existingSta = existingAvailabilities.find(sta => sta.ticketTypeId === masterTtId || (sta.ticketTypeName === masterTt.name && !masterTt.id));
+        
+        newAvailabilitiesMap.set(masterTtId, {
+          id: existingSta?.id, // Preserve DB ID of ShowTimeTicketAvailability if it exists
+          ticketTypeId: masterTt.id!, // Crucial: This MUST be the ID of the TicketType (template)
+          ticketTypeName: masterTt.name,
+          availableCount: existingSta ? existingSta.availableCount : masterTt.availability, // Preserve override or use template default
+        });
       });
-      return { ...st, ticketAvailabilities: newAvailabilities };
+
+      // Filter out availabilities for ticket types that no longer exist in master list
+      const finalAvailabilities = watchedTicketTypes.map(masterTt => {
+        const masterTtId = masterTt.id || `client-${masterTt.name}`;
+        return newAvailabilitiesMap.get(masterTtId)!; // Should always exist due to above logic
+      }).filter(Boolean); // Ensure no undefined entries
+
+
+      if (JSON.stringify(finalAvailabilities) !== JSON.stringify(existingAvailabilities)) {
+        formChanged = true;
+      }
+      return { ...st, ticketAvailabilities: finalAvailabilities };
     });
-    form.setValue("showTimes", newShowTimes, { shouldValidate: false }); // Avoid immediate validation during this sync
+
+    if (formChanged) {
+      form.setValue("showTimes", newShowTimes, { shouldValidate: false, shouldDirty: true });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedTicketTypes, form.setValue]); // Only run when watchedTicketTypes explicitly changes
+  }, [watchedTicketTypes, form.getValues, form.setValue]); //form.getValues/setValue are stable
+
 
   useEffect(() => {
     const fetchDropdownData = async () => {
@@ -157,60 +189,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   }, [toast]);
   
   useEffect(() => {
-    if (initialData) {
-      const ticketTypesFormData = initialData.ticketTypes.map(tt => ({
-        id: tt.id,
-        name: tt.name,
-        price: tt.price,
-        availability: tt.availability,
-        description: tt.description || "",
-      }));
-
-      form.reset({
-        name: initialData.name,
-        slug: initialData.slug,
-        date: new Date(initialData.date),
-        location: initialData.location,
-        description: initialData.description || "<p></p>",
-        category: initialData.category,
-        imageUrl: initialData.imageUrl,
-        organizerId: initialData.organizer.id,
-        venueName: initialData.venue.name,
-        venueAddress: initialData.venue.address || "",
-        ticketTypes: ticketTypesFormData,
-        showTimes: initialData.showTimes.map(st => ({
-          id: st.id,
-          dateTime: new Date(st.dateTime),
-          ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-            id: sta.id,
-            ticketTypeId: sta.ticketType.id,
-            ticketTypeName: sta.ticketType.name,
-            availableCount: sta.availableCount,
-          })),
-        })),
-      });
-      setSlugManuallyEdited(!!initialData.slug);
-      setLocalImagePreview(initialData.imageUrl);
-    } else {
-       const defaultTTs = [{ name: "General Admission", price: 0, availability: 100, description: "" }];
-      form.reset({ 
-        name: "",
-        slug: "",
-        date: undefined,
-        location: "",
-        description: "<p></p>",
-        category: "",
-        imageUrl: "",
-        organizerId: "",
-        venueName: "",
-        venueAddress: "",
-        ticketTypes: defaultTTs,
-        showTimes: [{ dateTime: new Date(), ticketAvailabilities: defaultShowTimeTicketAvailabilities(defaultTTs) }],
-      });
-      setSlugManuallyEdited(false);
-      setLocalImagePreview(null);
-    }
-  }, [initialData, form]);
+    form.reset(mapEventToFormData(initialData));
+    setSlugManuallyEdited(!!initialData?.slug);
+    setLocalImagePreview(initialData?.imageUrl || null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData]); // form.reset should be stable, if not, add to deps
 
 
   useEffect(() => {
@@ -242,7 +225,29 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   }, [form, slugManuallyEdited]);
 
   const handleFormSubmit = async (data: EventFormData) => {
-    await onSubmit(data);
+    // Ensure all ticketTypes have an ID (client-side if new) before submitting
+    const processedData = {
+      ...data,
+      ticketTypes: data.ticketTypes.map(tt => ({
+        ...tt,
+        id: tt.id || generateClientTempId('tt') // Assign client ID if new template
+      })),
+      showTimes: data.showTimes.map(st => ({
+        ...st,
+        id: st.id?.startsWith('client-') ? undefined : st.id, // Clear client-side temp IDs for showtimes (DB will gen)
+        ticketAvailabilities: st.ticketAvailabilities.map(sta => {
+          // Find the master ticket type by name to ensure we are linking to the correct one,
+          // especially if master ticket type IDs were client-generated.
+          const masterTt = data.ticketTypes.find(mtt => mtt.name === sta.ticketTypeName);
+          return {
+            ...sta,
+            id: sta.id?.startsWith('client-') ? undefined : sta.id, // Clear client-side temp IDs for STAs
+            ticketTypeId: masterTt?.id || sta.ticketTypeId, // Use ID from found master, fallback to original
+          };
+        })
+      }))
+    };
+    await onSubmit(processedData);
   };
 
   const currentImageUrlFieldValue = form.watch("imageUrl");
@@ -320,11 +325,13 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       };
       reader.readAsDataURL(file);
     } else {
-      if (form.getValues("imageUrl")?.startsWith("data:image")) {
-          form.setValue("imageUrl", "", { shouldValidate: true, shouldDirty: true });
-          setLocalImagePreview(null);
+      // If file selection is cancelled, reset to URL if one was there, or clear if it was a data URI
+      const currentUrl = form.getValues("imageUrl");
+      if (currentUrl?.startsWith("data:image/")) {
+          form.setValue("imageUrl", initialData?.imageUrl || "", { shouldValidate: true, shouldDirty: true });
+          setLocalImagePreview(initialData?.imageUrl || null);
       } else {
-          setLocalImagePreview(form.getValues("imageUrl") || null);
+          setLocalImagePreview(currentUrl || null);
       }
        if (fileInputRef.current) {
           fileInputRef.current.value = ""; 
@@ -333,10 +340,26 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   };
   
   const handleAddNewShowTime = () => {
-    const currentTicketTypes = form.getValues("ticketTypes");
+    const currentTicketTypeTemplates = form.getValues("ticketTypes");
     appendShowTime({
+      id: generateClientTempId('st'), // Client-side temp ID for new showtime
       dateTime: new Date(),
-      ticketAvailabilities: defaultShowTimeTicketAvailabilities(currentTicketTypes),
+      ticketAvailabilities: currentTicketTypeTemplates.map(tt => ({
+        id: generateClientTempId('sta'), // Client-side temp ID
+        ticketTypeId: tt.id!, // ID from TicketType template (could be DB or client temp ID)
+        ticketTypeName: tt.name,
+        availableCount: tt.availability, // Default to template availability
+      })),
+    });
+  };
+
+  const handleAddNewTicketType = () => {
+    appendTicketType({
+      id: generateClientTempId('tt'), // Client-side temp ID for new ticket type template
+      name: "",
+      price: 0,
+      availability: 0,
+      description: ""
     });
   };
 
@@ -640,7 +663,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             />
         </section>
 
-        {/* Ticket Types Section */}
+        {/* Ticket Types Section (Templates) */}
         <section className="space-y-4 p-1">
             <div className="flex justify-between items-center border-b pb-2">
                 <h3 className="text-lg font-medium flex items-center"><Ticket className="mr-2 h-5 w-5" /> Ticket Types (Templates)</h3>
@@ -648,9 +671,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => appendTicketType({ name: "", price: 0, availability: 0, description: "" })}
+                    onClick={handleAddNewTicketType}
                 >
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type Template
                 </Button>
             </div>
             <FormDescription>Define the types of tickets available. These settings act as templates for individual showtimes.</FormDescription>
@@ -680,6 +703,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         <FormControl>
                         <Input 
                             type="number" 
+                            step="0.01"
                             placeholder="e.g., 50.00" 
                             {...rhfField}
                             onChange={e => rhfField.onChange(parseFloat(e.target.value) || 0)}
@@ -722,6 +746,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     </FormItem>
                 )}
                 />
+                {/* Hidden field for the ticket type's own ID (DB or client-temp) */}
+                <input type="hidden" {...form.register(`ticketTypes.${index}.id`)} />
                 {ticketTypeFields.length > 1 && (
                     <Button
                         type="button"
@@ -729,7 +755,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         size="icon"
                         onClick={() => removeTicketType(index)}
                         className="absolute top-2 right-2"
-                        title="Remove Ticket Type"
+                        title="Remove Ticket Type Template"
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -738,7 +764,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             ))}
             {form.formState.errors.ticketTypes && !form.formState.errors.ticketTypes.root && Array.isArray(form.formState.errors.ticketTypes) && (
                  form.formState.errors.ticketTypes.map((error, index) => (
-                    error && <p key={index} className="text-sm font-medium text-destructive">Error in ticket type {index + 1}.</p>
+                    error && <p key={index} className="text-sm font-medium text-destructive">Error in ticket type template {index + 1}.</p>
                 ))
             )}
              {form.formState.errors.ticketTypes?.root && (
@@ -750,13 +776,13 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <section className="space-y-4 p-1">
           <div className="flex justify-between items-center border-b pb-2">
             <h3 className="text-lg font-medium flex items-center">
-              <Clock className="mr-2 h-5 w-5" /> Showtimes & Specific Availability
+              <Clock className="mr-2 h-5 w-5" /> Showtimes & Specific Ticket Availability
             </h3>
             <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowTime}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
             </Button>
           </div>
-           <FormDescription>Define specific dates, times, and ticket counts for each performance or session.</FormDescription>
+           <FormDescription>Define specific dates, times, and ticket counts for each performance or session based on the templates above.</FormDescription>
 
           {showTimeFields.map((showTimeItem, showTimeIndex) => (
             <div key={showTimeItem.id} className="p-4 border rounded-md space-y-6 bg-card shadow">
@@ -824,16 +850,18 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                   </FormItem>
                 )}
               />
+               {/* Hidden field for the showtime's own ID (DB or client-temp) */}
+               <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.id`)} />
 
               <div>
                 <h5 className="text-sm font-medium mb-2 text-muted-foreground">Ticket Availability for this Showtime:</h5>
-                {form.watch(`showTimes.${showTimeIndex}.ticketAvailabilities`).map((availabilityItem, availabilityIndex) => {
-                   const ticketTypeDefinition = watchedTicketTypes.find(tt => tt.id === availabilityItem.ticketTypeId || tt.name === availabilityItem.ticketTypeName); // Match by ID or name
+                {(form.watch(`showTimes.${showTimeIndex}.ticketAvailabilities`) || []).map((availabilityItem, availabilityIndex) => {
+                   const ticketTypeTemplate = watchedTicketTypes.find(tt => tt.id === availabilityItem.ticketTypeId || tt.name === availabilityItem.ticketTypeName);
                   return (
                     <div key={availabilityItem.ticketTypeId || availabilityIndex} className="grid grid-cols-2 gap-4 items-center mb-2 p-3 border-l-2 border-accent bg-muted/30 rounded-r-md">
                       <FormLabel className="text-sm">
                         {availabilityItem.ticketTypeName || `Ticket Type ${availabilityIndex + 1}`}
-                        {ticketTypeDefinition && <span className="text-xs text-muted-foreground ml-1">(Template: {ticketTypeDefinition.availability})</span>}
+                        {ticketTypeTemplate && <span className="text-xs text-muted-foreground ml-1">(Template default: {ticketTypeTemplate.availability})</span>}
                       </FormLabel>
                       <FormField
                         control={form.control}
@@ -852,21 +880,27 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                           </FormItem>
                         )}
                       />
-                       {/* Hidden field for ticketTypeId */}
+                       {/* Hidden field for ShowTimeTicketAvailability ID (DB or client-temp) */}
+                       <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.id`)} />
+                       {/* Hidden field to carry over ticketTypeId from template */}
                        <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.ticketTypeId`)} />
+                       {/* Hidden field to carry over ticketTypeName from template */}
                        <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.ticketTypeName`)} />
-                       {form.watch(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.id`) && (
-                          <input type="hidden" {...form.register(`showTimes.${showTimeIndex}.ticketAvailabilities.${availabilityIndex}.id`)} />
-                       )}
                     </div>
                   );
                 })}
+                 {form.formState.errors.showTimes?.[showTimeIndex]?.ticketAvailabilities && (
+                    <p className="text-sm font-medium text-destructive">
+                        {form.formState.errors.showTimes?.[showTimeIndex]?.ticketAvailabilities?.root?.message || 
+                         form.formState.errors.showTimes?.[showTimeIndex]?.ticketAvailabilities?.message}
+                    </p>
+                )}
               </div>
             </div>
           ))}
             {form.formState.errors.showTimes && !form.formState.errors.showTimes.root && Array.isArray(form.formState.errors.showTimes) && (
                  form.formState.errors.showTimes.map((error, index) => (
-                    error && <p key={index} className="text-sm font-medium text-destructive">Error in showtime {index + 1}.</p>
+                    error && !error.ticketAvailabilities && <p key={index} className="text-sm font-medium text-destructive">Error in showtime {index + 1}: {error.dateTime?.message || error.root?.message}</p>
                 ))
             )}
              {form.formState.errors.showTimes?.root && (
@@ -889,4 +923,3 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     </Form>
   );
 }
-

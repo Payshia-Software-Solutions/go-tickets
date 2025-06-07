@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       showTimes: body.showTimes?.map((st: any) => ({
         ...st,
         dateTime: st.dateTime ? new Date(st.dateTime) : undefined,
-        // ticketAvailabilities are already numbers, no parsing needed for them here
+        // ticketAvailabilities are already numbers/strings, Zod handles parsing numbers
       })) || [],
       // ticketTypes prices/availability are already numbers
     };
@@ -39,6 +39,8 @@ export async function POST(request: Request) {
       );
     }
     
+    // The createEvent service function expects EventFormData, which now has IDs on ticketTypes and showTimes that might be client-generated.
+    // The service layer will handle turning client-side temp IDs into DB IDs or ignoring them for new records.
     const newEvent = await createEvent(validatedData.data);
     return NextResponse.json(newEvent, { status: 201 });
   } catch (error: any) {
