@@ -6,6 +6,18 @@ const users: User[] = [
   { id: 'adminUser', email: 'admin@example.com', name: 'Admin User', isAdmin: true },
 ];
 
+// Organizers Data - Ensure these are defined before mockEvents
+let mockOrganizers: Organizer[] = [
+  { id: 'org1', name: 'Tech Solutions Inc.', contactEmail: 'contact@techsolutions.com', website: 'https://techsolutions.com' },
+  { id: 'org2', name: 'BeatDrop Productions', contactEmail: 'info@beatdrop.com', website: 'https://beatdrop.com' },
+  { id: 'org3', name: 'The Art Collective', contactEmail: 'gallery@artcollective.org' },
+  { id: 'org4', name: 'Starlight Foundation', contactEmail: 'give@starlight.org', website: 'https://starlight.org' },
+  { id: 'org5', name: 'National Soccer League', contactEmail: 'fans@nsl.com', website: 'https://nsl.com' },
+  { id: 'org6', name: 'Austin Community Theatre Group', contactEmail: 'act@communityplays.org' },
+  { id: 'org7', name: 'Tomorrow Today Corp.', contactEmail: 'future@tt.corp', website: 'https://tt.corp/futurefest'}
+];
+
+
 const defaultTicketTypes: TicketType[] = [
     { id: 'default-standard', name: 'Standard Ticket', price: 50, availability: 100, description: 'General access.' },
     { id: 'default-vip', name: 'VIP Ticket', price: 150, availability: 20, description: 'VIP benefits included.' },
@@ -55,7 +67,7 @@ export let mockEvents: Event[] = [
     description: 'Join industry leaders and innovators at the premier technology conference of the year. Explore cutting-edge advancements in AI, blockchain, and sustainable tech.',
     category: 'Technology',
     imageUrl: 'https://images.unsplash.com/photo-1472653816316-3ad6f10a6592?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'Tech Solutions Inc.' },
+    organizer: mockOrganizers[0], // Tech Solutions Inc.
     venue: { name: 'Metro Convention Center', address: '123 Innovation Drive, New York, NY', mapLink: '#' },
     ticketTypes: ticketTypes['tech-conference-2024'],
   },
@@ -68,7 +80,7 @@ export let mockEvents: Event[] = [
     description: 'Experience three days of incredible live music from top artists across genres. Food trucks, art installations, and unforgettable vibes await!',
     category: 'Music',
     imageUrl: 'https://images.unsplash.com/photo-1496024840928-4c417adf211d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'BeatDrop Productions' },
+    organizer: mockOrganizers[1], // BeatDrop Productions
     venue: { name: 'Greenfield Park', address: '456 Harmony Ave, Chicago, IL', mapLink: '#' },
     ticketTypes: ticketTypes['summer-music-fest'],
   },
@@ -81,7 +93,7 @@ export let mockEvents: Event[] = [
     description: 'A curated collection of masterpieces from the 20th and 21st centuries, showcasing pivotal movements in modern art.',
     category: 'Arts & Culture',
     imageUrl: 'https://images.unsplash.com/photo-1429514513361-8fa32282fd5f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'The Art Collective' },
+    organizer: mockOrganizers[2], // The Art Collective
     venue: { name: 'City Art Gallery', address: '789 Canvas St, San Francisco, CA', mapLink: '#' },
     ticketTypes: ticketTypes['art-exhibition-modern'],
   },
@@ -94,7 +106,7 @@ export let mockEvents: Event[] = [
     description: 'An elegant evening of dining, entertainment, and auctions to support children\'s education programs. Dress to impress!',
     category: 'Charity',
     imageUrl: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'Starlight Foundation' },
+    organizer: mockOrganizers[3], // Starlight Foundation
     venue: { name: 'The Grand Ballroom', address: '101 Hope Rd, Los Angeles, CA', mapLink: '#' },
     ticketTypes: ticketTypes['charity-gala-night'],
   },
@@ -107,7 +119,7 @@ export let mockEvents: Event[] = [
     description: 'Witness the thrilling conclusion to the national soccer league as the top two teams battle for the championship trophy.',
     category: 'Sports',
     imageUrl: 'https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8ZXZlbnQlMjBjb25jZXJ0fGVufDB8fHx8MTc0ODc3OTg0M3ww&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'National Soccer League' },
+    organizer: mockOrganizers[4], // National Soccer League
     venue: { name: 'Victory Stadium', address: '202 Goal Line, Miami, FL', mapLink: '#' },
     ticketTypes: ticketTypes['sports-championship-final'],
   },
@@ -120,7 +132,7 @@ export let mockEvents: Event[] = [
     description: 'Enjoy Shakespeare\'s classic comedy brought to life by talented local actors in an intimate theater setting.',
     category: 'Theater',
     imageUrl: 'https://images.unsplash.com/photo-1522158637959-30385a09e0da?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'Austin Community Theatre Group' },
+    organizer: mockOrganizers[5], // Austin Community Theatre Group
     venue: { name: 'Community Playhouse', address: '303 Stage Door, Austin, TX', mapLink: '#' },
     ticketTypes: ticketTypes['local-theater-play'],
   },
@@ -133,7 +145,7 @@ export let mockEvents: Event[] = [
     description: 'A glimpse into the events of tomorrow! Experience the future of entertainment, technology, and art.',
     category: 'Future',
     imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxldmVudCUyMGNvbmNlcnR8ZW58MHx8fHwxNzQ4Nzc5ODQzfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    organizer: { name: 'Tomorrow Today Corp.' },
+    organizer: mockOrganizers[6], // Tomorrow Today Corp.
     venue: { name: 'VR Arena', address: '1 Cyberspace, Cloud City, CC', mapLink: '#' },
     ticketTypes: ticketTypes['future-fest-2025'],
   },
@@ -169,17 +181,6 @@ const mockBookings: Booking[] = [
     eventLocation: mockEvents[1].location,
     qrCodeValue: `EVENT:${mockEvents[1].name},BOOKING_ID:booking-mock2-fghij,DATE:${new Date(mockEvents[1].date).toLocaleDateString()}`,
   },
-];
-
-// Organizers Data
-let mockOrganizers: Organizer[] = [
-  { id: 'org1', name: 'Tech Solutions Inc.', contactEmail: 'contact@techsolutions.com', website: 'https://techsolutions.com' },
-  { id: 'org2', name: 'BeatDrop Productions', contactEmail: 'info@beatdrop.com', website: 'https://beatdrop.com' },
-  { id: 'org3', name: 'The Art Collective', contactEmail: 'gallery@artcollective.org' },
-  { id: 'org4', name: 'Starlight Foundation', contactEmail: 'give@starlight.org', website: 'https://starlight.org' },
-  { id: 'org5', name: 'National Soccer League', contactEmail: 'fans@nsl.com', website: 'https://nsl.com' },
-  { id: 'org6', name: 'Austin Community Theatre Group', contactEmail: 'act@communityplays.org' },
-  { id: 'org7', name: 'Tomorrow Today Corp.', contactEmail: 'future@tt.corp', website: 'https://tt.corp/futurefest'}
 ];
 
 
@@ -289,6 +290,11 @@ export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
 export const createEvent = async (data: EventFormData): Promise<Event> => {
   const newEventId = (mockEvents.length + 1).toString() + '-' + Date.now();
   
+  const selectedOrganizer = await getOrganizerById(data.organizerId);
+  if (!selectedOrganizer) {
+    throw new Error(`Organizer with ID ${data.organizerId} not found.`);
+  }
+
   let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
   if (!baseSlug) baseSlug = `event-${Date.now()}`; 
   let finalSlug = baseSlug;
@@ -304,10 +310,10 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     slug: finalSlug,
     date: data.date.toISOString(),
     location: data.location,
-    description: data.description,
+    description: data.description || "<p></p>",
     category: data.category,
     imageUrl: data.imageUrl,
-    organizer: { name: data.organizerName }, 
+    organizer: selectedOrganizer, 
     venue: { name: data.venueName, address: data.venueAddress },
     ticketTypes: [...defaultTicketTypes.map(tt => ({...tt, id: `${finalSlug}-${tt.id.split('-')[1]}`}))], 
   };
@@ -320,6 +326,11 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   const eventIndex = mockEvents.findIndex(event => event.id === eventId);
   if (eventIndex === -1) {
     return undefined;
+  }
+
+  const selectedOrganizer = await getOrganizerById(data.organizerId);
+  if (!selectedOrganizer) {
+    throw new Error(`Organizer with ID ${data.organizerId} not found.`);
   }
 
   const existingEvent = mockEvents[eventIndex];
@@ -341,10 +352,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   updatedEvent.slug = finalNewSlug;
   updatedEvent.date = data.date.toISOString();
   updatedEvent.location = data.location;
-  updatedEvent.description = data.description;
+  updatedEvent.description = data.description || "<p></p>";
   updatedEvent.category = data.category;
   updatedEvent.imageUrl = data.imageUrl;
-  updatedEvent.organizer.name = data.organizerName; 
+  updatedEvent.organizer = selectedOrganizer; 
   updatedEvent.venue.name = data.venueName;
   updatedEvent.venue.address = data.venueAddress || ""; 
 

@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
-import type { EventFormData } from "@/lib/types";
+import type { EventFormData, Organizer } from "@/lib/types"; // Added Organizer
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import type { Event } from "@/lib/types";
-import { getEventCategories } from "@/lib/mockData";
+import { getEventCategories, adminGetAllOrganizers } from "@/lib/mockData"; // Added adminGetAllOrganizers
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
@@ -29,13 +29,15 @@ interface EventFormProps {
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<string[]>([]);
+  const [organizers, setOrganizers] = useState<Organizer[]>([]); // State for organizers
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchDropdownData = async () => {
       setCategories(await getEventCategories());
+      setOrganizers(await adminGetAllOrganizers()); // Fetch organizers
     };
-    fetchCategories();
+    fetchDropdownData();
   }, []);
 
   const form = useForm<EventFormData>({
@@ -45,10 +47,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       slug: initialData.slug,
       date: new Date(initialData.date),
       location: initialData.location,
-      description: initialData.description,
+      description: initialData.description || "<p></p>",
       category: initialData.category,
       imageUrl: initialData.imageUrl,
-      organizerName: initialData.organizer.name,
+      organizerId: initialData.organizer.id, // Use organizer.id
       venueName: initialData.venue.name,
       venueAddress: initialData.venue.address || "",
     } : {
@@ -59,7 +61,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       description: "<p></p>",
       category: "",
       imageUrl: "",
-      organizerName: "",
+      organizerId: "", // Default organizerId
       venueName: "",
       venueAddress: "",
     },
@@ -75,14 +77,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         description: initialData.description || "<p></p>",
         category: initialData.category,
         imageUrl: initialData.imageUrl,
-        organizerName: initialData.organizer.name,
+        organizerId: initialData.organizer.id, // Reset with organizer.id
         venueName: initialData.venue.name,
         venueAddress: initialData.venue.address || "",
       });
-      // If there's initial data, assume slug might have been set, so treat it as "manually edited"
-      // unless it's an exact match of a slug generated from the initial name.
-      // For simplicity, if editing, we often assume the loaded slug is intentional.
-      // Or, set to true only if initialData.slug is not empty.
       setSlugManuallyEdited(!!initialData.slug); 
     } else {
       form.reset({ 
@@ -93,11 +91,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         description: "<p></p>",
         category: "",
         imageUrl: "",
-        organizerName: "",
+        organizerId: "",
         venueName: "",
         venueAddress: "",
       });
-      setSlugManuallyEdited(false); // For new events, allow auto-generation initially
+      setSlugManuallyEdited(false);
     }
   }, [initialData, form]);
 
@@ -108,14 +106,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         const nameValue = (value.name || '').trim();
         const newPotentialSlug = nameValue
           .toLowerCase()
-          .replace(/\s+/g, '-')          // Replace spaces with -
-          .replace(/[^\w-]+/g, '')       // Remove all non-word chars
-          .replace(/--+/g, '-');         // Replace multiple - with single -
+          .replace(/\s+/g, '-')
+          .replace(/[^\w-]+/g, '')
+          .replace(/--+/g, '-');
         
         if (form.getValues('slug') !== newPotentialSlug) {
           form.setValue('slug', newPotentialSlug, { 
               shouldValidate: true, 
-              shouldDirty: false // Programmatic changes shouldn't mark field dirty initially
+              shouldDirty: false 
           });
         }
       }
@@ -126,8 +124,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
   const handleFormSubmit = async (data: EventFormData) => {
     await onSubmit(data);
-    // After submission, reset manual edit flag for new forms or if form is reused
-    // setSlugManuallyEdited(false); // This depends on whether the form instance is reused or re-created
   };
 
   return (
@@ -159,13 +155,13 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     placeholder="e.g., annual-tech-summit" 
                     {...field} 
                     onChange={(e) => {
-                      field.onChange(e); // Propagate change to RHF
-                      setSlugManuallyEdited(true); // Mark as manually edited
+                      field.onChange(e);
+                      setSlugManuallyEdited(true);
                     }}
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
-                  Unique URL part. Auto-generated from name. Can be manually edited.
+                  Auto-generated from name. Edit manually to customize.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -304,13 +300,22 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
           <FormField
             control={form.control}
-            name="organizerName"
+            name="organizerId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Organizer Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., EventCorp LLC" {...field} />
-                </FormControl>
+                <FormLabel>Organizer</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an organizer" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {organizers.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
