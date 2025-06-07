@@ -8,11 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2, Ticket, ExternalLink } from 'lucide-react';
+import { Loader2, Ticket, ExternalLink, Mail, MessageSquare } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -27,6 +29,23 @@ export default function AdminBookingsPage() {
     setBookings(allBookings);
     setIsLoading(false);
   };
+
+  const handleSendEmail = (bookingId: string) => {
+    // In a real app, this would trigger an API call to send an email.
+    toast({
+      title: "Simulate Email Sent",
+      description: `Confirmation email resent for booking ID: ${bookingId} (mock).`,
+    });
+  };
+
+  const handleSendSms = (bookingId: string) => {
+    // In a real app, this would trigger an API call to send an SMS.
+    toast({
+      title: "Simulate SMS Sent",
+      description: `Booking details SMS sent for booking ID: ${bookingId} (mock).`,
+    });
+  };
+
 
   if (isLoading) {
     return (
@@ -73,7 +92,7 @@ export default function AdminBookingsPage() {
                   <TableHead className="text-right">Tickets</TableHead>
                   <TableHead className="text-right">Total Price</TableHead>
                   <TableHead>Booked On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,11 +107,17 @@ export default function AdminBookingsPage() {
                       <TableCell className="text-right">{totalTickets}</TableCell>
                       <TableCell className="text-right">LKR {booking.totalPrice.toFixed(2)}</TableCell>
                       <TableCell>{new Date(booking.bookingDate).toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" asChild>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="outline" size="sm" asChild title="View Booking Confirmation">
                           <Link href={`/booking-confirmation/${booking.id}`} target="_blank">
-                            View <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                            View <ExternalLink className="ml-1 h-3.5 w-3.5" />
                           </Link>
+                        </Button>
+                         <Button variant="outline" size="icon" title="Send Email (Mock)" onClick={() => handleSendEmail(booking.id)}>
+                            <Mail className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" title="Send SMS (Mock)" onClick={() => handleSendSms(booking.id)}>
+                            <MessageSquare className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -109,7 +134,7 @@ export default function AdminBookingsPage() {
         </CardHeader>
         <CardContent>
             <p className="text-muted-foreground">
-                Features such as modifying bookings, issuing refunds, or resending confirmation emails are planned for future development.
+                Features such as modifying bookings, issuing refunds, or resending confirmation emails (with actual email sending) are planned for future development.
             </p>
         </CardContent>
       </Card>
