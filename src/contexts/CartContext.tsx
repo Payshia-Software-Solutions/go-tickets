@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { CartItem, Event, TicketType, ShowTime } from '@/lib/types'; // Added ShowTime
+import type { CartItem, Event, TicketType } from '@/lib/types'; // Removed ShowTime
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface CartContextType {
@@ -97,3 +97,4 @@ export const useCart = () => {
   }
   return context;
 };
+
