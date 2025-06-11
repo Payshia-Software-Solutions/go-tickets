@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Ticket, CalendarDays, MapPin, Loader2, AlertCircle } from 'lucide-react';
 import type { Booking } from '@/lib/types';
 import Link from 'next/link';
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
 // Client component - static metadata export will not work here.
 // Dynamic title set via useEffect.
@@ -91,7 +91,7 @@ const DashboardPage = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center"><Ticket className="mr-2 h-6 w-6 text-primary" /> Your Bookings</CardTitle>
-          <CardDescription>Here are the events you've booked tickets for.</CardDescription>
+          <CardDescription>Here are the events you&apos;ve booked tickets for.</CardDescription>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
@@ -121,7 +121,7 @@ const DashboardPage = () => {
                       <div>
                         <span className="font-semibold">Tickets:</span>
                         <ul className="list-disc list-inside ml-4">
-                        {booking.tickets.map((ticket, idx) => (
+                        {booking.bookedTickets.map((ticket, idx) => (
                           <li key={idx}>{ticket.quantity} x {ticket.ticketTypeName}</li>
                         ))}
                         </ul>
