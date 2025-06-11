@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, getPopularEvents } from '@/lib/mockData';
+import { getUpcomingEvents, getEventCategories, getPopularEvents, searchEvents } from '@/lib/mockData'; // Updated to use new service layer
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images
+  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images, Loader2
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { searchEvents } from '@/lib/mockData'; // For hero search suggestions
+
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
   Music: { icon: Music2, bgColor: 'bg-indigo-100', iconColor: 'text-indigo-600' },
@@ -42,15 +42,32 @@ export default function HomePage() {
   const [suggestedEvents, setSuggestedEvents] = useState<Event[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const [isLoadingUpcoming, setIsLoadingUpcoming] = useState(true);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isLoadingPopular, setIsLoadingPopular] = useState(true);
+
 
   useEffect(() => {
-    // Set document title for client-side rendering
     document.title = 'MyPass.lk - Discover & Book Event Tickets';
 
     const fetchData = async () => {
-      setUpcomingEvents(await getUpcomingEvents(4));
-      setCategories(await getEventCategories());
-      setPopularEvents(await getPopularEvents(4));
+      setIsLoadingUpcoming(true);
+      getUpcomingEvents(4).then(data => {
+        setUpcomingEvents(data);
+        setIsLoadingUpcoming(false);
+      });
+
+      setIsLoadingCategories(true);
+      getEventCategories().then(data => {
+        setCategories(data);
+        setIsLoadingCategories(false);
+      });
+      
+      setIsLoadingPopular(true);
+      getPopularEvents(4).then(data => {
+        setPopularEvents(data);
+        setIsLoadingPopular(false);
+      });
     };
     fetchData();
   }, []);
@@ -58,7 +75,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (heroSearchQuery.trim().length > 1) {
-        const filtered = await searchEvents(heroSearchQuery.trim(), undefined, undefined, undefined, undefined, undefined);
+        const filtered = await searchEvents(heroSearchQuery.trim()); // searchEvents now uses API
         setSuggestedEvents(filtered.slice(0,5));
         setShowSuggestions(filtered.length > 0);
       } else {
@@ -69,7 +86,7 @@ export default function HomePage() {
     
     const debounceTimer = setTimeout(() => {
       fetchSuggestions();
-    }, 300); // Debounce API call
+    }, 300);
 
     return () => clearTimeout(debounceTimer);
 
@@ -127,6 +144,31 @@ export default function HomePage() {
       router.push(`/search?query=${encodeURIComponent(heroSearchQuery.trim())}`);
     }
   };
+
+  const renderEventSection = (title: string, events: Event[], isLoading: boolean, icon?: React.ReactNode) => (
+    <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
+      <h2 className="text-3xl font-bold text-center mb-10 font-headline flex items-center justify-center">
+        {icon} {title}
+      </h2>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-40">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="ml-3 text-muted-foreground">Loading events...</p>
+        </div>
+      ) : events.length > 0 ? (
+        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
+          {events.map((event) => (
+            <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
+              <EventCard event={event} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center text-muted-foreground">No {title.toLowerCase()} to show at the moment.</p>
+      )}
+    </section>
+  );
+
 
   return (
     <div className="">
@@ -200,64 +242,46 @@ export default function HomePage() {
       {/* Categories Section */}
       <section id="categories" className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Explore by Category</h2>
-        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
-          {categories.map((category) => {
-            const displayInfo = categoryDisplayData[category] || categoryDisplayData.Default;
-            const IconComponent = displayInfo.icon;
-            return (
-              <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
-                <Link href={`/search?category=${encodeURIComponent(category)}`} className="block h-full">
-                  <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4">
-                    <div className={`p-4 rounded-full mb-3 ${displayInfo.bgColor}`}>
-                      <IconComponent className={`h-8 w-8 ${displayInfo.iconColor}`} />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">{category}</span>
-                  </Card>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
+        {isLoadingCategories ? (
+          <div className="flex justify-center items-center h-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             <p className="ml-3 text-muted-foreground">Loading categories...</p>
+          </div>
+        ) : categories.length > 0 ? (
+          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
+            {categories.map((category) => {
+              const displayInfo = categoryDisplayData[category] || categoryDisplayData.Default;
+              const IconComponent = displayInfo.icon;
+              return (
+                <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
+                  <Link href={`/search?category=${encodeURIComponent(category)}`} className="block h-full">
+                    <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4">
+                      <div className={`p-4 rounded-full mb-3 ${displayInfo.bgColor}`}>
+                        <IconComponent className={`h-8 w-8 ${displayInfo.iconColor}`} />
+                      </div>
+                      <span className="text-sm font-medium text-foreground">{category}</span>
+                    </Card>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">No categories available.</p>
+        )}
       </section>
 
       {/* Popular Events Section */}
-      <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
-        <h2 className="text-3xl font-bold text-center mb-10 font-headline flex items-center justify-center">
-          <TrendingUp className="mr-3 h-8 w-8 text-accent" /> Popular Events
-        </h2>
-        {popularEvents.length > 0 ? (
-          <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
-            {popularEvents.map((event) => (
-              <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
-                <EventCard event={event} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-muted-foreground">No popular events to show at the moment.</p>
-        )}
-      </section>
-
+      {renderEventSection("Popular Events", popularEvents, isLoadingPopular, <TrendingUp className="mr-3 h-8 w-8 text-accent" />)}
+      
       {/* Upcoming Events Section */}
-      <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
-        <h2 className="text-3xl font-bold text-center mb-10 font-headline">Upcoming Events</h2>
-        {upcomingEvents.length > 0 ? (
-           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
-            {upcomingEvents.map((event) => (
-              <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
-                <EventCard event={event} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-muted-foreground">No upcoming events at the moment. Check back soon!</p>
-        )}
-        <div className="text-center mt-10">
-          <Button asChild size="lg">
-            <Link href="/search">Browse All Events</Link>
-          </Button>
-        </div>
-      </section>
+      {renderEventSection("Upcoming Events", upcomingEvents, isLoadingUpcoming)}
+
+      <div className="text-center mt-10">
+        <Button asChild size="lg">
+          <Link href="/search">Browse All Events</Link>
+        </Button>
+      </div>
 
       {/* Guest Reviews Section */}
       <section className="bg-secondary/30 py-16 mt-12 md:mt-16 lg:mt-20">

@@ -8,12 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { getEventCategories } from '@/lib/mockData';
-import { CalendarIcon, MapPin, Tag, Search as SearchIcon } from 'lucide-react';
+import { getEventCategories } from '@/lib/mockData'; // Updated to use API-calling service
+import { CalendarIcon, MapPin, Tag, Search as SearchIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface EventFiltersProps {
-  onSearch?: () => void; // Optional: if search results are handled on the same page
+  onSearch?: () => void;
   showPriceFilter?: boolean;
 }
 
@@ -28,14 +28,14 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
   const [category, setCategory] = useState(searchParams.get('category') || '');
   const [date, setDate] = useState<Date | undefined>(searchParams.get('date') ? new Date(searchParams.get('date')!) : undefined);
   const [categories, setCategories] = useState<string[]>([]);
-  // const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
-  // const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
-
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const cats = await getEventCategories();
+      setIsLoadingCategories(true);
+      const cats = await getEventCategories(); // Now fetches from API
       setCategories(cats);
+      setIsLoadingCategories(false);
     };
     fetchCategories();
   }, []);
@@ -47,8 +47,6 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
     if (location) params.set('location', location);
     if (category) params.set('category', category);
     if (date) params.set('date', format(date, 'yyyy-MM-dd'));
-    // if (minPrice) params.set('minPrice', minPrice);
-    // if (maxPrice) params.set('maxPrice', maxPrice);
 
     router.push(`/search?${params.toString()}`);
     if (onSearch) {
@@ -66,7 +64,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
 
   return (
     <form onSubmit={handleSearch} className="p-6 bg-card rounded-xl shadow-lg space-y-6">
-      <div className="grid grid-cols-1 gap-4"> {/* Changed from md:grid-cols-2 lg:grid-cols-4 */}
+      <div className="grid grid-cols-1 gap-4">
         <div className="space-y-1">
           <label htmlFor="searchTerm" className="text-sm font-medium">Search Event</label>
           <div className="relative">
@@ -95,20 +93,27 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
         </div>
         <div className="space-y-1">
           <label htmlFor="category" className="text-sm font-medium">Category</label>
-          <Select value={category} onValueChange={handleCategoryChange}>
-            <SelectTrigger id="category" className="w-full">
-              <div className="flex items-center">
-                <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="All Categories" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_CATEGORIES_ITEM_VALUE}>All Categories</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isLoadingCategories ? (
+            <div className="flex items-center h-10 border rounded-md px-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> 
+                <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+            </div>
+          ) : (
+            <Select value={category} onValueChange={handleCategoryChange}>
+              <SelectTrigger id="category" className="w-full">
+                <div className="flex items-center">
+                  <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="All Categories" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CATEGORIES_ITEM_VALUE}>All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="space-y-1">
           <label htmlFor="date" className="text-sm font-medium">Date</label>
@@ -134,12 +139,6 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter =
           </Popover>
         </div>
       </div>
-        {/* Price filter can be added here if needed using Slider or two Inputs */}
-        {/* {showPriceFilter && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             Price filter inputs
-          </div>
-        )} */}
       <Button type="submit" className="w-full md:w-auto bg-primary hover:bg-primary/90 text-primary-foreground">
         <SearchIcon className="mr-2 h-4 w-4" /> Find Events
       </Button>

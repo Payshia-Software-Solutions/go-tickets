@@ -1,23 +1,45 @@
 
-import { getEventBySlug } from '@/lib/mockData';
+import { getEventBySlug } from '@/lib/mockData'; // Updated to use API fetching
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Users, Building, Tag, Info, Ticket as TicketIcon, Clock, Briefcase } from 'lucide-react';
+import { CalendarDays, MapPin, Users, Building, Tag, Info, Ticket as TicketIcon, Clock, Briefcase, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata, ResolvingMetadata } from 'next';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { format, parseISO } from 'date-fns'; // Import parseISO
 
 interface EventDetailsPageProps {
   params: { slug: string };
 }
 
+// Helper to safely parse date strings
+const safeParseDate = (dateStr: string | undefined): Date | null => {
+  if (!dateStr) return null;
+  try {
+    return parseISO(dateStr);
+  } catch (e) {
+    // Fallback for "YYYY-MM-DD HH:MM:SS" if API sends this for main date too
+    try {
+      const parts = dateStr.split(/[\s:-]/);
+      if (parts.length >= 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 
+                        parseInt(parts[3]) || 0, parseInt(parts[4]) || 0, parseInt(parts[5]) || 0);
+      }
+    } catch (parseError) {
+      console.warn(`Could not parse date string: ${dateStr}`, e, parseError);
+    }
+    return null;
+  }
+};
+
+
 export async function generateMetadata(
   { params }: EventDetailsPageProps,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const event = await getEventBySlug(params.slug);
+  const event = await getEventBySlug(params.slug); // Fetches from API
 
   if (!event) {
     return {
@@ -29,59 +51,71 @@ export async function generateMetadata(
 
   return {
     title: event.name,
-    description: event.description.substring(0, 160), // Keep descriptions concise for meta tags
+    description: event.description?.substring(0, 160) || "Event details for " + event.name,
     openGraph: {
       title: event.name,
-      description: event.description.substring(0, 100), // Shorter for OG
+      description: event.description?.substring(0, 100) || "Event details",
       images: [
         {
-          url: event.imageUrl, // Assuming imageUrl is absolute or metadataBase is set
-          width: 800, // Provide dimensions if known
+          url: event.imageUrl || '/og-default.png', 
+          width: 800,
           height: 450,
           alt: event.name,
         },
         ...previousImages,
       ],
-      type: 'article', // Or 'event' if you have specific event schema
+      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
       title: event.name,
-      description: event.description.substring(0, 100),
-      images: [event.imageUrl],
+      description: event.description?.substring(0, 100) || "Event details",
+      images: [event.imageUrl || '/og-default.png'],
     },
   };
 }
 
-export async function generateStaticParams() {
-  // In a real app, fetch all event slugs
-  // For now, using mockData directly if it were easily accessible here or use a subset
-  const mockEventSlugs = ['tech-conference-2024', 'summer-music-fest', 'art-exhibition-modern', 'charity-gala-night', 'sports-championship-final', 'local-theater-play'];
-  return mockEventSlugs.map((slug) => ({
-    slug,
-  }));
-}
+// generateStaticParams might need to be re-evaluated if slugs are dynamic from API
+// For now, removing it as it might cause issues if API slugs change frequently or are numerous
+// export async function generateStaticParams() { ... }
 
 export default async function EventDetailsPage({ params: { slug } }: EventDetailsPageProps) {
-  const event = await getEventBySlug(slug);
+  const event = await getEventBySlug(slug); // Fetches from API
 
   if (!event) {
-    return <div className="container mx-auto py-12 text-center">Event not found.</div>;
+    return (
+        <div className="container mx-auto py-12 text-center">
+            <AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" />
+            <h1 className="text-2xl font-semibold">Event Not Found</h1>
+            <p className="text-muted-foreground mb-6">The event you are looking for does not exist or could not be loaded.</p>
+            <Button asChild>
+                <Link href="/search">Browse Other Events</Link>
+            </Button>
+        </div>
+    );
   }
 
-  const mainEventDate = new Date(event.date);
-  const formattedMainEventDate = mainEventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  // const formattedMainEventTime = mainEventDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const mainEventDateObj = safeParseDate(event.date);
+  const formattedMainEventDate = mainEventDateObj 
+    ? format(mainEventDateObj, "EEEE, MMMM do, yyyy") 
+    : "Date TBD";
+  
+  // Venue details from top-level event properties
+  const venueName = event.venueName;
+  const venueAddress = event.venueAddress;
+  // mapLink might need to be constructed if not directly provided by API, e.g., from venueAddress
+  // For now, we'll assume event.mapLink exists if provided by API, or we construct it.
+  const venueMapLink = event.mapLink || (venueAddress ? `https://maps.google.com/?q=${encodeURIComponent(venueAddress)}` : undefined);
+
 
   return (
     <div className="container mx-auto py-8 px-4 space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left Column: Image and Core Info */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="overflow-hidden shadow-lg">
             <CardHeader className="p-0">
               <Image
-                src={event.imageUrl}
+                src={event.imageUrl || "https://placehold.co/800x450.png"}
                 alt={event.name}
                 width={800}
                 height={450}
@@ -104,16 +138,6 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
                   <MapPin className="mr-3 h-5 w-5 text-accent" />
                   <span>{event.location}</span>
                 </div>
-                {/* Venue details now in sidebar, this specific line can be removed or kept for redundancy depending on preference */}
-                {/* <div className="flex items-center">
-                  <Building className="mr-3 h-5 w-5 text-accent" />
-                  <span>Venue: {event.venue.name} {event.venue.address && `(${event.venue.address})`}</span>
-                </div>
-                 {event.venue.mapLink && (
-                  <a href={event.venue.mapLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block pl-8">
-                    View on map
-                  </a>
-                )} */}
               </div>
             </CardContent>
              <CardFooter className="p-6 border-t">
@@ -132,50 +156,61 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
             <CardContent>
               <div 
                 className="prose dark:prose-invert max-w-none text-foreground leading-relaxed whitespace-pre-line" 
-                dangerouslySetInnerHTML={{ __html: event.description }} 
+                dangerouslySetInnerHTML={{ __html: event.description || "<p>No description available.</p>" }} 
               />
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Column: Organizer, Venue, and Showtimes */}
         <div className="space-y-6 lg:sticky lg:top-24">
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle className="flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" /> Organizer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-semibold text-lg">{event.organizer.name}</p>
-              <p className="text-sm text-muted-foreground">{event.organizer.contactEmail}</p>
-              {event.organizer.website && (
-                <a href={event.organizer.website} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
-                  Visit Website
-                </a>
-              )}
-            </CardContent>
-          </Card>
+          {event.organizer ? (
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" /> Organizer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-semibold text-lg">{event.organizer.name}</p>
+                {event.organizer.contactEmail && <p className="text-sm text-muted-foreground">{event.organizer.contactEmail}</p>}
+                {event.organizer.website && (
+                  <a href={event.organizer.website} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
+                    Visit Website
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          ) : event.organizerId ? (
+             <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="flex items-center"><Briefcase className="mr-2 h-5 w-5 text-primary" /> Organizer</CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <p className="text-sm text-muted-foreground">Organizer ID: {event.organizerId}</p>
+                 <p className="text-xs text-muted-foreground italic">(Full organizer details not loaded)</p>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="shadow-md">
             <CardHeader>
               <CardTitle className="flex items-center"><Building className="mr-2 h-5 w-5 text-primary" /> Venue Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-semibold text-lg">{event.venue.name}</p>
-              {event.venue.address && (
-                <p className="text-sm text-muted-foreground">{event.venue.address}</p>
+              <p className="font-semibold text-lg">{venueName || "Venue TBD"}</p>
+              {venueAddress && (
+                <p className="text-sm text-muted-foreground">{venueAddress}</p>
               )}
-              {event.venue.mapLink && (
-                <a href={event.venue.mapLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
+              {venueMapLink && (
+                <a href={venueMapLink} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline mt-1 block">
                   View on Map
                 </a>
               )}
-               {!event.venue.address && !event.venue.mapLink && (
+               {!venueAddress && !venueMapLink && !venueName && (
                  <p className="text-sm text-muted-foreground">Detailed venue information not available.</p>
                )}
             </CardContent>
           </Card>
 
-          {event.showTimes && event.showTimes.length > 0 && (
+          {event.showTimes && event.showTimes.length > 0 ? (
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes &amp; Tickets</CardTitle>
@@ -183,9 +218,9 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
               </CardHeader>
               <CardContent className="space-y-6">
                 {event.showTimes.map((showTime, index) => {
-                  const showDateTime = new Date(showTime.dateTime);
-                  const formattedShowDate = showDateTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                  const formattedShowTime = showDateTime.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                  const showDateTimeObj = safeParseDate(showTime.dateTime);
+                  const formattedShowDate = showDateTimeObj ? format(showDateTimeObj, "EEEE, MMMM do, yyyy") : "Date TBD";
+                  const formattedShowTime = showDateTimeObj ? format(showDateTimeObj, "p") : "Time TBD";
                   return (
                     <div key={showTime.id} className="p-4 border rounded-md bg-muted/20">
                       <div className="flex justify-between items-center mb-3">
@@ -214,6 +249,15 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
                     </div>
                   );
                 })}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">No specific showtimes listed. Check the booking page or contact the organizer.</p>
               </CardContent>
             </Card>
           )}

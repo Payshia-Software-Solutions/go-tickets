@@ -1,7 +1,7 @@
 
-"use client"; // This page needs client-side state for showtime selection
+"use client";
 
-import { getEventBySlug } from '@/lib/mockData'; // Still using mockData for fetching
+import { getEventBySlug } from '@/lib/mockData'; // Updated to use API fetching
 import TicketSelector from '@/components/events/TicketSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,15 +12,34 @@ import Image from 'next/image';
 import { ArrowRight, CalendarClock, Loader2, AlertTriangle } from 'lucide-react';
 import type { Event, ShowTime } from '@/lib/types';
 import { useEffect, useState } from 'react';
-// Metadata generation needs to be handled differently for client components or removed if not critical.
-// For now, removing generateMetadata and generateStaticParams as this is a client component.
+import { format, parseISO } from 'date-fns';
 
 interface BookEventPageProps {
   params: { slug: string };
 }
 
+// Helper to safely parse date strings from API
+const safeParseDate = (dateStr: string | undefined): Date | null => {
+  if (!dateStr) return null;
+  try {
+    return parseISO(dateStr);
+  } catch (e) {
+     try { // Fallback for "YYYY-MM-DD HH:MM:SS"
+      const parts = dateStr.split(/[\s:-]/);
+      if (parts.length >= 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]), 
+                        parseInt(parts[3]) || 0, parseInt(parts[4]) || 0, parseInt(parts[5]) || 0);
+      }
+    } catch (parseError) {
+      console.warn(`Could not parse date string: ${dateStr}`, e, parseError);
+    }
+    return null;
+  }
+};
+
+
 export default function BookEventPage({ params: { slug } }: BookEventPageProps) {
-  const [event, setEvent] = useState<Event | null | undefined>(undefined); // undefined for loading, null for not found
+  const [event, setEvent] = useState<Event | null | undefined>(undefined);
   const [selectedShowTimeId, setSelectedShowTimeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -28,14 +47,14 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
     const fetchEventData = async () => {
       setIsLoading(true);
       try {
-        const eventData = await getEventBySlug(slug);
+        const eventData = await getEventBySlug(slug); // Fetches from API
         setEvent(eventData);
         if (eventData && eventData.showTimes && eventData.showTimes.length === 1) {
-          setSelectedShowTimeId(eventData.showTimes[0].id); // Auto-select if only one showtime
+          setSelectedShowTimeId(eventData.showTimes[0].id);
         }
       } catch (error) {
         console.error("Failed to fetch event:", error);
-        setEvent(null); // Set to null on error
+        setEvent(null);
       } finally {
         setIsLoading(false);
       }
@@ -61,7 +80,7 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
     );
   }
 
-  if (event === null) { // Explicitly null means event not found or error
+  if (event === null) {
     return (
       <div className="container mx-auto py-12 text-center">
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
@@ -85,8 +104,10 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
 
   const selectedShowTimeObject = event.showTimes.find(st => st.id === selectedShowTimeId);
   
-  const eventDate = new Date(event.date);
-  const formattedMainDate = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const mainEventDateObj = safeParseDate(event.date);
+  const formattedMainDate = mainEventDateObj 
+    ? format(mainEventDateObj, "EEEE, MMMM do, yyyy") 
+    : "Date TBD";
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -104,24 +125,29 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
               </CardHeader>
               <CardContent>
                 <RadioGroup value={selectedShowTimeId || ""} onValueChange={setSelectedShowTimeId} className="space-y-3">
-                  {event.showTimes.map((st) => (
-                    <Label
-                      key={st.id}
-                      htmlFor={st.id}
-                      className="flex items-center space-x-3 p-4 border rounded-md cursor-pointer hover:bg-muted/50 has-[input:checked]:bg-primary/10 has-[input:checked]:border-primary"
-                    >
-                      <RadioGroupItem value={st.id} id={st.id} />
-                      <div className="flex-grow">
-                        <span className="font-medium text-foreground">
-                          {new Date(st.dateTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                        <span className="text-primary font-semibold mx-1.5">-</span>
-                        <span className="text-foreground">
-                          {new Date(st.dateTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </Label>
-                  ))}
+                  {event.showTimes.map((st) => {
+                    const showDateTimeObj = safeParseDate(st.dateTime);
+                    const formattedShowDate = showDateTimeObj ? format(showDateTimeObj, "E, MMM d, yyyy") : "Invalid Date";
+                    const formattedShowTime = showDateTimeObj ? format(showDateTimeObj, "p") : "Invalid Time";
+                    return (
+                      <Label
+                        key={st.id}
+                        htmlFor={st.id}
+                        className="flex items-center space-x-3 p-4 border rounded-md cursor-pointer hover:bg-muted/50 has-[input:checked]:bg-primary/10 has-[input:checked]:border-primary"
+                      >
+                        <RadioGroupItem value={st.id} id={st.id} />
+                        <div className="flex-grow">
+                          <span className="font-medium text-foreground">
+                            {formattedShowDate}
+                          </span>
+                          <span className="text-primary font-semibold mx-1.5">-</span>
+                          <span className="text-foreground">
+                            {formattedShowTime}
+                          </span>
+                        </div>
+                      </Label>
+                    );
+                  })}
                 </RadioGroup>
               </CardContent>
             </Card>
@@ -131,7 +157,7 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
             <TicketSelector event={event} selectedShowTime={selectedShowTimeObject} />
           )}
            
-          {selectedShowTimeObject && (
+          {selectedShowTimeObject && ( // Show checkout button only if a showtime is selected
             <div className="mt-8 flex justify-end">
              <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Link href="/checkout">
@@ -148,13 +174,13 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
               <CardTitle className="font-headline text-2xl">{event.name}</CardTitle>
               <CardDescription>
                 Main Event Date: {formattedMainDate} <br />
-                At {event.venue.name}, {event.location}
+                At {event.venueName || "Venue TBD"}, {event.location}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="aspect-video relative rounded-md overflow-hidden">
                 <Image 
-                  src={event.imageUrl} 
+                  src={event.imageUrl || "https://placehold.co/600x400.png"} 
                   alt={event.name} 
                   fill
                   style={{objectFit: 'cover'}}
@@ -162,6 +188,16 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
                   data-ai-hint="event poster"
                 />
               </div>
+               {selectedShowTimeObject && (
+                <div className="mt-4 p-3 bg-primary/10 rounded-md">
+                  <p className="text-sm font-semibold text-primary">Selected Showtime:</p>
+                  <p className="text-sm text-foreground">
+                    {safeParseDate(selectedShowTimeObject.dateTime) ? 
+                        format(safeParseDate(selectedShowTimeObject.dateTime)!, "EEEE, MMMM do, yyyy 'at' p") 
+                        : "Invalid date"}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

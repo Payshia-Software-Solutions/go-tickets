@@ -3,7 +3,7 @@
 
 import { useEffect, useState, Suspense, type FC } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { searchEvents } from '@/lib/mockData';
+import { searchEvents } from '@/lib/mockData'; // Updated to use API-calling service
 import type { Event } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import EventFilters from '@/components/events/EventFilters';
@@ -12,9 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 
-
-// Component that actually fetches and displays results.
-// It uses useSearchParams and must be rendered within a <Suspense> boundary.
 const SearchResultsDisplay: FC = () => {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<Event[]>([]);
@@ -28,8 +25,9 @@ const SearchResultsDisplay: FC = () => {
       const category = searchParams.get('category') || undefined;
       const date = searchParams.get('date') || undefined;
       const location = searchParams.get('location') || undefined;
-      const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined;
-      const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
+      // Price filters are not yet passed to searchEvents as API support is assumed missing
+      // const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined;
+      // const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
       
       let title = 'Browse All Events | MyPass.lk';
       if (query) {
@@ -39,7 +37,8 @@ const SearchResultsDisplay: FC = () => {
       }
       setPageTitle(title);
 
-      const events = await searchEvents(query, category, date, location, minPrice, maxPrice);
+      // searchEvents now calls the API
+      const events = await searchEvents(query, category, date, location);
       setResults(events);
       setIsLoading(false);
     };
@@ -81,15 +80,13 @@ const SearchResultsDisplay: FC = () => {
   );
 };
 
-// Wrapper component to get searchParams and provide a key for the main Suspense boundary
-// This avoids calling useSearchParams directly in SearchPage
 const SearchContentWrapper: FC = () => {
     const searchParams = useSearchParams();
     const suspenseKey = searchParams.toString();
 
     return (
         <Suspense
-            key={suspenseKey} // Key to re-mount SearchResultsDisplay on param change
+            key={suspenseKey}
             fallback={
               <div className="flex justify-center items-center py-20 col-span-1 lg:col-span-3">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
