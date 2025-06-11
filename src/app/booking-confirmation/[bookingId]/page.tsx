@@ -12,8 +12,7 @@ interface BookingConfirmationPageProps {
 }
 
 export async function generateMetadata(
-  { params }: BookingConfirmationPageProps,
-  parent: ResolvingMetadata
+  { params }: BookingConfirmationPageProps
 ): Promise<Metadata> {
   const booking = await getBookingById(params.bookingId);
 
