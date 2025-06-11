@@ -14,12 +14,11 @@ import { format } from 'date-fns';
 
 interface EventFiltersProps {
   onSearch?: () => void;
-  showPriceFilter?: boolean;
 }
 
 const ALL_CATEGORIES_ITEM_VALUE = "__ALL_CATEGORIES_SENTINEL__";
 
-const EventFilters: React.FC<EventFiltersProps> = ({ onSearch, showPriceFilter = true }) => {
+const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
