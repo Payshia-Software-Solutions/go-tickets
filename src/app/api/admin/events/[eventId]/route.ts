@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: Context) {
       return NextResponse.json({ message: 'Event not found' }, { status: 404 });
     }
     return NextResponse.json(event);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`API Error fetching event ${params.eventId}:`, error);
     return NextResponse.json({ message: 'Failed to fetch event' }, { status: 500 });
   }
@@ -50,9 +50,10 @@ export async function PUT(request: Request, { params }: Context) {
       return NextResponse.json({ message: 'Event not found or update failed (no specific error from service)' }, { status: 404 });
     }
     return NextResponse.json(updated);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`API Error updating event ${params.eventId}:`, error);
-    return NextResponse.json({ message: error.message || 'Failed to update event' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update event';
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
 
@@ -60,8 +61,9 @@ export async function DELETE(request: Request, { params }: Context) {
   try {
     await deleteEvent(params.eventId);
     return NextResponse.json({ message: 'Event deleted successfully' }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`API Error deleting event ${params.eventId}:`, error);
-    return NextResponse.json({ message: error.message || 'Failed to delete event' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete event';
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
