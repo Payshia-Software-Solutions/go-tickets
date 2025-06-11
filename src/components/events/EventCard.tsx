@@ -31,7 +31,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   const displayLocation = event.venue?.name || event.location;
 
   return (
-    <Card className="flex flex-col overflow-hidden h-full shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl">
+    <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-xl">
       <Link href={`/events/${event.slug}`} aria-label={`View details for ${event.name}`}>
         <div className="relative w-full h-60 md:h-56"> {/* Adjusted height */}
           <Image
@@ -39,7 +39,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             alt={event.name}
             fill
             style={{objectFit: 'cover'}}
-            className="rounded-t-xl" // Apply rounding to image container if card doesn't clip
+            className="rounded-t-xl" 
             data-ai-hint="event concert festival"
           />
         </div>
