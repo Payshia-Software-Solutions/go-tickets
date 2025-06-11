@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Organizer, OrganizerFormData } from '@/lib/types';
 // Removed direct imports: adminGetAllOrganizers, deleteOrganizer, createOrganizer, updateOrganizer
 import { Button } from '@/components/ui/button';
@@ -38,14 +38,7 @@ export default function AdminOrganizersPage() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      document.title = 'Manage Organizers | Event Horizon Admin';
-    }
-    fetchOrganizers();
-  }, []);
-
-  const fetchOrganizers = async () => {
+  const fetchOrganizers = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/organizers`);
@@ -64,7 +57,14 @@ export default function AdminOrganizersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Manage Organizers | Event Horizon Admin';
+    }
+    fetchOrganizers();
+  }, [fetchOrganizers]);
 
   const handleDeleteClick = (organizer: Organizer) => {
     setOrganizerToDelete(organizer);
@@ -87,10 +87,10 @@ export default function AdminOrganizersPage() {
         description: `"${organizerToDelete.name}" has been successfully deleted.`,
       });
       fetchOrganizers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error Deleting Organizer",
-        description: error.message || "Could not delete the organizer. It might be in use or an error occurred.",
+        description: (error instanceof Error ? error.message : "Could not delete the organizer. It might be in use or an error occurred."),
         variant: "destructive",
       });
       setIsLoading(false);
@@ -131,11 +131,11 @@ export default function AdminOrganizersPage() {
       });
       setShowCreateModal(false);
       fetchOrganizers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to create organizer:", error);
       toast({
         title: "Error Creating Organizer",
-        description: error.message || "An unexpected error occurred. Please try again.",
+        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -164,11 +164,11 @@ export default function AdminOrganizersPage() {
       setShowEditModal(false);
       setCurrentOrganizerForEdit(null);
       fetchOrganizers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to update organizer:", error);
       toast({
         title: "Error Updating Organizer",
-        description: error.message || "An unexpected error occurred. Please try again.",
+        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
         variant: "destructive",
       });
     } finally {
