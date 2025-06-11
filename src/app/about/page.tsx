@@ -1,6 +1,5 @@
 
-import Image from 'next/image';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Building, Lightbulb, Users, Target, Heart, Handshake, ShieldCheck } from 'lucide-react';
 import type { Metadata } from 'next';
@@ -76,7 +75,7 @@ const whyChooseUsItems = [
   {
     icon: <Heart className="h-10 w-10 text-primary" />,
     title: 'Passion for Events',
-    description: 'We\'re event lovers too! Our team is dedicated to helping you discover your next great experience.',
+    description: 'We&apos;re event lovers too! Our team is dedicated to helping you discover your next great experience.',
   }
 ];
 
@@ -133,7 +132,7 @@ export default function AboutPage() {
               Founded by a group of passionate event enthusiasts, MyPass.lk was born out of a desire to simplify the often-complex process of finding and purchasing event tickets. We noticed the frustrations many faced – from difficult-to-navigate websites to concerns about ticket authenticity. We set out to create a platform that addressed these challenges head-on.
             </p>
             <p>
-              Since our inception, we've grown from a small startup into a recognized name in event ticketing, always staying true to our core values of transparency, reliability, and customer-centricity. Our journey has been fueled by a love for live entertainment and a commitment to making it accessible to everyone.
+              Since our inception, we&apos;ve grown from a small startup into a recognized name in event ticketing, always staying true to our core values of transparency, reliability, and customer-centricity. Our journey has been fueled by a love for live entertainment and a commitment to making it accessible to everyone.
             </p>
           </CardContent>
         </Card>
