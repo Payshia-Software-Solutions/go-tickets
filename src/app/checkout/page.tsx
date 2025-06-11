@@ -24,7 +24,7 @@ import Link from 'next/link';
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
-  const { user, loading: authLoading, login } = useAuth(); // Assuming login might re-fetch user with updated address
+  const { user, loading: authLoading } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -43,7 +43,7 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Checkout | MyPass.lk';
+      document.title = 'Checkout | Event Horizon Tickets';
     }
   }, []);
 
@@ -131,11 +131,11 @@ const CheckoutPage = () => {
       });
       clearCart();
       router.push(`/booking-confirmation/${newBooking.id}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Booking error:", error);
       toast({
         title: "Booking Failed",
-        description: error.message || "Something went wrong. Please try again.",
+        description: (error instanceof Error ? error.message : "Something went wrong. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -157,7 +157,7 @@ const CheckoutPage = () => {
       <div className="container mx-auto py-12 text-center">
         <ShoppingCart className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Your Cart is Empty</h2>
-        <p className="text-muted-foreground mb-6">Looks like you haven't added any tickets yet.</p>
+        <p className="text-muted-foreground mb-6">Looks like you haven&apos;t added any tickets yet.</p>
         <Button asChild>
           <Link href="/search">Browse Events</Link>
         </Button>
