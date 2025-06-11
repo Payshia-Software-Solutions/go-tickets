@@ -23,7 +23,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      
+      {
+        protocol: 'https',
+        hostname: 'gotickets-server.payshia.com',
+        port: '',
+        pathname: '/**',
+      },
       {
         protocol: 'https',
         hostname: 'example.com',
