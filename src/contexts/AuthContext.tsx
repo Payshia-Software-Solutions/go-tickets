@@ -7,9 +7,9 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, pass: string) => Promise<boolean>; // Simple mock, pass not used
+  login: (email: string) => Promise<boolean>; // Removed pass
   logout: () => void;
-  signup: (name: string, email: string, pass: string) => Promise<boolean>; // Simple mock
+  signup: (name: string, email: string) => Promise<boolean>; // Removed pass
   loading: boolean;
 }
 
@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(false);
   }, []);
 
-  const login = async (email: string, _pass: string) => {
+  const login = async (email: string) => { // Removed _pass
     setLoading(true);
     const foundUser = await getUserByEmail(email);
     if (foundUser) {
@@ -47,9 +47,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem(localStorageKey);
   };
 
-  const signup = async (name: string, email: string, _pass: string) => {
+  const signup = async (name: string, email: string) => { // Removed _pass
     setLoading(true);
-    let existingUser = await getUserByEmail(email);
+    const existingUser = await getUserByEmail(email); // Changed to const
     if (existingUser) {
       setLoading(false);
       return false; // User already exists
@@ -75,3 +75,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
