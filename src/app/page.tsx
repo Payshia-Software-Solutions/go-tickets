@@ -156,7 +156,7 @@ export default function HomePage() {
           <p className="ml-3 text-muted-foreground">Loading events...</p>
         </div>
       ) : events.length > 0 ? (
-        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
+        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
           {events.map((event) => (
             <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
               <EventCard event={event} />
