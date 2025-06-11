@@ -146,7 +146,7 @@ export default function HomePage() {
   };
 
   const renderEventSection = (title: string, events: Event[], isLoading: boolean, icon?: React.ReactNode) => (
-    <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
+    <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20 ">
       <h2 className="text-3xl font-bold text-center mb-10 font-headline flex items-center justify-center">
         {icon} {title}
       </h2>
@@ -156,9 +156,9 @@ export default function HomePage() {
           <p className="ml-3 text-muted-foreground">Loading events...</p>
         </div>
       ) : events.length > 0 ? (
-        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-8 md:pb-0 md:snap-none">
+        <div className="flex overflow-x-auto space-x-4  pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:pb-0 md:snap-none">
           {events.map((event) => (
-            <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full">
+            <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full mb-10">
               <EventCard event={event} />
             </div>
           ))}

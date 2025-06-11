@@ -72,7 +72,7 @@ const SearchResultsDisplay: FC = () => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-4">
       {results.map((event) => (
         <EventCard key={event.id} event={event} />
       ))}
@@ -149,7 +149,7 @@ export default function SearchPage() {
         </Sheet>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 lg:gap-4">
         <aside className="hidden lg:block lg:col-span-1 sticky top-20 self-start h-auto">
           <h2 className="text-xl font-semibold mb-4 font-headline">Filters</h2>
           <Suspense fallback={<FilterSkeleton />}>

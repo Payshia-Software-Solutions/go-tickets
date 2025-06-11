@@ -31,7 +31,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   const displayLocation = event.venue?.name || event.location;
 
   return (
-    <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-xl">
+    <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-[25px] border-none">
       <Link href={`/events/${event.slug}`} aria-label={`View details for ${event.name}`}>
         <div className="relative w-full h-60 md:h-56"> {/* Adjusted height */}
           <Image
@@ -39,7 +39,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             alt={event.name}
             fill
             style={{objectFit: 'cover'}}
-            className="rounded-t-xl" 
+            className="rounded-t-[25px]" 
             data-ai-hint="event concert festival"
           />
         </div>
