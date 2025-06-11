@@ -7,6 +7,21 @@ interface Context {
   params: { eventId: string };
 }
 
+// Interface for the raw show time object from the request body before date parsing
+interface RawShowTimeInput {
+  id?: string;
+  dateTime: string; // Expecting string from JSON
+  ticketAvailabilities: Array<{
+    id?: string;
+    ticketTypeId: string;
+    ticketTypeName: string;
+    availableCount: number;
+  }>;
+  // Add other properties of a show time if they exist in the raw input
+  [key: string]: any; // Allow other properties from ...st
+}
+
+
 export async function GET(request: Request, { params }: Context) {
   try {
     const event = await getEventById(params.eventId);
@@ -16,7 +31,8 @@ export async function GET(request: Request, { params }: Context) {
     return NextResponse.json(event);
   } catch (error: unknown) {
     console.error(`API Error fetching event ${params.eventId}:`, error);
-    return NextResponse.json({ message: 'Failed to fetch event' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch event';
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
 
@@ -28,7 +44,7 @@ export async function PUT(request: Request, { params }: Context) {
     const bodyWithParsedDates = {
       ...body,
       date: body.date ? new Date(body.date) : undefined,
-      showTimes: body.showTimes?.map((st: any) => ({
+      showTimes: body.showTimes?.map((st: RawShowTimeInput) => ({
         ...st,
         dateTime: st.dateTime ? new Date(st.dateTime) : undefined,
       })) || [],
