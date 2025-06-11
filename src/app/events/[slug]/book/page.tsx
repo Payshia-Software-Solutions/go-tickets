@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, CalendarClock, Loader2, AlertTriangle } from 'lucide-react';
-import type { Event, ShowTime } from '@/lib/types';
+import type { Event } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 
