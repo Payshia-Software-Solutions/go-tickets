@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Loader2 } from 'lucide-react'; // Added Loader2
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
 // Metadata for client components is tricky. This won't be used by Next.js directly here.
 // export const metadata: Metadata = {

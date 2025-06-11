@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { Loader2, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet'; // Removed SheetTrigger
 import Link from 'next/link';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
