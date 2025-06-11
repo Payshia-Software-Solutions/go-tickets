@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
-import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeFormData, ShowTimeTicketAvailabilityFormData } from "@/lib/types";
+import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeTicketAvailabilityFormData } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, ImageUp, Sparkles, AlertTriangle, PlusCircle, Trash2, Ticket, Clock } from "lucide-react";
+import { CalendarIcon, Loader2, Sparkles, AlertTriangle, PlusCircle, Trash2, Ticket, Clock } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -76,13 +76,29 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       };
     }
 
-    const ticketTypesFormData = event.ticketTypes.map(tt => ({
+    // Ensure ticketTypes is an array before mapping
+    const ticketTypesArray = Array.isArray(event.ticketTypes) ? event.ticketTypes : [];
+    const ticketTypesFormData = ticketTypesArray.map(tt => ({
       id: tt.id, // DB ID
       name: tt.name,
       price: tt.price,
       availability: tt.availability, // Template availability
       description: tt.description || "",
     }));
+    
+    // Ensure showTimes is an array before mapping
+    const showTimesArray = Array.isArray(event.showTimes) ? event.showTimes : [];
+    const showTimesFormData = showTimesArray.map(st => ({
+        id: st.id, // DB ID
+        dateTime: new Date(st.dateTime),
+        // Ensure ticketAvailabilities is an array before mapping
+        ticketAvailabilities: Array.isArray(st.ticketAvailabilities) ? st.ticketAvailabilities.map(sta => ({
+          id: sta.id, // DB ID
+          ticketTypeId: sta.ticketType.id, // DB ID from related TicketType
+          ticketTypeName: sta.ticketType.name, // For display
+          availableCount: sta.availableCount,
+        })) : [],
+      }));
 
     return {
       name: event.name,
@@ -92,20 +108,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       description: event.description || "<p></p>",
       category: event.category,
       imageUrl: event.imageUrl,
-      organizerId: event.organizer.id,
-      venueName: event.venue.name,
-      venueAddress: event.venue.address || "",
+      organizerId: event.organizer?.id || "", // Handle case where organizer might be missing
+      venueName: event.venue?.name || "", // Handle case where venue might be missing
+      venueAddress: event.venue?.address || "",
       ticketTypes: ticketTypesFormData,
-      showTimes: event.showTimes.map(st => ({
-        id: st.id, // DB ID
-        dateTime: new Date(st.dateTime),
-        ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-          id: sta.id, // DB ID
-          ticketTypeId: sta.ticketType.id, // DB ID from related TicketType
-          ticketTypeName: sta.ticketType.name, // For display
-          availableCount: sta.availableCount,
-        })),
-      })),
+      showTimes: showTimesFormData,
     };
   };
   
@@ -502,7 +509,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <FormField
             control={form.control}
             name="description"
-            render={({ field }) => (
+            render={() => ( // field removed as it's unused in this specific FormField's scope
                 <FormItem>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
@@ -563,7 +570,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                       <AlertTriangle className="h-4 w-4 !text-amber-600" />
                       <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
                       <AlertDescription>
-                          If using a local image, it's for preview. Production apps need to upload files to cloud storage and use the returned URL.
+                          If using a local image, it&apos;s for preview. Production apps need to upload files to cloud storage and use the returned URL.
                           AI-generated images are data URIs, which are large and also best uploaded for production.
                       </AlertDescription>
                     </Alert>
