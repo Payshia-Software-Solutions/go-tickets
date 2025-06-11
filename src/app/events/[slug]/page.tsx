@@ -3,7 +3,7 @@ import { getEventBySlug } from '@/lib/mockData'; // Updated to use API fetching
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Users, Building, Tag, Info, Ticket as TicketIcon, Clock, Briefcase, AlertTriangle } from 'lucide-react';
+import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata, ResolvingMetadata } from 'next';
 import { Badge } from '@/components/ui/badge';
