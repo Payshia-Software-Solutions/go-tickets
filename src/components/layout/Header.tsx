@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Search, Ticket, UserCircle, LogOut, Home, CalendarDays, ShoppingCart, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Menu, Search, Ticket, LogOut, ShoppingCart, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useTheme } from 'next-themes';
 
@@ -20,7 +20,7 @@ const Header = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
