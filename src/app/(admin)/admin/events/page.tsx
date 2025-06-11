@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Event, EventFormData } from '@/lib/types';
 // Removed direct imports: adminGetAllEvents, deleteEvent, createEvent, updateEvent
 import { Button } from '@/components/ui/button';
@@ -38,14 +38,7 @@ export default function AdminEventsPage() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      document.title = 'Manage Events | Event Horizon Admin';
-    }
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/events`);
@@ -64,7 +57,14 @@ export default function AdminEventsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Manage Events | Event Horizon Admin';
+    }
+    fetchEvents();
+  }, [fetchEvents]);
 
   const handleDeleteClick = (event: Event) => {
     setEventToDelete(event);
@@ -87,10 +87,10 @@ export default function AdminEventsPage() {
         description: `"${eventToDelete.name}" has been successfully deleted.`,
       });
       fetchEvents(); // Re-fetch events
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error Deleting Event",
-        description: error.message || "Could not delete the event.",
+        description: (error instanceof Error ? error.message : "Could not delete the event."),
         variant: "destructive",
       });
       setIsLoading(false);
@@ -113,7 +113,8 @@ export default function AdminEventsPage() {
       const fullEventData = await response.json();
       setCurrentEventForEdit(fullEventData);
       setShowEditModal(true);
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Error fetching event details for edit:", error);
       toast({ title: "Error", description: "Could not load event details for editing.", variant: "destructive" });
     } finally {
       setIsLoading(false);
@@ -139,11 +140,11 @@ export default function AdminEventsPage() {
       });
       setShowCreateModal(false);
       fetchEvents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to create event:", error);
       toast({
         title: "Error Creating Event",
-        description: error.message || "An unexpected error occurred. Please try again.",
+        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -172,11 +173,11 @@ export default function AdminEventsPage() {
       setShowEditModal(false);
       setCurrentEventForEdit(null);
       fetchEvents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to update event:", error);
       toast({
         title: "Error Updating Event",
-        description: error.message || "An unexpected error occurred. Please try again.",
+        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
         variant: "destructive",
       });
     } finally {
