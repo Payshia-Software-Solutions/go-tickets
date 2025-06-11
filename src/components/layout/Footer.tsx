@@ -9,7 +9,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <Link href="/" className="block mb-4">
-              <span className="text-xl font-bold text-primary font-headline">MyPass<span className="font-normal text-[hsl(var(--footer-foreground))]">.</span> <span className="text-accent">lk</span></span>
+              <span className="text-xl font-bold text-primary font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
             </Link>
             <p className="text-sm opacity-80">
               Your ultimate destination for discovering and booking tickets for events worldwide.
@@ -32,7 +32,7 @@ const Footer = () => {
               <Link href="#" aria-label="Instagram" className="text-[hsl(var(--footer-foreground))] opacity-70 hover:opacity-100 hover:text-primary transition-colors"><Instagram size={24} /></Link>
               <Link href="#" aria-label="LinkedIn" className="text-[hsl(var(--footer-foreground))] opacity-70 hover:opacity-100 hover:text-primary transition-colors"><Linkedin size={24} /></Link>
             </div>
-            <p className="text-sm opacity-80">&copy; {new Date().getFullYear()} MyPass.lk. All rights reserved.</p>
+            <p className="text-sm opacity-80">&copy; {new Date().getFullYear()} GoTickets.lk. All rights reserved.</p>
           </div>
         </div>
         <div className="text-center mt-8 pt-8 border-t border-[hsl(var(--footer-border))] opacity-70">
@@ -46,3 +46,4 @@ const Footer = () => {
 };
 
 export default Footer;
+

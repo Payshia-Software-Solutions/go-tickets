@@ -29,7 +29,7 @@ const PromotionalModal: FC<PromotionalModalProps> = ({ isOpen, onOpenChange }) =
           <div className="p-6">
             <DialogTitle className="text-2xl font-bold text-center mb-2">🎉 Special Discount Just For You! 🎉</DialogTitle>
             <DialogDescription className="text-center text-md">
-              Get an exclusive <span className="font-bold text-primary">15% OFF</span> your first ticket booking with MyPass.lk!
+              Get an exclusive <span className="font-bold text-primary">15% OFF</span> your first ticket booking with GoTickets.lk!
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -57,3 +57,4 @@ const PromotionalModal: FC<PromotionalModalProps> = ({ isOpen, onOpenChange }) =
 }
 
 export default PromotionalModal;
+

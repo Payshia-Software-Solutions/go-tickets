@@ -48,7 +48,7 @@ export default function HomePage() {
 
 
   useEffect(() => {
-    document.title = 'MyPass.lk - Discover & Book Event Tickets';
+    document.title = 'GoTickets.lk - Discover & Book Event Tickets';
 
     const fetchData = async () => {
       setIsLoadingUpcoming(true);
@@ -111,7 +111,7 @@ export default function HomePage() {
       avatarUrl: 'https://placehold.co/100x100.png',
       avatarFallback: 'SL',
       rating: 5,
-      review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend MyPass.lk!',
+      review: 'Absolutely fantastic! The booking process was smooth, and the event was unforgettable. Highly recommend GoTickets.lk!',
       event: 'Summer Music Fest 2024',
       dataAiHint: 'person portrait',
     },
@@ -156,7 +156,7 @@ export default function HomePage() {
           <p className="ml-3 text-muted-foreground">Loading events...</p>
         </div>
       ) : events.length > 0 ? (
-        <div className="flex overflow-x-auto space-x-4  pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:pb-0 md:snap-none">
+        <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-4 md:pb-0 md:snap-none">
           {events.map((event) => (
             <div key={event.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full mb-10">
               <EventCard event={event} />
@@ -255,7 +255,7 @@ export default function HomePage() {
               return (
                 <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
                   <Link href={`/search?category=${encodeURIComponent(category)}`} className="block h-full">
-                    <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4">
+                    <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4 rounded-xl overflow-hidden">
                       <div className={`p-4 rounded-full mb-3 ${displayInfo.bgColor}`}>
                         <IconComponent className={`h-8 w-8 ${displayInfo.iconColor}`} />
                       </div>
@@ -292,7 +292,7 @@ export default function HomePage() {
           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-8 md:pb-0 md:snap-none">
             {guestReviews.map((review) => (
               <div key={review.id} className="snap-center shrink-0 w-[80vw] sm:w-[70vw] md:w-full md:h-auto pb-1">
-                <Card className="shadow-lg flex flex-col h-full">
+                <Card className="shadow-lg flex flex-col h-full rounded-xl overflow-hidden">
                   <CardContent className="p-6 flex-grow">
                     <div className="flex items-center mb-4">
                       <Avatar className="h-12 w-12 mr-4">
@@ -328,7 +328,7 @@ export default function HomePage() {
       {/* Why Choose Us Section */}
       <section className="bg-muted">
         <div className="container mx-auto px-4 py-12">
-          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why MyPass.lk?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why GoTickets.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div className="p-6">
               <Users className="h-12 w-12 text-primary mx-auto mb-4" />
@@ -351,3 +351,4 @@ export default function HomePage() {
     </div>
   );
 }
+

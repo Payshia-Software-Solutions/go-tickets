@@ -64,9 +64,9 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
 
   useEffect(() => {
     if (event && typeof window !== 'undefined') {
-        document.title = `Book Tickets for ${event.name} | MyPass.lk`;
+        document.title = `Book Tickets for ${event.name} | GoTickets.lk`;
     } else if (event === null && typeof window !== 'undefined') {
-        document.title = 'Event Not Found | MyPass.lk';
+        document.title = 'Event Not Found | GoTickets.lk';
     }
   }, [event]);
 
@@ -169,7 +169,7 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
         </div>
 
         <div className="md:col-span-1">
-          <Card className="sticky top-24 shadow-lg">
+          <Card className="sticky top-24 shadow-lg rounded-xl overflow-hidden">
             <CardHeader>
               <CardTitle className="font-headline text-2xl">{event.name}</CardTitle>
               <CardDescription>
@@ -205,3 +205,4 @@ export default function BookEventPage({ params: { slug } }: BookEventPageProps) 
     </div>
   );
 }
+

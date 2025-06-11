@@ -19,18 +19,18 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'MyPass.lk - Your Gateway to Events',
-    template: '%s | MyPass.lk',
+    default: 'GoTickets.lk - Your Gateway to Events',
+    template: '%s | GoTickets.lk',
   },
-  description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk. Your ultimate destination for unforgettable live experiences.',
-  keywords: ['events', 'tickets', 'concerts', 'sports', 'theater', 'festivals', 'booking', 'MyPass.lk'],
+  description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on GoTickets.lk. Your ultimate destination for unforgettable live experiences.',
+  keywords: ['events', 'tickets', 'concerts', 'sports', 'theater', 'festivals', 'booking', 'GoTickets.lk'],
   openGraph: {
     title: {
-        default: 'MyPass.lk - Your Gateway to Events',
-        template: '%s | MyPass.lk',
+        default: 'GoTickets.lk - Your Gateway to Events',
+        template: '%s | GoTickets.lk',
     },
-    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk.',
-    siteName: 'MyPass.lk',
+    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on GoTickets.lk.',
+    siteName: 'GoTickets.lk',
     type: 'website',
     locale: 'en_US',
     url: SITE_URL,
@@ -39,17 +39,17 @@ export const metadata: Metadata = {
         url: '/og-default.png', // Replace with your actual default OG image path in /public
         width: 1200,
         height: 630,
-        alt: 'MyPass.lk - Event Tickets',
+        alt: 'GoTickets.lk - Event Tickets',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: {
-        default: 'MyPass.lk - Your Gateway to Events',
-        template: '%s | MyPass.lk',
+        default: 'GoTickets.lk - Your Gateway to Events',
+        template: '%s | GoTickets.lk',
     },
-    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk.',
+    description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on GoTickets.lk.',
     images: ['/og-default.png'], // Replace with your actual default Twitter image path in /public
   },
   robots: {
@@ -92,3 +92,4 @@ export default function RootLayout({
     </html>
   );
 }
+

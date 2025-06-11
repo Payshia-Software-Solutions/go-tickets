@@ -132,7 +132,7 @@ const Header = () => {
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/" className="flex items-center">
-             <span className="text-2xl font-bold font-headline">MyPass<span className="text-primary">.</span><span className="text-accent">lk</span></span>
+             <span className="text-2xl font-bold font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
           </Link>
           <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
             <NavLinks />
@@ -184,7 +184,7 @@ const Header = () => {
                 <div className="mt-6">
                   <div className="flex flex-col space-y-4">
                     <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
-                       <span className="text-xl font-bold font-headline">MyPass<span className="text-primary">.</span><span className="text-accent">lk</span></span>
+                       <span className="text-xl font-bold font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
                     </Link>
                     <form onSubmit={handleSearch} className="flex items-center relative w-full">
                       <Input
@@ -246,3 +246,4 @@ const Header = () => {
 };
 
 export default Header;
+

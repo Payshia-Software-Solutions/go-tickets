@@ -24,7 +24,7 @@ const LoginFormContent = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const success = await login(email, password);
+    const success = await login(email);
     if (success) {
       toast({ title: "Login Successful", description: "Welcome back!" });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
@@ -100,7 +100,7 @@ const LoginFormContent = () => {
 const LoginPage = () => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Login | MyPass.lk';
+      document.title = 'Login | GoTickets.lk';
     }
   }, []);
 
@@ -119,3 +119,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+

@@ -18,7 +18,7 @@ export default function AdminDashboardPage() {
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Admin Dashboard | MyPass.lk';
+      document.title = 'Admin Dashboard | GoTickets.lk';
     }
   }, []);
 
@@ -26,7 +26,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-8">
       <header>
         <h1 className="text-3xl font-bold text-foreground font-headline">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to the MyPass.lk admin panel.</p>
+        <p className="text-muted-foreground">Welcome to the GoTickets.lk admin panel.</p>
       </header>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -107,3 +107,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+

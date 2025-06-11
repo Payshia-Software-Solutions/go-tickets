@@ -29,7 +29,7 @@ const AccountDashboardPage = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'My Account Dashboard | MyPass.lk';
+      document.title = 'My Account Dashboard | GoTickets.lk';
     }
   }, []);
 
@@ -110,7 +110,7 @@ const AccountDashboardPage = () => {
                 const formattedEventTime = eventDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
                 return (
-                  <Card key={booking.id} className="hover:shadow-md transition-shadow">
+                  <Card key={booking.id} className="hover:shadow-xl transition-shadow rounded-xl overflow-hidden">
                     <CardHeader>
                       <CardTitle className="text-xl">{booking.eventName}</CardTitle>
                        <CardDescription>Booking ID: {booking.id}</CardDescription>
@@ -145,3 +145,4 @@ const AccountDashboardPage = () => {
 };
 
 export default AccountDashboardPage;
+

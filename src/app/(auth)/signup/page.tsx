@@ -11,17 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Loader2 } from 'lucide-react'; // Added Loader2
-// Removed: import type { Metadata } from 'next';
-
-// Metadata for client components is tricky. This won't be used by Next.js directly here.
-// export const metadata: Metadata = {
-//   title: 'Sign Up - MyPass.lk',
-//   description: 'Create an account on MyPass.lk to start booking tickets for your favorite events.',
-//   robots: {
-//     index: false, // Usually no need to index signup pages
-//     follow: true,
-//   },
-// };
 
 const SignupFormContent = () => {
   const { signup } = useAuth();
@@ -41,7 +30,7 @@ const SignupFormContent = () => {
       return;
     }
     setIsLoading(true);
-    const success = await signup(name, email, password);
+    const success = await signup(name, email);
     if (success) {
       toast({ title: "Signup Successful", description: "Welcome! Your account has been created." });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
@@ -57,7 +46,7 @@ const SignupFormContent = () => {
       <CardHeader className="text-center">
         <UserPlus className="mx-auto h-10 w-10 text-primary mb-2" />
         <CardTitle className="text-2xl font-bold font-headline">Create an Account</CardTitle>
-        <CardDescription>Join MyPass.lk to start booking tickets.</CardDescription>
+        <CardDescription>Join GoTickets.lk to start booking tickets.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -134,7 +123,7 @@ const SignupFormContent = () => {
 const SignupPage = () => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Sign Up | MyPass.lk';
+      document.title = 'Sign Up | GoTickets.lk';
     }
   }, []);
 
@@ -153,3 +142,4 @@ const SignupPage = () => {
 };
 
 export default SignupPage;
+

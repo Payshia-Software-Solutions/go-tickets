@@ -5,17 +5,17 @@ import { Building, Lightbulb, Users, Target, Heart, Handshake, ShieldCheck } fro
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'About MyPass.lk - Our Mission, Vision, and Team',
-  description: 'Learn more about MyPass.lk, your trusted platform for event ticket booking. Discover our story, mission, vision, and the dedicated team behind our success.',
+  title: 'About GoTickets.lk - Our Mission, Vision, and Team',
+  description: 'Learn more about GoTickets.lk, your trusted platform for event ticket booking. Discover our story, mission, vision, and the dedicated team behind our success.',
   openGraph: {
-    title: 'About MyPass.lk - Our Story and Commitment',
-    description: 'Discover the mission, vision, and values that drive MyPass.lk. Meet the team dedicated to making your event experiences seamless and memorable.',
+    title: 'About GoTickets.lk - Our Story and Commitment',
+    description: 'Discover the mission, vision, and values that drive GoTickets.lk. Meet the team dedicated to making your event experiences seamless and memorable.',
     images: [
       {
         url: '/og-about.png', // Replace with a specific OG image for the about page
         width: 1200,
         height: 630,
-        alt: 'About MyPass.lk',
+        alt: 'About GoTickets.lk',
       },
     ],
   },
@@ -84,7 +84,7 @@ export default function AboutPage() {
     <div className="container mx-auto py-12 px-4 space-y-12">
       <header className="text-center">
         <Building className="mx-auto h-16 w-16 text-primary mb-4" />
-        <h1 className="text-4xl md:text-5xl font-bold font-headline text-primary">About MyPass.lk</h1>
+        <h1 className="text-4xl md:text-5xl font-bold font-headline text-primary">About GoTickets.lk</h1>
         <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
           Your gateway to unforgettable live experiences. Discover, book, and enjoy events with ease and confidence.
         </p>
@@ -99,7 +99,7 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="text-lg text-foreground leading-relaxed">
             <p>
-              At MyPass.lk, our mission is to bridge the gap between event-goers and the experiences that move them. We strive to provide a seamless, secure, and comprehensive platform for discovering and booking tickets to a diverse range of events, from blockbuster concerts and thrilling sports matches to captivating theater performances and vibrant cultural festivals. We believe in the power of live events to create lasting memories and foster connections.
+              At GoTickets.lk, our mission is to bridge the gap between event-goers and the experiences that move them. We strive to provide a seamless, secure, and comprehensive platform for discovering and booking tickets to a diverse range of events, from blockbuster concerts and thrilling sports matches to captivating theater performances and vibrant cultural festivals. We believe in the power of live events to create lasting memories and foster connections.
             </p>
           </CardContent>
         </Card>
@@ -114,7 +114,7 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="text-lg text-foreground leading-relaxed">
             <p>
-              We envision a world where everyone has effortless access to the live events that enrich their lives. MyPass.lk aims to be the most trusted and innovative ticketing platform, continuously enhancing the user experience through technology, curated event selections, and exceptional customer support. We aspire to be more than just a ticket vendor; we want to be your partner in exploration and enjoyment.
+              We envision a world where everyone has effortless access to the live events that enrich their lives. GoTickets.lk aims to be the most trusted and innovative ticketing platform, continuously enhancing the user experience through technology, curated event selections, and exceptional customer support. We aspire to be more than just a ticket vendor; we want to be your partner in exploration and enjoyment.
             </p>
           </CardContent>
         </Card>
@@ -129,7 +129,7 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="text-lg text-foreground leading-relaxed space-y-4">
             <p>
-              Founded by a group of passionate event enthusiasts, MyPass.lk was born out of a desire to simplify the often-complex process of finding and purchasing event tickets. We noticed the frustrations many faced – from difficult-to-navigate websites to concerns about ticket authenticity. We set out to create a platform that addressed these challenges head-on.
+              Founded by a group of passionate event enthusiasts, GoTickets.lk was born out of a desire to simplify the often-complex process of finding and purchasing event tickets. We noticed the frustrations many faced – from difficult-to-navigate websites to concerns about ticket authenticity. We set out to create a platform that addressed these challenges head-on.
             </p>
             <p>
               Since our inception, we&apos;ve grown from a small startup into a recognized name in event ticketing, always staying true to our core values of transparency, reliability, and customer-centricity. Our journey has been fueled by a love for live entertainment and a commitment to making it accessible to everyone.
@@ -144,7 +144,7 @@ export default function AboutPage() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {teamMembers.map((member) => (
-            <Card key={member.name} className="text-center shadow-md hover:shadow-xl transition-shadow">
+            <Card key={member.name} className="text-center shadow-md hover:shadow-xl transition-shadow rounded-xl overflow-hidden">
               <CardContent className="pt-6">
                 <Avatar className="w-32 h-32 mx-auto mb-4 border-4 border-primary/20">
                   <AvatarImage src={member.imageUrl} alt={member.name} data-ai-hint={member.dataAiHint} />
@@ -161,7 +161,7 @@ export default function AboutPage() {
 
        <section className="bg-muted py-16 rounded-lg">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why Choose MyPass.lk?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 font-headline">Why Choose GoTickets.lk?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {whyChooseUsItems.map((item, index) => (
               <div key={index} className="flex flex-col items-center text-center p-6 bg-card rounded-lg shadow-md">
@@ -178,3 +178,4 @@ export default function AboutPage() {
     </div>
   );
 }
+
