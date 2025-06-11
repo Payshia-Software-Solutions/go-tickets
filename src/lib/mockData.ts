@@ -1,6 +1,6 @@
 
 import type { Event, Booking, User, Organizer, TicketType, ShowTime, ShowTimeTicketAvailability, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress } from './types';
-import { format, parse } from 'date-fns';
+import { parse } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -19,7 +19,44 @@ const parseApiDateString = (dateString?: string): string | undefined => {
   }
 };
 
-const mapApiEventToAppEvent = (apiEvent: any): Event => {
+// Define interfaces for flat API responses to avoid 'any'
+interface ApiShowTimeTicketAvailabilityFlat {
+  id: string;
+  ticketTypeId?: string; // If API provides it directly
+  ticketType?: { id: string; name: string; price: number }; // If API provides nested
+  availableCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface ApiShowTimeFlat {
+  id: string;
+  dateTime: string;
+  ticketAvailabilities?: ApiShowTimeTicketAvailabilityFlat[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface ApiEventFlat {
+  id: string;
+  name: string;
+  slug: string;
+  date: string;
+  location: string;
+  description: string;
+  category: string;
+  imageUrl: string;
+  venueName: string;
+  venueAddress?: string | null;
+  organizerId: string;
+  organizer?: Organizer; // Full organizer might come from detail endpoint
+  ticketTypes?: TicketType[]; // Full ticket types might come from detail endpoint
+  showTimes?: ApiShowTimeFlat[]; // Use the flat version here
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
   // This function maps the flat API event structure to our app's Event type.
   // It assumes the list endpoint might not provide full 'organizer', 'ticketTypes', 'showTimes'.
   // The detail endpoint should provide these.
@@ -32,26 +69,41 @@ const mapApiEventToAppEvent = (apiEvent: any): Event => {
     description: apiEvent.description,
     category: apiEvent.category,
     imageUrl: apiEvent.imageUrl,
-    venueName: apiEvent.venueName,
-    venueAddress: apiEvent.venueAddress,
+    venueName: apiEvent.venueName, // Directly from EventFormData compatibility
+    venueAddress: apiEvent.venueAddress, // Directly from EventFormData compatibility
     organizerId: apiEvent.organizerId,
     // These will be populated by the detail endpoint fetch
-    organizer: apiEvent.organizer, 
-    ticketTypes: apiEvent.ticketTypes,
-    showTimes: apiEvent.showTimes?.map((st: any) => ({
-      ...st,
+    organizer: apiEvent.organizer as Organizer, // Cast if sure, or handle optional
+    ticketTypes: apiEvent.ticketTypes as TicketType[], // Cast if sure, or handle optional
+    showTimes: apiEvent.showTimes?.map((st: ApiShowTimeFlat) => ({
+      id: st.id,
+      eventId: apiEvent.id,
       dateTime: parseApiDateString(st.dateTime) || new Date().toISOString(),
-      ticketAvailabilities: st.ticketAvailabilities?.map((sta: any) => ({
-        ...sta,
-        ticketType: { // Assuming ticketType here is also simplified or needs mapping
-          id: sta.ticketType?.id || sta.ticketTypeId,
+      createdAt: st.createdAt ? new Date(st.createdAt) : undefined,
+      updatedAt: st.updatedAt ? new Date(st.updatedAt) : undefined,
+      ticketAvailabilities: st.ticketAvailabilities?.map((sta: ApiShowTimeTicketAvailabilityFlat) => ({
+        id: sta.id,
+        showTimeId: st.id,
+        ticketTypeId: sta.ticketType?.id || sta.ticketTypeId,
+        ticketType: { 
+          id: sta.ticketType?.id || sta.ticketTypeId || 'unknown-tt-id', // Ensure ID is present
           name: sta.ticketType?.name || 'N/A',
           price: sta.ticketType?.price || 0,
-        }
+        },
+        availableCount: sta.availableCount,
+        createdAt: sta.createdAt ? new Date(sta.createdAt) : undefined,
+        updatedAt: sta.updatedAt ? new Date(sta.updatedAt) : undefined,
+
       })) || [],
     })) || [],
-    createdAt: parseApiDateString(apiEvent.createdAt),
-    updatedAt: parseApiDateString(apiEvent.updatedAt),
+    // For Event type, venue is an object. Reconstruct from venueName/venueAddress
+    venue: { 
+        name: apiEvent.venueName,
+        address: apiEvent.venueAddress || null,
+        // mapLink can be constructed if needed, or assumed to be part of richer API response
+    },
+    createdAt: apiEvent.createdAt ? new Date(apiEvent.createdAt) : undefined,
+    updatedAt: apiEvent.updatedAt ? new Date(apiEvent.updatedAt) : undefined,
   };
 };
 
@@ -70,7 +122,7 @@ export const fetchEventsFromApi = async (queryParams?: URLSearchParams): Promise
       console.error("API Error fetching events:", response.status, await response.text());
       return []; // Return empty array on error
     }
-    const apiEvents = await response.json();
+    const apiEvents: ApiEventFlat[] = await response.json();
     return apiEvents.map(mapApiEventToAppEvent);
   } catch (error) {
     console.error("Network error fetching events:", error);
@@ -89,7 +141,7 @@ export const fetchEventBySlugFromApi = async (slug: string): Promise<Event | nul
       console.error(`API Error fetching event by slug ${slug}:`, response.status, await response.text());
       return null;
     }
-    const apiEvent = await response.json();
+    const apiEvent: ApiEventFlat = await response.json();
     // IMPORTANT: The detail endpoint MUST return the full structure including
     // nested organizer, ticketTypes, and showTimes with their availabilities.
     // mapApiEventToAppEvent will handle basic mapping, but ensure your API provides the rich data.
@@ -151,7 +203,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   return event || undefined;
 };
 
-export const searchEvents = async (query?: string, category?: string, date?: string, location?: string, minPrice?: number, maxPrice?: number): Promise<Event[]> => {
+export const searchEvents = async (query?: string, category?: string, date?: string, location?: string): Promise<Event[]> => {
   const params = new URLSearchParams();
   if (query) params.set('name_like', query); // Assuming API supports 'name_like' or similar for search
   if (category) params.set('category', category);
@@ -165,16 +217,16 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 
 
 // In-memory data stores (will still be used by Admin functions until they are also refactored)
-let mockUsers: User[] = [
-  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+const mockUsers: User[] = [
+  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
 ];
 let mockOrganizers: Organizer[] = [
-  { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date(), updatedAt: new Date() },
+  { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date(), updatedAt: new Date() },
 ];
 let mockEventsStore: Event[] = []; // Renamed to avoid conflict if we were to use actual API data here for admin too.
-let mockBookings: Booking[] = [];
+const mockBookings: Booking[] = [];
 
 // Helper for unique IDs (still needed for mock admin operations)
 const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -197,8 +249,8 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
     name: userData.name || '',
     isAdmin: userData.isAdmin || false,
     billingAddress: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   mockUsers.push(newUser);
   return newUser;
@@ -208,7 +260,7 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
   // TODO: Replace with API call
   const userIndex = mockUsers.findIndex(u => u.id === userId);
   if (userIndex === -1) return null;
-  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date().toISOString() };
+  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date() };
   if (typeof localStorage !== 'undefined') {
     const storedUser = localStorage.getItem('mypassUser');
     if (storedUser) {
@@ -238,8 +290,8 @@ export const createOrganizer = async (data: OrganizerFormData): Promise<Organize
     id: generateId('org'),
     ...data,
     website: data.website || null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   mockOrganizers.push(newOrganizer);
   return newOrganizer;
@@ -253,7 +305,7 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
     ...mockOrganizers[index],
     ...data,
     website: data.website || null,
-    updatedAt: new Date().toISOString(),
+    updatedAt: new Date(),
   };
   return mockOrganizers[index];
 };
@@ -306,8 +358,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     price: ttData.price,
     availability: ttData.availability,
     description: ttData.description || null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }));
 
   const showTimes: ShowTime[] = data.showTimes.map(stData => {
@@ -316,8 +368,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       id: showTimeId,
       eventId: newEventId,
       dateTime: stData.dateTime.toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
       ticketAvailabilities: stData.ticketAvailabilities.map(staData => {
         const parentTicketType = ticketTypes.find(tt => tt.id === staData.ticketTypeId); 
         if (!parentTicketType) throw new Error(`Ticket type template with ID ${staData.ticketTypeId} not found for showtime.`);
@@ -327,8 +379,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
           ticketTypeId: parentTicketType.id,
           ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
           availableCount: staData.availableCount,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
       }),
     };
@@ -345,12 +397,14 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer, // Embedding for mock convenience
-    venueName: data.venueName,
-    venueAddress: data.venueAddress || null,
+    venue: { // Construct venue object
+        name: data.venueName,
+        address: data.venueAddress || null,
+    },
     ticketTypes,
     showTimes,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   mockEventsStore.push(newEvent);
   return newEvent;
@@ -383,8 +437,8 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       price: ttData.price,
       availability: ttData.availability,
       description: ttData.description || null,
-      createdAt: existingTt?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: existingTt?.createdAt || new Date(),
+      updatedAt: new Date(),
     });
   }
    // Simplified: assumes all ticket types from form are the definitive list.
@@ -407,8 +461,8 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             ticketTypeId: parentTicketType.id,
             ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
             availableCount: staData.availableCount,
-            createdAt: existingSt?.ticketAvailabilities.find(esta => esta.ticketTypeId === parentTicketType.id)?.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: existingSt?.ticketAvailabilities.find(esta => esta.ticketTypeId === parentTicketType.id)?.createdAt || new Date(),
+            updatedAt: new Date(),
         });
     }
     updatedShowTimes.push({
@@ -416,8 +470,8 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       eventId: eventId,
       dateTime: stData.dateTime.toISOString(),
       ticketAvailabilities,
-      createdAt: existingSt?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: existingSt?.createdAt || new Date(),
+      updatedAt: new Date(),
     });
   }
 
@@ -432,11 +486,13 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer, // Embed for mock convenience
-    venueName: data.venueName,
-    venueAddress: data.venueAddress || null,
+    venue: { // Construct venue object
+        name: data.venueName,
+        address: data.venueAddress || null,
+    },
     ticketTypes: updatedTicketTypes,
     showTimes: updatedShowTimes,
-    updatedAt: new Date().toISOString(),
+    updatedAt: new Date(),
   };
   return mockEventsStore[eventIndex];
 };
@@ -534,8 +590,8 @@ export const createBooking = async (
       quantity: ticket.quantity,
       pricePerTicket: ticket.pricePerTicket,
       showTimeId: ticket.showTimeId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: new Date(),
+      updatedAt: new Date()
     })),
     totalPrice: bookingData.totalPrice,
     billingAddress: bookingData.billingAddress,
@@ -544,8 +600,8 @@ export const createBooking = async (
     eventDate: new Date(showTime.dateTime).toISOString(), 
     eventLocation: event.location,
     qrCodeValue: `EVENT:${event.slug},BOOKING_ID:${bookingId},SHOWTIME:${showTime.dateTime}`,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
   mockBookings.push(newBooking);
   return newBooking;
@@ -567,7 +623,7 @@ const initAdminMockData = async () => {
     if (mockEventsStore.length > 0 && mockEventsStore.some(e => e.id === 'evt-predefined-1-admin')) return; 
 
     const org1 = mockOrganizers.find(o => o.id === 'org-1') || mockOrganizers[0];
-    const org2 = mockOrganizers.find(o => o.id === 'org-2') || mockOrganizers[1];
+    // const org2 = mockOrganizers.find(o => o.id === 'org-2') || mockOrganizers[1]; // org2 was unused
     
     const defaultEventDataList: EventFormData[] = [
         {
@@ -616,3 +672,4 @@ const initAdminMockData = async () => {
 };
 
 initAdminMockData(); // Initialize some admin-side mock events if the store is empty.
+
