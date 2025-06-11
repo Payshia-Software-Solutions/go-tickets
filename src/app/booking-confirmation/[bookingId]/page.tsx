@@ -85,7 +85,7 @@ export default async function BookingConfirmationPage({ params: { bookingId } }:
 
           <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
             <h3 className="text-lg font-semibold text-foreground mb-2">Your Tickets</h3>
-            {booking.tickets.map((ticket, index) => (
+            {booking.bookedTickets.map((ticket, index) => (
               <div key={index} className="flex justify-between items-center text-sm">
                 <span>{ticket.quantity} x {ticket.ticketTypeName}</span>
                 <span>LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}</span>

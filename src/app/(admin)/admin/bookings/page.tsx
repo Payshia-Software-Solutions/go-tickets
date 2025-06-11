@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Booking } from '@/lib/types';
 // Removed: import { adminGetAllBookings } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,14 +18,7 @@ export default function AdminBookingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      document.title = 'Manage Bookings | Event Horizon Admin';
-    }
-    fetchBookings();
-  }, []);
-
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/admin/bookings`);
@@ -44,7 +37,14 @@ export default function AdminBookingsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.title = 'Manage Bookings | Event Horizon Admin';
+    }
+    fetchBookings();
+  }, [fetchBookings]);
 
   const handleSendEmail = (bookingId: string) => {
     toast({
@@ -111,7 +111,7 @@ export default function AdminBookingsPage() {
                 </TableHeader>
                 <TableBody>
                   {bookings.map((booking) => {
-                    const totalTickets = booking.tickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
+                    const totalTickets = booking.bookedTickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
                     return (
                       <TableRow key={booking.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
