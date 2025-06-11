@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Users, DollarSign, Activity, PlusCircle } from 'lucide-react'; // Added PlusCircle
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button'; // Added Button
 import Link from 'next/link'; // Added Link
