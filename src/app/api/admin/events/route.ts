@@ -3,6 +3,21 @@ import { NextResponse } from 'next/server';
 import { adminGetAllEvents, createEvent } from '@/lib/mockData';
 import { EventFormSchema } from '@/lib/types';
 
+// Interface for the raw show time object from the request body before date parsing
+interface RawShowTimeInput {
+  id?: string;
+  dateTime: string; // Expecting string from JSON
+  ticketAvailabilities: Array<{
+    id?: string;
+    ticketTypeId: string;
+    ticketTypeName: string;
+    availableCount: number;
+  }>;
+  // Allow other properties from ...st if they exist in the raw input
+  [key: string]: unknown; 
+}
+
+
 export async function GET() {
   try {
     const events = await adminGetAllEvents();
@@ -22,7 +37,7 @@ export async function POST(request: Request) {
     const bodyWithParsedDates = {
       ...body,
       date: body.date ? new Date(body.date) : undefined,
-      showTimes: body.showTimes?.map((st: any) => ({
+      showTimes: body.showTimes?.map((st: RawShowTimeInput) => ({
         ...st,
         dateTime: st.dateTime ? new Date(st.dateTime) : undefined,
         // ticketAvailabilities are already numbers/strings, Zod handles parsing numbers
