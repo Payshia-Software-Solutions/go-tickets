@@ -3,9 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Removed:
 body {
   font-family: 'Inter', sans-serif;
 }
+next/font and Tailwind will handle this. */
 
 @layer base {
   :root {

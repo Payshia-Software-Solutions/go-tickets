@@ -1,11 +1,20 @@
 
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google'; // Import Inter from next/font
 import './globals.css';
 import { Providers } from '@/components/Providers';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'; // Define your site URL
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+// Initialize Inter font with a CSS variable
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter', // Define a CSS variable name
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -42,7 +51,6 @@ export const metadata: Metadata = {
     },
     description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on MyPass.lk.',
     images: ['/og-default.png'], // Replace with your actual default Twitter image path in /public
-    // site: '@yourtwitterhandle', // Optional: Add your Twitter handle
   },
   robots: {
     index: true,
@@ -57,7 +65,6 @@ export const metadata: Metadata = {
   },
   icons: { // Add favicon and other icons here if you have them in /public
     icon: '/favicon.ico',
-    // apple: '/apple-touch-icon.png', 
   }
 };
 
@@ -67,12 +74,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // Apply the font variable class to the html tag
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        {/* Google Font <link> tags are removed as next/font handles it */}
       </head>
+      {/* The font-body class in Tailwind will now use --font-inter via tailwind.config.ts */}
       <body className="font-body antialiased flex flex-col min-h-screen" suppressHydrationWarning={true}>
         <Providers>
           <Header />
