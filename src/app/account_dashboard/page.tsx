@@ -91,7 +91,7 @@ const AccountDashboardPage = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center"><Ticket className="mr-2 h-6 w-6 text-primary" /> Your Bookings</CardTitle>
-          <CardDescription>Here are the events you've booked tickets for.</CardDescription>
+          <CardDescription>Here are the events you&apos;ve booked tickets for.</CardDescription>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
