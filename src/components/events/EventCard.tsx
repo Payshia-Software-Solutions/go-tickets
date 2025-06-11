@@ -18,9 +18,9 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   let eventDate: Date;
   try {
     eventDate = typeof event.date === 'string' ? parseISO(event.date) : new Date(event.date);
-  } catch (e) {
+  } catch (error) {
     eventDate = new Date(); // Fallback, should not happen if data is clean
-    console.warn("Failed to parse event date:", event.date);
+    console.warn("Failed to parse event date:", event.date, error);
   }
 
   const formattedDate = format(eventDate, "PPP"); // e.g., June 15th, 2025
@@ -30,7 +30,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   // The /events list endpoint doesn't seem to provide ticketTypes.
   // So, we can't calculate minPrice reliably for the card from that list.
   // This logic will only work if event.ticketTypes is populated (e.g., from a detailed event fetch).
-  const minPrice = event.ticketTypes && event.ticketTypes.length > 0 
+  const minPrice = event.ticketTypes && event.ticketTypes.length > 0
     ? Math.min(...event.ticketTypes.map(t => t.price))
     : null;
 
