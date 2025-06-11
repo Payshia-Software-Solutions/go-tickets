@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Download, CalendarPlus, Ticket, MapPin, CalendarDays } from 'lucide-react';
 import Link from 'next/link';
-import type { Metadata, ResolvingMetadata } from 'next';
+import type { Metadata } from 'next';
 
 interface BookingConfirmationPageProps {
   params: { bookingId: string };
