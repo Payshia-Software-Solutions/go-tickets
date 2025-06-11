@@ -18,7 +18,7 @@ interface RawShowTimeInput {
     availableCount: number;
   }>;
   // Add other properties of a show time if they exist in the raw input
-  [key: string]: any; // Allow other properties from ...st
+  [key: string]: unknown; // Allow other properties from ...st
 }
 
 
@@ -83,3 +83,4 @@ export async function DELETE(request: Request, { params }: Context) {
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
+
