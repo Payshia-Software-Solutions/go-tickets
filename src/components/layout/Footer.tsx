@@ -35,6 +35,11 @@ const Footer = () => {
             <p className="text-sm opacity-80">&copy; {new Date().getFullYear()} MyPass.lk. All rights reserved.</p>
           </div>
         </div>
+        <div className="text-center mt-8 pt-8 border-t border-[hsl(var(--footer-border))] opacity-70">
+          <p className="text-xs">
+            Powered by Payshia Software Solutions
+          </p>
+        </div>
       </div>
     </footer>
   );
