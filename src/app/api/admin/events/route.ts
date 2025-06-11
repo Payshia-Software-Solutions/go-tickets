@@ -7,9 +7,10 @@ export async function GET() {
   try {
     const events = await adminGetAllEvents();
     return NextResponse.json(events);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('API Error fetching all admin events:', error);
-    return NextResponse.json({ message: 'Failed to fetch events' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch events';
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
 
@@ -43,8 +44,10 @@ export async function POST(request: Request) {
     // The service layer will handle turning client-side temp IDs into DB IDs or ignoring them for new records.
     const newEvent = await createEvent(validatedData.data);
     return NextResponse.json(newEvent, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error creating event:', error);
-    return NextResponse.json({ message: error.message || 'Failed to create event' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create event';
+    return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
+
