@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Ticket, Search, Zap, Users, Star, TrendingUp, MessageSquare,
-  Cpu, Music2, Palette, Heart, Trophy, Drama, Rocket, Goal, PartyPopper, Smile, Images, Loader2
+  Cpu, Music2, Palette, Heart, Drama, Rocket, Goal, PartyPopper, Smile, Images, Loader2
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -218,7 +218,7 @@ export default function HomePage() {
                 <CardContent className="p-0">
                   <ul role="listbox">
                     {suggestedEvents.map(event => (
-                      <li key={event.id} role="option">
+                      <li key={event.id} role="option" aria-selected="false">
                         <Link
                           href={`/events/${event.slug}`}
                           className="block p-3 hover:bg-muted transition-colors text-sm text-foreground"
