@@ -52,7 +52,7 @@ export default function HomePage() {
 
     const fetchData = async () => {
       setIsLoadingUpcoming(true);
-      getUpcomingEvents(4).then(data => {
+      getUpcomingEvents(8).then(data => { // Fetch 8 upcoming events
         setUpcomingEvents(data);
         setIsLoadingUpcoming(false);
       });
