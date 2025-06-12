@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { getEventCategories } from '@/lib/mockData'; // Updated to use API-calling service
+import { getEventCategories } from '@/lib/mockData'; 
+import type { Category } from '@/lib/types'; // Import Category type
 import { CalendarIcon, MapPin, Tag, Search as SearchIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -24,15 +25,15 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get('query') || '');
   const [location, setLocation] = useState(searchParams.get('location') || '');
-  const [category, setCategory] = useState(searchParams.get('category') || '');
+  const [selectedCategoryName, setSelectedCategoryName] = useState(searchParams.get('category') || ''); // Stores category name
   const [date, setDate] = useState<Date | undefined>(searchParams.get('date') ? new Date(searchParams.get('date')!) : undefined);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]); // Now stores Category objects
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
   useEffect(() => {
     const fetchCategories = async () => {
       setIsLoadingCategories(true);
-      const cats = await getEventCategories(); // Now fetches from API
+      const cats = await getEventCategories(); // Now fetches Category[]
       setCategories(cats);
       setIsLoadingCategories(false);
     };
@@ -44,7 +45,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
     const params = new URLSearchParams();
     if (searchTerm) params.set('query', searchTerm);
     if (location) params.set('location', location);
-    if (category) params.set('category', category);
+    if (selectedCategoryName) params.set('category', selectedCategoryName); // Use selected category name for query
     if (date) params.set('date', format(date, 'yyyy-MM-dd'));
 
     router.push(`/search?${params.toString()}`);
@@ -54,10 +55,11 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
   };
 
   const handleCategoryChange = (selectedValue: string) => {
+    // selectedValue is the category NAME here
     if (selectedValue === ALL_CATEGORIES_ITEM_VALUE) {
-      setCategory('');
+      setSelectedCategoryName('');
     } else {
-      setCategory(selectedValue);
+      setSelectedCategoryName(selectedValue);
     }
   };
 
@@ -98,7 +100,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
                 <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
             </div>
           ) : (
-            <Select value={category} onValueChange={handleCategoryChange}>
+            <Select value={selectedCategoryName} onValueChange={handleCategoryChange}>
               <SelectTrigger id="category" className="w-full">
                 <div className="flex items-center">
                   <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -108,7 +110,7 @@ const EventFilters: React.FC<EventFiltersProps> = ({ onSearch }) => {
               <SelectContent>
                 <SelectItem value={ALL_CATEGORIES_ITEM_VALUE}>All Categories</SelectItem>
                 {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <SelectItem key={String(cat.id)} value={cat.name}>{cat.name}</SelectItem> 
                 ))}
               </SelectContent>
             </Select>

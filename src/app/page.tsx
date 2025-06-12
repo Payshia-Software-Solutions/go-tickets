@@ -4,8 +4,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, getPopularEvents, searchEvents } from '@/lib/mockData'; // Updated to use new service layer
-import type { Event } from '@/lib/types';
+import { getUpcomingEvents, getEventCategories, getPopularEvents, searchEvents } from '@/lib/mockData'; 
+import type { Event, Category } from '@/lib/types'; // Added Category
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -37,7 +37,7 @@ export default function HomePage() {
   const router = useRouter();
   const [heroSearchQuery, setHeroSearchQuery] = useState('');
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]); // Changed to Category[]
   const [popularEvents, setPopularEvents] = useState<Event[]>([]);
   const [suggestedEvents, setSuggestedEvents] = useState<Event[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -58,13 +58,13 @@ export default function HomePage() {
       });
 
       setIsLoadingCategories(true);
-      getEventCategories().then(data => {
+      getEventCategories().then(data => { // Now returns Category[]
         setCategories(data);
         setIsLoadingCategories(false);
       });
       
       setIsLoadingPopular(true);
-      getPopularEvents(4).then(data => { // Fetch 4 popular events
+      getPopularEvents(4).then(data => { 
         setPopularEvents(data);
         setIsLoadingPopular(false);
       });
@@ -75,7 +75,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (heroSearchQuery.trim().length > 1) {
-        const filtered = await searchEvents(heroSearchQuery.trim()); // searchEvents now uses API
+        const filtered = await searchEvents(heroSearchQuery.trim()); 
         setSuggestedEvents(filtered.slice(0,5));
         setShowSuggestions(filtered.length > 0);
       } else {
@@ -250,16 +250,16 @@ export default function HomePage() {
         ) : categories.length > 0 ? (
           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
             {categories.map((category) => {
-              const displayInfo = categoryDisplayData[category] || categoryDisplayData.Default;
+              const displayInfo = categoryDisplayData[category.name] || categoryDisplayData.Default;
               const IconComponent = displayInfo.icon;
               return (
-                <div key={category} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
-                  <Link href={`/search?category=${encodeURIComponent(category)}`} className="block h-full">
+                <div key={String(category.id)} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
+                  <Link href={`/search?category=${encodeURIComponent(category.name)}`} className="block h-full">
                     <Card className="text-center hover:shadow-xl transition-shadow duration-300 cursor-pointer h-full flex flex-col justify-center items-center p-4 rounded-xl overflow-hidden">
                       <div className={`p-4 rounded-full mb-3 ${displayInfo.bgColor}`}>
                         <IconComponent className={`h-8 w-8 ${displayInfo.iconColor}`} />
                       </div>
-                      <span className="text-sm font-medium text-foreground">{category}</span>
+                      <span className="text-sm font-medium text-foreground">{category.name}</span>
                     </Card>
                   </Link>
                 </div>
@@ -351,4 +351,3 @@ export default function HomePage() {
     </div>
   );
 }
-

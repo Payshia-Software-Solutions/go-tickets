@@ -21,7 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import CategoryForm from '@/components/admin/CategoryForm';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'; // Not used directly if category service uses its own URL
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,7 +40,9 @@ export default function AdminCategoriesPage() {
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/categories`);
+      // Assuming adminGetAllCategories is updated to fetch from the new API URL
+      // If not, direct fetch: const response = await fetch(`https://gotickets-server.payshia.com/categories`);
+      const response = await fetch(`/api/admin/categories`); // Uses our backend route which then calls the external API
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }
@@ -72,13 +74,14 @@ export default function AdminCategoriesPage() {
 
   const handleConfirmDelete = async () => {
     if (!categoryToDelete) return;
-    setIsLoading(true); // Can use isSubmitting or a dedicated delete loading state
+    setIsSubmitting(true); 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/categories/${categoryToDelete.id}`, {
+      const response = await fetch(`/api/admin/categories/${categoryToDelete.id}`, { // Uses our backend route
         method: 'DELETE',
       });
-      const responseBody = await response.json().catch(() => ({ message: 'Failed to parse error response from delete.' }));
+      
       if (!response.ok) {
+        const responseBody = await response.json().catch(() => ({ message: 'Failed to parse error response from delete.' }));
         throw new Error(responseBody.message || 'Failed to delete category');
       }
       toast({
@@ -93,7 +96,7 @@ export default function AdminCategoriesPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false); // Reset general loading or specific delete loading state
+      setIsSubmitting(false); 
       setShowDeleteDialog(false);
       setCategoryToDelete(null);
     }
@@ -112,7 +115,7 @@ export default function AdminCategoriesPage() {
   const handleCreateCategorySubmit = async (data: CategoryFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/categories`, {
+      const response = await fetch(`/api/admin/categories`, { // Uses our backend route
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -143,7 +146,7 @@ export default function AdminCategoriesPage() {
     if (!currentCategoryForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/categories/${currentCategoryForEdit.id}`, {
+      const response = await fetch(`/api/admin/categories/${currentCategoryForEdit.id}`, { // Uses our backend route
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -213,7 +216,9 @@ export default function AdminCategoriesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>ID</TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>SVG Name</TableHead>
                     <TableHead>Created At</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -221,13 +226,15 @@ export default function AdminCategoriesPage() {
                 <TableBody>
                   {categories.map((category) => (
                     <TableRow key={category.id}>
+                      <TableCell className="font-mono text-xs">{String(category.id)}</TableCell>
                       <TableCell className="font-medium whitespace-nowrap">{category.name}</TableCell>
+                      <TableCell className="whitespace-nowrap">{category.svg_name || '-'}</TableCell>
                       <TableCell className="whitespace-nowrap">{category.createdAt ? new Date(category.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
                         <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(category)} title="Edit Category">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(category)} title="Delete Category">
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(category)} title="Delete Category" disabled={isSubmitting}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -244,7 +251,7 @@ export default function AdminCategoriesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create New Category</DialogTitle>
-            <DialogDescription>Enter the name for the new category.</DialogDescription>
+            <DialogDescription>Enter the details for the new category.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <CategoryForm
@@ -265,7 +272,7 @@ export default function AdminCategoriesPage() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Edit Category: {currentCategoryForEdit.name}</DialogTitle>
-              <DialogDescription>Modify the category name.</DialogDescription>
+              <DialogDescription>Modify the category details.</DialogDescription>
             </DialogHeader>
             <div className="py-4">
               <CategoryForm
@@ -292,17 +299,17 @@ export default function AdminCategoriesPage() {
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the category
               <span className="font-semibold"> {categoryToDelete?.name}</span>.
-              If this category is in use by events, you might need to update those events manually.
+              If this category is in use by events, deletion might fail or you might need to update those events manually.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setCategoryToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete Category
             </AlertDialogAction>
           </AlertDialogFooter>

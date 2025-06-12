@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getCategoryById, updateCategory, deleteCategory } from '@/lib/mockData';
+import { getCategoryById, updateCategory, deleteCategory } from '@/lib/mockData'; // Updated to use API-backed functions
 import { CategoryFormSchema } from '@/lib/types';
 
 interface Context {
@@ -9,7 +9,8 @@ interface Context {
 
 export async function GET(request: Request, { params }: Context) {
   try {
-    const category = await getCategoryById(params.categoryId);
+    // getCategoryById now fetches from the external API (or filters a fetched list) via mockData
+    const category = await getCategoryById(params.categoryId); 
     if (!category) {
       return NextResponse.json({ message: 'Category not found' }, { status: 404 });
     }
@@ -32,7 +33,8 @@ export async function PUT(request: Request, { params }: Context) {
       );
     }
 
-    const updated = await updateCategory(params.categoryId, validatedData.data);
+    // updateCategory now puts to the external API via mockData
+    const updated = await updateCategory(params.categoryId, validatedData.data); 
     if (!updated) {
       return NextResponse.json({ message: 'Category not found or update failed' }, { status: 404 });
     }
@@ -40,8 +42,8 @@ export async function PUT(request: Request, { params }: Context) {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to update category';
     console.error(`API Error updating category ${params.categoryId}:`, error);
-    if (errorMessage.includes("already exists")) {
-        return NextResponse.json({ message: errorMessage }, { status: 409 }); // 409 Conflict
+    if (errorMessage.toLowerCase().includes("already exists") || errorMessage.toLowerCase().includes("duplicate")) {
+        return NextResponse.json({ message: "A category with this name already exists." }, { status: 409 }); // 409 Conflict
     }
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
@@ -49,13 +51,14 @@ export async function PUT(request: Request, { params }: Context) {
 
 export async function DELETE(request: Request, { params }: Context) {
   try {
-    await deleteCategory(params.categoryId);
+    // deleteCategory now deletes via the external API through mockData
+    await deleteCategory(params.categoryId); 
     return NextResponse.json({ message: 'Category deleted successfully' });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to delete category. It might be in use.';
     console.error(`API Error deleting category ${params.categoryId}:`, error);
-     if (errorMessage.includes("in use by one or more events")) {
-        return NextResponse.json({ message: errorMessage }, { status: 400 }); // Bad Request as it's a client error (trying to delete used category)
+     if (errorMessage.toLowerCase().includes("in use")) {
+        return NextResponse.json({ message: errorMessage }, { status: 400 }); 
     }
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }

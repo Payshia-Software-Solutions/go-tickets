@@ -28,11 +28,11 @@ export default function CategoryForm({
 }: CategoryFormProps) {
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(CategoryFormSchema),
-    defaultValues: initialData ? { name: initialData.name } : { name: "" },
+    defaultValues: initialData ? { name: initialData.name, svg_name: initialData.svg_name || "" } : { name: "", svg_name: "" },
   });
 
   useEffect(() => {
-    form.reset(initialData ? { name: initialData.name } : { name: "" });
+    form.reset(initialData ? { name: initialData.name, svg_name: initialData.svg_name || "" } : { name: "", svg_name: "" });
   }, [initialData, form]);
 
   const handleFormSubmit = async (data: CategoryFormData) => {
@@ -50,6 +50,20 @@ export default function CategoryForm({
               <FormLabel>Category Name</FormLabel>
               <FormControl>
                 <Input placeholder="e.g., Music Concerts" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="svg_name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>SVG Name (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., music-icon" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormMessage />
             </FormItem>

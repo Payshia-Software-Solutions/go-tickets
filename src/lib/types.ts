@@ -39,13 +39,15 @@ export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
 
 // --- Category Related ---
 export interface Category {
-  id: string;
+  id: string | number; // API might return number ID
   name: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  svg_name?: string | null; // Make it optional and nullable as per API sample and potential missing values
+  createdAt?: string; // API returns string
+  updatedAt?: string; // API returns string
 }
 export const CategoryFormSchema = z.object({
   name: z.string().min(2, "Category name must be at least 2 characters long.").max(50, "Category name must be 50 characters or less."),
+  svg_name: z.string().optional().nullable(),
 });
 export type CategoryFormData = z.infer<typeof CategoryFormSchema>;
 

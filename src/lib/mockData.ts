@@ -4,6 +4,8 @@ import { parse } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const CATEGORY_API_URL = "https://gotickets-server.payshia.com/categories";
+
 
 // Helper to parse "YYYY-MM-DD HH:MM:SS" to ISO string or Date object
 const parseApiDateString = (dateString?: string): string | undefined => {
@@ -144,21 +146,18 @@ export const fetchEventBySlugFromApi = async (slug: string): Promise<Event | nul
   }
 };
 
-export const fetchPublicEventCategoriesFromApi = async (): Promise<string[]> => {
-  if (!API_BASE_URL) throw new Error("API_BASE_URL is not defined");
-  // This endpoint should return string array as per current public usage
-  const url = `${API_BASE_URL}/events/categories`;
+// This function is now for the PUBLIC side, fetching category *names* or *objects*
+// Based on the change request, it should now fetch Category objects
+export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> => {
   try {
-    const response = await fetch(url);
+    const response = await fetch(CATEGORY_API_URL);
     if (!response.ok) {
       console.error("API Error fetching public categories:", response.status, await response.text());
       return [];
     }
-    const categories: string[] = await response.json();
-    // If the API now returns Category objects, map them to names here:
-    // const categoryObjects: Category[] = await response.json();
-    // return categoryObjects.map(cat => cat.name);
-    return categories; // Assuming it still returns string[] for public side
+    const categories: Category[] = await response.json();
+    // Ensure IDs are strings if API returns numbers
+    return categories.map(cat => ({ ...cat, id: String(cat.id) }));
   } catch (error) {
     console.error("Network error fetching public categories:", error);
     return [];
@@ -186,13 +185,9 @@ export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
     .slice(0, limit);
 };
 
-export const getEventCategories = async (): Promise<string[]> => {
-  // This public function still returns string[]
-  // It might fetch from a different public endpoint or use the adminGetAllCategories and map names.
-  // For simplicity with mock data, let's use the admin list and map.
-  // In a real API, this might be a separate, optimized public endpoint.
-  const allCategoryObjects = await adminGetAllCategories(); // Uses mock adminGetAllCategories
-  return allCategoryObjects.map(cat => cat.name).sort((a, b) => a.localeCompare(b));
+// Updated to return Category[] objects
+export const getEventCategories = async (): Promise<Category[]> => {
+  return fetchPublicEventCategoriesFromApi();
 };
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
@@ -206,12 +201,12 @@ export const searchEvents = async (query?: string, category?: string, date?: str
   if (category) params.set('category', category);
   if (date) params.set('date_gte', date);
   if (location) params.set('location_like', location);
-
+  // Price filters minPrice, maxPrice are not used in fetchEventsFromApi currently.
   return fetchEventsFromApi(params);
 };
 
 
-// In-memory data stores
+// In-memory data stores for entities NOT yet migrated to API or for specific mock scenarios
 const mockUsers: User[] = [
   { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
   { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
@@ -226,67 +221,93 @@ const mockBookings: Booking[] = [];
 // Helper for unique IDs
 const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-// --- Category Management (Mock - for admin operations) ---
-let mockCategories: Category[] = [
-  { id: generateId('cat'), name: "Music", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Sports", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Theater", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Festivals", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Comedy", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Exhibitions", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Technology", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Arts & Culture", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Charity", createdAt: new Date(), updatedAt: new Date() },
-  { id: generateId('cat'), name: "Future", createdAt: new Date(), updatedAt: new Date() },
-];
+// --- Category Management (API based) ---
 
 export const adminGetAllCategories = async (): Promise<Category[]> => {
-  return [...mockCategories].sort((a, b) => a.name.localeCompare(b.name));
+  try {
+    const response = await fetch(CATEGORY_API_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch categories: ${response.status}`);
+    }
+    const categories: Category[] = await response.json();
+    return categories.map(cat => ({ ...cat, id: String(cat.id) })).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error("Error in adminGetAllCategories:", error);
+    return [];
+  }
 };
 
-export const getCategoryById = async (id: string): Promise<Category | null> => {
-  return mockCategories.find(cat => cat.id === id) || null;
+export const getCategoryById = async (id: string | number): Promise<Category | null> => {
+  try {
+    const response = await fetch(`${CATEGORY_API_URL}/${id}`);
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`Failed to fetch category ${id}: ${response.status}`);
+    }
+    const category: Category = await response.json();
+    return { ...category, id: String(category.id) };
+  } catch (error) {
+    console.error("Error in getCategoryById:", error);
+    return null;
+  }
 };
 
 export const createCategory = async (data: CategoryFormData): Promise<Category> => {
-  if (mockCategories.some(c => c.name.toLowerCase() === data.name.toLowerCase())) {
-    throw new Error("Category with this name already exists.");
+  try {
+    const response = await fetch(CATEGORY_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to create category and parse error' }));
+      throw new Error(errorBody.message || `Failed to create category: ${response.status}`);
+    }
+    const newCategory: Category = await response.json();
+    return { ...newCategory, id: String(newCategory.id) };
+  } catch (error) {
+    console.error("Error in createCategory:", error);
+    throw error;
   }
-  const newCategory: Category = {
-    id: generateId('cat'),
-    name: data.name,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  mockCategories.push(newCategory);
-  return newCategory;
 };
 
-export const updateCategory = async (categoryId: string, data: CategoryFormData): Promise<Category | null> => {
-  const index = mockCategories.findIndex(cat => cat.id === categoryId);
-  if (index === -1) return null;
-  if (mockCategories.some(c => c.name.toLowerCase() === data.name.toLowerCase() && c.id !== categoryId)) {
-    throw new Error("Another category with this name already exists.");
+export const updateCategory = async (categoryId: string | number, data: CategoryFormData): Promise<Category | null> => {
+  try {
+    const response = await fetch(`${CATEGORY_API_URL}/${categoryId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to update category and parse error' }));
+      throw new Error(errorBody.message || `Failed to update category ${categoryId}: ${response.status}`);
+    }
+    const updatedCategory: Category = await response.json();
+    return { ...updatedCategory, id: String(updatedCategory.id) };
+  } catch (error) {
+    console.error("Error in updateCategory:", error);
+    throw error;
   }
-  mockCategories[index] = {
-    ...mockCategories[index],
-    name: data.name,
-    updatedAt: new Date(),
-  };
-  return mockCategories[index];
 };
 
-export const deleteCategory = async (categoryId: string): Promise<boolean> => {
-  const categoryToDelete = mockCategories.find(c => c.id === categoryId);
-  if (!categoryToDelete) return false;
-
-  // Check if category is in use by any event
-  if (mockEventsStore.some(event => event.category.toLowerCase() === categoryToDelete.name.toLowerCase())) {
-    throw new Error(`Cannot delete category "${categoryToDelete.name}": It is currently in use by one or more events.`);
+export const deleteCategory = async (categoryId: string | number): Promise<boolean> => {
+  try {
+    const response = await fetch(`${CATEGORY_API_URL}/${categoryId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+       const errorBody = await response.json().catch(() => ({ message: 'Failed to delete category and parse error' }));
+      // Check for specific message from API about category in use
+      if (errorBody.message && errorBody.message.toLowerCase().includes("in use")) {
+          throw new Error(`Cannot delete category: It is currently in use by one or more events.`);
+      }
+      throw new Error(errorBody.message || `Failed to delete category ${categoryId}: ${response.status}`);
+    }
+    return true; // Or response.status === 204 or check body for success message
+  } catch (error) {
+    console.error("Error in deleteCategory:", error);
+    throw error;
   }
-  const initialLength = mockCategories.length;
-  mockCategories = mockCategories.filter(cat => cat.id !== categoryId);
-  return mockCategories.length < initialLength;
 };
 
 
@@ -385,17 +406,9 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   const organizer = await getOrganizerById(data.organizerId);
   if (!organizer) throw new Error("Organizer not found");
 
-  // Ensure selected category name exists or add it (if dynamic category creation is allowed via event form)
+  // Event category is a string (name). Ensure it exists or handle as needed.
+  // For now, we assume the string name is sufficient.
   const categoryName = data.category.trim();
-  let existingCategory = mockCategories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-  if (!existingCategory && categoryName) {
-      // If event form can create new categories on the fly
-      // This part might be better handled by a dedicated category selection/creation UI in event form
-      // For now, let's assume if it's not in the list, it's a new one.
-      // This is a simplification; a robust system might require selecting from existing or explicit creation.
-      console.warn(`Category "${categoryName}" not found, implicitly creating. Consider a dedicated category selection in EventForm.`);
-      existingCategory = await createCategory({ name: categoryName }); // Uses mock createCategory
-  }
 
 
   let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
@@ -451,7 +464,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     date: data.date.toISOString(),
     location: data.location,
     description: data.description,
-    category: existingCategory ? existingCategory.name : categoryName, // Use the managed category name
+    category: categoryName, // Store category name
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer,
@@ -477,11 +490,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   if (!organizer) throw new Error("Organizer not found");
 
   const categoryName = data.category.trim();
-  let existingCategory = mockCategories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-   if (!existingCategory && categoryName) {
-      console.warn(`Category "${categoryName}" not found during update, implicitly creating. Consider a dedicated category selection in EventForm.`);
-      existingCategory = await createCategory({ name: categoryName });
-  }
 
 
   let finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
@@ -542,7 +550,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     date: data.date.toISOString(),
     location: data.location,
     description: data.description,
-    category: existingCategory ? existingCategory.name : categoryName,
+    category: categoryName, // Store category name
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     organizer: organizer,
@@ -682,7 +690,7 @@ const initAdminMockData = async () => {
             date: new Date(new Date().getFullYear() + 1, 5, 15),
             location: "Grand Park, Downtown",
             description: "<p>Admin-managed music festival.</p>",
-            category: "Festivals", // This must match a name in mockCategories
+            category: "Festivals", // This must match a name in mockCategories, or be handled if dynamic
             imageUrl: "https://placehold.co/800x450.png",
             organizerId: org1.id,
             venueName: "Grand Park Main Stage",

@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
-import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeTicketAvailabilityFormData } from "@/lib/types";
+import type { EventFormData, Organizer, TicketTypeFormData, ShowTimeTicketAvailabilityFormData, Category } from "@/lib/types"; // Added Category
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -23,6 +23,7 @@ import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
 import { Textarea } from "@/components/ui/textarea";
+import { getEventCategories } from "@/lib/mockData"; // For fetching categories
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
@@ -39,7 +40,7 @@ const generateClientTempId = (prefix: string = 'client') => `${prefix}-${Date.no
 
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]); // Changed to Category[]
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug);
   const { toast } = useToast();
@@ -106,10 +107,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       date: new Date(event.date),
       location: event.location,
       description: event.description || "<p></p>",
-      category: event.category,
+      category: event.category, // Event.category is a string (name)
       imageUrl: event.imageUrl,
-      organizerId: event.organizer?.id || "", // Handle case where organizer might be missing
-      venueName: event.venue?.name || "", // Handle case where venue might be missing
+      organizerId: event.organizer?.id || event.organizerId || "", // Handle case where organizer might be missing
+      venueName: event.venue?.name || "", 
       venueAddress: event.venue?.address || "",
       ticketTypes: ticketTypesFormData,
       showTimes: showTimesFormData,
@@ -178,12 +179,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   useEffect(() => {
     const fetchDropdownData = async () => {
       try {
-        const catResponse = await fetch(`${API_BASE_URL}/events/categories`);
-        if (!catResponse.ok) throw new Error('Failed to fetch categories');
-        const catData = await catResponse.json();
+        const catData = await getEventCategories(); // Now fetches Category[] from API
         setCategories(catData);
 
-        const orgResponse = await fetch(`${API_BASE_URL}/admin/organizers`);
+        const orgResponse = await fetch(`${API_BASE_URL}/admin/organizers`); // Assuming this stays for now
         if (!orgResponse.ok) throw new Error('Failed to fetch organizers');
         const orgData = await orgResponse.json();
         setOrganizers(orgData);
@@ -465,7 +464,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 render={({ field }) => (
                 <FormItem>
                     <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value /* Event.category is string (name) */}>
                     <FormControl>
                         <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
@@ -473,19 +472,21 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     </FormControl>
                     <SelectContent>
                         {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        <SelectItem key={String(cat.id)} value={cat.name}>{cat.name}</SelectItem>
                         ))}
-                        <SelectItem value="Other">Other (Type below if not listed)</SelectItem>
+                        {/* Consider if "Other" is still needed with API-managed categories */}
+                        {/* <SelectItem value="Other">Other (Type below if not listed)</SelectItem> */}
                     </SelectContent>
                     </Select>
-                    {form.watch("category") === "Other" && !categories.includes(field.value) && (
+                     {/* Logic for custom category input might need review if categories are strictly from API */}
+                    {/* {form.watch("category") === "Other" && !categories.some(c => c.name === field.value) && (
                     <Input 
                         placeholder="Enter custom category" 
                         onChange={(e) => field.onChange(e.target.value)} 
-                        value={field.value === "Other" ? "" : (categories.includes(field.value) ? "" : field.value)}
+                        value={field.value === "Other" ? "" : (categories.some(c => c.name === field.value) ? "" : field.value)}
                         className="mt-2"
                     />
-                    )}
+                    )} */}
                     <FormMessage />
                 </FormItem>
                 )}
