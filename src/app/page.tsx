@@ -64,7 +64,7 @@ export default function HomePage() {
       });
       
       setIsLoadingPopular(true);
-      getPopularEvents(4).then(data => {
+      getPopularEvents(8).then(data => { // Fetch 8 popular events
         setPopularEvents(data);
         setIsLoadingPopular(false);
       });
