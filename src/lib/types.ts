@@ -16,7 +16,7 @@ export interface User {
   email: string;
   name?: string | null;
   isAdmin?: boolean;
-  billingAddress?: BillingAddress | null; // Added
+  billingAddress?: BillingAddress | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -36,6 +36,18 @@ export const OrganizerFormSchema = z.object({
   website: z.string().url("Invalid URL.").optional().or(z.literal('')),
 });
 export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
+
+// --- Category Related ---
+export interface Category {
+  id: string;
+  name: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+export const CategoryFormSchema = z.object({
+  name: z.string().min(2, "Category name must be at least 2 characters long.").max(50, "Category name must be 50 characters or less."),
+});
+export type CategoryFormData = z.infer<typeof CategoryFormSchema>;
 
 
 // --- TicketType Related ---
@@ -102,7 +114,7 @@ export interface Event {
   date: string; // ISO string for main event date
   location: string;
   description: string;
-  category: string;
+  category: string; // This will store the category NAME
   imageUrl: string;
   organizer: Organizer; // Embed full organizer object
   organizerId?: string; // Store organizer ID
@@ -125,7 +137,7 @@ export const EventFormSchema = z.object({
   date: z.date({ required_error: "Main event date is required" }),
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
-  category: z.string().min(3, "Category is required"),
+  category: z.string().min(1, "Category is required"), // Can be a selected name or a new one
   imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")), // Allow data URIs
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
@@ -161,7 +173,7 @@ export interface Booking {
   eventLocation: string;
   qrCodeValue: string;
   totalPrice: number;
-  billingAddress: BillingAddress; // Added
+  billingAddress: BillingAddress;
   bookedTickets: BookedTicket[]; // Array of specific tickets part of this booking
   createdAt?: Date;
   updatedAt?: Date;

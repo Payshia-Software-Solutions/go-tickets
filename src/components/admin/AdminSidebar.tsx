@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag } from 'lucide-react'; // Added Tag
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +12,7 @@ const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/organizers', label: 'Organizers', icon: Users },
+  { href: '/admin/categories', label: 'Categories', icon: Tag }, // Added Categories
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
 ];
 
