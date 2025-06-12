@@ -52,7 +52,7 @@ export default function HomePage() {
 
     const fetchData = async () => {
       setIsLoadingUpcoming(true);
-      getUpcomingEvents(8).then(data => { // Fetch 8 upcoming events
+      getUpcomingEvents(8).then(data => { 
         setUpcomingEvents(data);
         setIsLoadingUpcoming(false);
       });
@@ -64,7 +64,7 @@ export default function HomePage() {
       });
       
       setIsLoadingPopular(true);
-      getPopularEvents(8).then(data => { // Fetch 8 popular events
+      getPopularEvents(4).then(data => { // Fetch 4 popular events
         setPopularEvents(data);
         setIsLoadingPopular(false);
       });
