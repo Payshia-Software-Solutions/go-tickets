@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, ShowTime, ShowTimeTicketAvailability, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, ShowTime, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
 import { parse } from 'date-fns';
 
 // API Base URL from environment variable
@@ -571,7 +571,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   if (!organizer) throw new Error("Organizer not found");
 
   const categoryName = data.category.trim();
-  let finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+  const finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
 
    const eventPayloadForApi = { // Similar to createEvent payload
     name: data.name,
