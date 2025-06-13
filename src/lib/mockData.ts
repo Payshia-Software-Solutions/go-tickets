@@ -7,6 +7,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categories";
 const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
 const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
+const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
 
 
 // Helper to parse "YYYY-MM-DD HH:MM:SS" to ISO string or Date object
@@ -186,9 +187,11 @@ export const fetchEventBySlugFromApi = async (slug: string): Promise<Event | nul
 
 export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> => {
   try {
-    const response = await fetch(INTERNAL_PUBLIC_CATEGORY_API_URL); // Changed from CATEGORY_API_URL
+    console.log(`Attempting to fetch public categories from: ${INTERNAL_PUBLIC_CATEGORY_API_URL}`);
+    const response = await fetch(INTERNAL_PUBLIC_CATEGORY_API_URL); 
     if (!response.ok) {
-      console.error("API Error fetching public categories from internal route:", response.status, await response.text());
+      const errorBodyText = await response.text();
+      console.error(`API Error fetching public categories from internal route (${INTERNAL_PUBLIC_CATEGORY_API_URL}): ${response.status} - ${errorBodyText}`);
       return [];
     }
     const categories: Category[] = await response.json();
@@ -199,7 +202,7 @@ export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> =
         updatedAt: parseApiDateString(cat.updatedAt)
     }));
   } catch (error) {
-    console.error("Network error fetching public categories from internal route:", INTERNAL_PUBLIC_CATEGORY_API_URL, error);
+    console.error(`Network error fetching public categories from internal route: ${INTERNAL_PUBLIC_CATEGORY_API_URL}`, error);
     console.warn("This might be due to a CORS issue with the external API, network connectivity problem, or the external API endpoint being temporarily unavailable (relayed through internal API).");
     return [];
   }
@@ -249,10 +252,6 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 const mockUsers: User[] = [
   { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-];
-let mockOrganizers: Organizer[] = [
-  { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = [];
 
@@ -405,46 +404,121 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
   return mockUsers[userIndex];
 };
 
-// --- Organizer Management (Mock - for admin operations) ---
+// --- Organizer Management (API Based) ---
+const mapApiOrganizerToAppOrganizer = (apiOrganizer: any): Organizer => {
+  return {
+    id: String(apiOrganizer.id),
+    name: apiOrganizer.name,
+    contactEmail: apiOrganizer.contactEmail,
+    website: apiOrganizer.website || null,
+    createdAt: parseApiDateString(apiOrganizer.createdAt),
+    updatedAt: parseApiDateString(apiOrganizer.updatedAt),
+  };
+};
+
 export const adminGetAllOrganizers = async (): Promise<Organizer[]> => {
-  return [...mockOrganizers].sort((a,b) => a.name.localeCompare(b.name));
+  console.log(`Fetching all organizers from: ${ORGANIZERS_API_URL}`);
+  try {
+    const response = await fetch(ORGANIZERS_API_URL);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to fetch organizers and parse error response.' }));
+      console.error("API Error fetching organizers:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to fetch organizers: ${response.status}`);
+    }
+    const responseData = await response.json();
+    const apiOrganizers: any[] = Array.isArray(responseData) ? responseData : responseData.data || responseData.organizers || [];
+    
+    if (!Array.isArray(apiOrganizers)) {
+        console.error("Organizers data from API is not an array. Received:", apiOrganizers);
+        return [];
+    }
+    return apiOrganizers.map(mapApiOrganizerToAppOrganizer).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error("Network or other error fetching organizers:", error);
+    return [];
+  }
 };
 
 export const getOrganizerById = async (id: string): Promise<Organizer | null> => {
-  return mockOrganizers.find(org => org.id === id) || null;
+  console.log(`Fetching organizer by ID: ${id} from: ${ORGANIZERS_API_URL}/${id}`);
+  try {
+    const response = await fetch(`${ORGANIZERS_API_URL}/${id}`);
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      const errorBody = await response.json().catch(() => ({ message: `Failed to fetch organizer ${id} and parse error response.` }));
+      console.error("API Error fetching organizer by ID:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to fetch organizer ${id}: ${response.status}`);
+    }
+    const apiOrganizer = await response.json();
+    return mapApiOrganizerToAppOrganizer(apiOrganizer);
+  } catch (error) {
+    console.error(`Network or other error fetching organizer ${id}:`, error);
+    return null;
+  }
 };
 
 export const createOrganizer = async (data: OrganizerFormData): Promise<Organizer> => {
-  const newOrganizer: Organizer = {
-    id: generateId('org'),
-    ...data,
-    website: data.website || null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  mockOrganizers.push(newOrganizer);
-  return newOrganizer;
+  console.log(`Creating organizer via API: ${ORGANIZERS_API_URL}`);
+  try {
+    const response = await fetch(ORGANIZERS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to create organizer and parse error response.' }));
+      console.error("API Error creating organizer:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to create organizer: ${response.status}`);
+    }
+    const newApiOrganizer = await response.json();
+    return mapApiOrganizerToAppOrganizer(newApiOrganizer);
+  } catch (error) {
+    console.error("Network or other error creating organizer:", error);
+    throw error;
+  }
 };
 
 export const updateOrganizer = async (organizerId: string, data: OrganizerFormData): Promise<Organizer | null> => {
-  const index = mockOrganizers.findIndex(org => org.id === organizerId);
-  if (index === -1) return null;
-  mockOrganizers[index] = {
-    ...mockOrganizers[index],
-    ...data,
-    website: data.website || null,
-    updatedAt: new Date().toISOString(),
-  };
-  return mockOrganizers[index];
+  console.log(`Updating organizer ID: ${organizerId} via API: ${ORGANIZERS_API_URL}/${organizerId}`);
+  try {
+    const response = await fetch(`${ORGANIZERS_API_URL}/${organizerId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      const errorBody = await response.json().catch(() => ({ message: `Failed to update organizer ${organizerId} and parse error response.` }));
+      console.error("API Error updating organizer:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to update organizer ${organizerId}: ${response.status}`);
+    }
+    const updatedApiOrganizer = await response.json();
+    return mapApiOrganizerToAppOrganizer(updatedApiOrganizer);
+  } catch (error) {
+    console.error(`Network or other error updating organizer ${organizerId}:`, error);
+    throw error;
+  }
 };
 
 export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
-  if (mockEventsStore.some(event => event.organizerId === organizerId)) {
-    throw new Error(`Cannot delete organizer: Events are linked.`);
+  console.log(`Deleting organizer ID: ${organizerId} via API: ${ORGANIZERS_API_URL}/${organizerId}`);
+  try {
+    const response = await fetch(`${ORGANIZERS_API_URL}/${organizerId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `Failed to delete organizer ${organizerId} and parse error response.` }));
+      if (response.status === 400 && errorBody.message && errorBody.message.toLowerCase().includes("in use")) {
+          throw new Error(`Cannot delete organizer: It is currently in use by one or more events.`);
+      }
+      console.error("API Error deleting organizer:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to delete organizer ${organizerId}: ${response.status}`);
+    }
+    return true; // Or response.ok which should be true here
+  } catch (error) {
+    console.error(`Network or other error deleting organizer ${organizerId}:`, error);
+    throw error;
   }
-  const initialLength = mockOrganizers.length;
-  mockOrganizers = mockOrganizers.filter(org => org.id !== organizerId);
-  return mockOrganizers.length < initialLength;
 };
 
 
@@ -860,7 +934,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
       throw new Error(`Failed to fetch booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking = await response.json();
-    console.log(`Raw booking data for ID ${id}:`, JSON.stringify(apiBooking, null, 2));
+    // console.log(`Raw booking data for ID ${id}:`, JSON.stringify(apiBooking, null, 2));
     return mapApiBookingToAppBooking(apiBooking);
   } catch (error) {
     console.error(`Network or other error fetching booking ${id}:`, error);
@@ -927,8 +1001,13 @@ const initAdminMockData = async () => {
         console.log("API_BASE_URL is set, skipping local mock data initialization for admin events as it might conflict with API.");
         return;
     }
+    const allOrganizers = await adminGetAllOrganizers();
+    if (!allOrganizers || allOrganizers.length === 0) {
+        console.warn("No organizers found; cannot initialize admin mock event data that depends on an organizer.");
+        return;
+    }
+    const org1 = allOrganizers[0];
 
-    const org1 = mockOrganizers.find(o => o.id === 'org-1') || mockOrganizers[0];
 
     const defaultEventDataList: EventFormData[] = [
         {
@@ -976,5 +1055,11 @@ const initAdminMockData = async () => {
     }
 };
 
-initAdminMockData();
+// Only initialize mock data if not using an API_BASE_URL for events (which would indicate real event data source)
+// and if organizer data is being fetched from a real source (to avoid race conditions or dependency issues).
+if (!API_BASE_URL && ORGANIZERS_API_URL) {
+    initAdminMockData();
+} else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
+    console.warn("Local mock data initialization for admin events is skipped because organizers are also mocked locally. This might be fine if organizers are pre-populated or not required immediately.");
+}
 
