@@ -21,7 +21,11 @@ export default function AdminBookingsPage() {
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/bookings`);
+      // Determine the correct path based on whether NEXT_PUBLIC_API_BASE_URL is set
+      const endpointPath = process.env.NEXT_PUBLIC_API_BASE_URL ? '/bookings' : '/admin/bookings';
+      const fullFetchUrl = `${API_BASE_URL}${endpointPath}`;
+
+      const response = await fetch(fullFetchUrl);
       if (!response.ok) {
         throw new Error('Failed to fetch bookings');
       }
