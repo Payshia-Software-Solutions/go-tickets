@@ -137,10 +137,6 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
         updatedAt: parseApiDateString(sta.updatedAt),
       })) || [],
     })) || [],
-    // venue: { // Ensure venue object is populated for Event interface
-    //     name: apiEvent.venueName,
-    //     address: apiEvent.venueAddress || null,
-    //  },
     mapLink: `https://maps.google.com/?q=${encodeURIComponent(apiEvent.venueAddress || apiEvent.location)}`,
     createdAt: parseApiDateString(apiEvent.createdAt),
     updatedAt: parseApiDateString(apiEvent.updatedAt),
@@ -190,7 +186,7 @@ export const fetchEventBySlugFromApi = async (slug: string): Promise<Event | nul
 
 export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> => {
   try {
-    const response = await fetch(INTERNAL_PUBLIC_CATEGORY_API_URL);
+    const response = await fetch(INTERNAL_PUBLIC_CATEGORY_API_URL); // Changed from CATEGORY_API_URL
     if (!response.ok) {
       console.error("API Error fetching public categories from internal route:", response.status, await response.text());
       return [];
@@ -259,7 +255,6 @@ let mockOrganizers: Organizer[] = [
   { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = [];
-// const mockBookings: Booking[] = []; // Retain for potential fallback or if some specific mock scenarios need it.
 
 // Helper for unique IDs
 const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -444,9 +439,6 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
 };
 
 export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
-  // Check if the organizer is linked to any events fetched from the API if API_BASE_URL is defined
-  // This check might be complex if events are only fetched on demand.
-  // For simplicity, this mock check only considers locally stored mockEventsStore.
   if (mockEventsStore.some(event => event.organizerId === organizerId)) {
     throw new Error(`Cannot delete organizer: Events are linked.`);
   }
@@ -589,10 +581,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       imageUrl: data.imageUrl,
       organizerId: data.organizerId,
       organizer: organizer,
-      // venue: {
-      //     name: data.venueName,
-      //     address: data.venueAddress || null,
-      // },
       venueName: data.venueName,
       venueAddress: data.venueAddress || null,
       ticketTypes,
@@ -691,7 +679,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       ...originalEvent, name: data.name, slug: finalNewSlug, date: data.date.toISOString(),
       location: data.location, description: data.description, category: categoryName,
       imageUrl: data.imageUrl, organizerId: data.organizerId, organizer: organizer,
-      // venue: { name: data.venueName, address: data.venueAddress || null },
       venueName: data.venueName,
       venueAddress: data.venueAddress || null,
       ticketTypes: updatedTicketTypes, showTimes: updatedShowTimes, updatedAt: new Date().toISOString(),
@@ -702,13 +689,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
 
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
-    // This check should ideally be against the real booking system if integrated.
-    // For now, it checks a local mockBookings array which might not be accurate if bookings are external.
-    // Consider removing or making this check conditional if bookings are fully managed by the external API.
-    // if (mockBookings.some(booking => booking.eventId === eventId)) {
-    //   throw new Error(`Cannot delete event: Bookings are associated. Please manage bookings first.`);
-    // }
-    
     if (API_BASE_URL) {
         const response = await fetch(`${API_BASE_URL}/events/${eventId}`, {
             method: 'DELETE',
@@ -782,13 +762,13 @@ const mapApiBookingToAppBooking = (apiBooking: any): Booking => {
     billingAddress: parsedBillingAddress,
     bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: any) => ({
       id: String(bt.id),
-      bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id), // Use booking_id from item, fallback to parent
+      bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id),
       ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
       ticketTypeName: bt.ticket_type_name || bt.ticketTypeName || "N/A",
       showTimeId: String(bt.show_time_id || bt.showTimeId || 'unknown-showtime-id'),
       quantity: parseInt(String(bt.quantity), 10) || 0,
       pricePerTicket: parseFloat(String(bt.price_per_ticket || bt.pricePerTicket)) || 0,
-      eventNsid: String(bt.event_nsid || apiBooking.event_slug || bt.eventId || 'unknown-event-nsid'), // Prefer event_nsid (slug), fallback to parent slug, then bt.eventId
+      eventNsid: String(bt.event_nsid || apiBooking.event_slug || bt.eventId || 'unknown-event-nsid'), 
       createdAt: parseApiDateString(bt.created_at || bt.createdAt),
       updatedAt: parseApiDateString(bt.updated_at || bt.updatedAt),
     })),
@@ -806,7 +786,7 @@ export const createBooking = async (
     billingAddress: BillingAddress;
   }
 ): Promise<Booking> => {
-  const user = await getUserByEmail(bookingData.userId); // Assuming userId is email for mock getUserByEmail
+  const user = await getUserByEmail(bookingData.userId); 
   if (!user) throw new Error("User not found for booking.");
 
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
@@ -857,11 +837,12 @@ export const createBooking = async (
     return mapApiBookingToAppBooking(createdApiBooking);
   } catch (error) {
     console.error("Network or other error creating booking:", error);
-    throw error; // Re-throw to be caught by UI
+    throw error; 
   }
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
+  console.log(`Fetching booking by ID: ${id} from: ${BOOKINGS_API_URL}/${id}`);
   try {
     const response = await fetch(`${BOOKINGS_API_URL}/${id}`);
     if (!response.ok) {
@@ -869,30 +850,72 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         console.log(`Booking with ID ${id} not found via API.`);
         return undefined;
       }
-      const errorBody = await response.json().catch(() => ({ message: 'Failed to fetch booking and parse error response.' }));
-      console.error(`API Error fetching booking ${id}:`, response.status, errorBody);
-      throw new Error(errorBody.message || `Failed to fetch booking ${id}: ${response.status}`);
+      const errorBodyText = await response.text();
+      console.error(`API Error fetching booking ${id}: Status ${response.status}, Body: ${errorBodyText}`);
+      let errorJsonMessage = 'Failed to parse error JSON.';
+      try {
+        const errorJson = JSON.parse(errorBodyText);
+        errorJsonMessage = errorJson.message || JSON.stringify(errorJson);
+      } catch (jsonError) {/* ignore */}
+      throw new Error(`Failed to fetch booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking = await response.json();
+    console.log(`Raw booking data for ID ${id}:`, JSON.stringify(apiBooking, null, 2));
     return mapApiBookingToAppBooking(apiBooking);
   } catch (error) {
     console.error(`Network or other error fetching booking ${id}:`, error);
-    return undefined; // Or re-throw if preferred
+    return undefined;
   }
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
+  console.log(`Fetching all admin bookings from: ${BOOKINGS_API_URL}`);
   try {
     const response = await fetch(BOOKINGS_API_URL);
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: 'Failed to fetch bookings and parse error response.' }));
-      console.error("API Error fetching all admin bookings:", response.status, errorBody);
-      throw new Error(errorBody.message || `Failed to fetch bookings: ${response.status}`);
+      let errorBodyText = 'Could not retrieve error body.';
+      try {
+        errorBodyText = await response.text(); 
+      } catch (textError) {
+        console.error("Failed to even get text from error response:", textError);
+      }
+      console.error("API Error fetching all admin bookings. Status:", response.status, "Body:", errorBodyText);
+      let errorBodyJsonMessage = 'Failed to parse error JSON.';
+      try {
+        const errorJson = JSON.parse(errorBodyText);
+        errorBodyJsonMessage = errorJson.message || JSON.stringify(errorJson);
+      } catch (jsonError) { /* ignore */ }
+      throw new Error(`Failed to fetch bookings: ${response.status}. Message: ${errorBodyJsonMessage}`);
     }
-    const apiBookings: any[] = await response.json();
-    return apiBookings.map(mapApiBookingToAppBooking).sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+    
+    const responseData = await response.json();
+    // console.log("Raw response data from bookings API:", JSON.stringify(responseData, null, 2)); 
+
+    const apiBookings: any[] = Array.isArray(responseData) 
+      ? responseData 
+      : responseData.data || responseData.bookings || [];
+
+    if (!Array.isArray(apiBookings)) {
+        console.error("Bookings data from API is not an array and not under a known key (data, bookings). Received:", apiBookings);
+        return [];
+    }
+    
+    // console.log(`Found ${apiBookings.length} bookings from API. Mapping now...`);
+
+    const mappedBookings = apiBookings.map(booking => {
+      try {
+        return mapApiBookingToAppBooking(booking);
+      } catch (mapError) {
+        console.error("Error mapping individual booking:", JSON.stringify(booking, null, 2), "Error:", mapError);
+        return null; 
+      }
+    }).filter(booking => booking !== null) as Booking[]; 
+
+    // console.log(`Successfully mapped ${mappedBookings.length} bookings.`);
+
+    return mappedBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
   } catch (error) {
-    console.error("Network or other error fetching all admin bookings:", error);
+    console.error("Network or other error fetching/processing all admin bookings:", error);
     return [];
   }
 };
@@ -949,7 +972,7 @@ const initAdminMockData = async () => {
         });
 
         const createdEvent = await createEvent({ ...eventData, ticketTypes: finalTicketTypes, showTimes: finalShowTimes });
-        if(createdEvent && eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin'; // Check if createdEvent is not undefined
+        if(createdEvent && eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin';
     }
 };
 
