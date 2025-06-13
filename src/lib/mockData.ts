@@ -1,11 +1,12 @@
 
-import type { Event, Booking, User, Organizer, TicketType, ShowTime, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
 import { parse } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categories";
 const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
+const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
 
 
 // Helper to parse "YYYY-MM-DD HH:MM:SS" to ISO string or Date object
@@ -136,7 +137,7 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
         updatedAt: parseApiDateString(sta.updatedAt),
       })) || [],
     })) || [],
-     venue: {
+     venue: { // Ensure venue object is populated for Event interface
         name: apiEvent.venueName,
         address: apiEvent.venueAddress || null,
      },
@@ -257,7 +258,7 @@ let mockOrganizers: Organizer[] = [
   { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = [];
-const mockBookings: Booking[] = [];
+// const mockBookings: Booking[] = []; // Retain for potential fallback or if some specific mock scenarios need it.
 
 // Helper for unique IDs
 const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -293,8 +294,8 @@ export const getCategoryById = async (id: string | number): Promise<Category | n
     return { 
         ...category, 
         id: String(category.id),
-        createdAt: parseApiDateString(category.createdAt),
-        updatedAt: parseApiDateString(category.updatedAt)
+        createdAt: parseApiDateString(cat.createdAt),
+        updatedAt: parseApiDateString(cat.updatedAt)
     };
   } catch (error) {
     console.error("Error in getCategoryById:", error);
@@ -442,6 +443,9 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
 };
 
 export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
+  // Check if the organizer is linked to any events fetched from the API if API_BASE_URL is defined
+  // This check might be complex if events are only fetched on demand.
+  // For simplicity, this mock check only considers locally stored mockEventsStore.
   if (mockEventsStore.some(event => event.organizerId === organizerId)) {
     throw new Error(`Cannot delete organizer: Events are linked.`);
   }
@@ -693,9 +697,12 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
 
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
-    if (mockBookings.some(booking => booking.eventId === eventId)) {
-      throw new Error(`Cannot delete event: Bookings are associated. Please manage bookings first.`);
-    }
+    // This check should ideally be against the real booking system if integrated.
+    // For now, it checks a local mockBookings array which might not be accurate if bookings are external.
+    // Consider removing or making this check conditional if bookings are fully managed by the external API.
+    // if (mockBookings.some(booking => booking.eventId === eventId)) {
+    //   throw new Error(`Cannot delete event: Bookings are associated. Please manage bookings first.`);
+    // }
     
     if (API_BASE_URL) {
         const response = await fetch(`${API_BASE_URL}/events/${eventId}`, {
@@ -740,7 +747,30 @@ export const processMockPayment = async (
 };
 
 
-// --- Booking Management (Mock) ---
+// --- Booking Management (API based) ---
+
+const mapApiBookingToAppBooking = (apiBooking: any): Booking => {
+  return {
+    ...apiBooking,
+    id: String(apiBooking.id), // Ensure ID is string
+    eventId: String(apiBooking.event_id || apiBooking.eventId), // Handle potential snake_case
+    userId: String(apiBooking.user_id || apiBooking.userId),
+    bookingDate: parseApiDateString(apiBooking.booking_date || apiBooking.bookingDate) || new Date().toISOString(),
+    eventDate: parseApiDateString(apiBooking.event_date || apiBooking.eventDate) || new Date().toISOString(),
+    createdAt: parseApiDateString(apiBooking.created_at || apiBooking.createdAt),
+    updatedAt: parseApiDateString(apiBooking.updated_at || apiBooking.updatedAt),
+    // Ensure nested booked_tickets also have their dates parsed and IDs as strings
+    bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets)?.map((bt: any) => ({
+      ...bt,
+      id: String(bt.id),
+      ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
+      showTimeId: String(bt.show_time_id || bt.showTimeId),
+      createdAt: parseApiDateString(bt.created_at || bt.createdAt),
+      updatedAt: parseApiDateString(bt.updated_at || bt.updatedAt),
+    })) || [],
+  };
+};
+
 export const createBooking = async (
   bookingData: {
     eventId: string;
@@ -750,82 +780,90 @@ export const createBooking = async (
     billingAddress: BillingAddress;
   }
 ): Promise<Booking> => {
-  const user = mockUsers.find(u => u.id === bookingData.userId);
+  const user = await getUserByEmail(bookingData.userId); // Assuming userId is email for mock getUserByEmail
   if (!user) throw new Error("User not found for booking.");
 
-  const event = API_BASE_URL 
-    ? await fetchEventBySlugFromApi(bookingData.tickets[0]?.eventNsid) 
-    : mockEventsStore.find(e => e.id === bookingData.eventId);
-    
-  if (!event || !event.showTimes) throw new Error("Event or its showtimes not found for booking.");
-
+  // The event for context, not for availability update here.
+  const event = await getEventBySlug(bookingData.tickets[0]?.eventNsid); 
+  if (!event || !event.showTimes) throw new Error("Event or its showtimes not found for booking context.");
+  
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
 
-  if (!API_BASE_URL) {
-      const eventInStoreIndex = mockEventsStore.findIndex(e => e.id === event.id);
-      if (eventInStoreIndex === -1) throw new Error("Event not found in mock store for availability update.");
-      
-      const showTimeIndex = mockEventsStore[eventInStoreIndex].showTimes.findIndex(st => st.id === showTimeId);
-      if (showTimeIndex === -1) throw new Error(`ShowTime with ID ${showTimeId} not found for this event in mock store.`);
-      
-      const showTimeToUpdate = mockEventsStore[eventInStoreIndex].showTimes[showTimeIndex];
-
-      for (const ticketItem of bookingData.tickets) {
-        if (ticketItem.showTimeId !== showTimeId) {
-            throw new Error("All tickets in a single booking must be for the same showtime.");
-        }
-        const staIndex = showTimeToUpdate.ticketAvailabilities.findIndex(sta => sta.ticketType.id === ticketItem.ticketTypeId);
-        if (staIndex === -1) {
-          throw new Error(`Availability record not found for ticket type ${ticketItem.ticketTypeName} in mock store.`);
-        }
-        if (showTimeToUpdate.ticketAvailabilities[staIndex].availableCount < ticketItem.quantity) {
-          throw new Error(`Not enough tickets available for ${ticketItem.ticketTypeName} in mock store.`);
-        }
-        mockEventsStore[eventInStoreIndex].showTimes[showTimeIndex].ticketAvailabilities[staIndex].availableCount -= ticketItem.quantity;
-      }
-  } else {
-      console.warn("API_BASE_URL is set. Mock createBooking will not update ticket availability on the remote server via this function. This should be handled by a dedicated API call or backend logic.")
-  }
-
-
-  const bookingId = generateId('bk');
-  const newBooking: Booking = {
-    id: bookingId,
-    eventId: bookingData.eventId,
-    userId: bookingData.userId,
-    bookedTickets: bookingData.tickets.map(ticket => ({
-      id: generateId('btk'),
-      bookingId: bookingId,
-      eventNsid: event.slug,
-      ticketTypeId: ticket.ticketTypeId,
-      ticketTypeName: ticket.ticketTypeName,
+  const apiPayload = {
+    event_id: bookingData.eventId,
+    user_id: user.id, // Use the actual user ID
+    booking_date: new Date().toISOString(),
+    event_date: event.showTimes.find(st => st.id === showTimeId)?.dateTime || new Date().toISOString(), // Use specific showtime's date
+    event_name: event.name,
+    event_location: event.location,
+    qr_code_value: `EVENT:${event.slug},BOOKING_ID:TEMP,SHOWTIME:${showTimeId}`, // QR might be generated by backend
+    total_price: bookingData.totalPrice,
+    billing_address: bookingData.billingAddress,
+    booked_tickets: bookingData.tickets.map(ticket => ({
+      event_nsid: ticket.eventNsid, // May not be needed by backend if event_id is present
+      ticket_type_id: ticket.ticketTypeId,
+      ticket_type_name: ticket.ticketTypeName, // May not be needed by backend
       quantity: ticket.quantity,
-      pricePerTicket: ticket.pricePerTicket,
-      showTimeId: ticket.showTimeId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      price_per_ticket: ticket.pricePerTicket,
+      show_time_id: ticket.showTimeId,
     })),
-    totalPrice: bookingData.totalPrice,
-    billingAddress: bookingData.billingAddress,
-    bookingDate: new Date().toISOString(),
-    eventName: event.name,
-    eventDate: event.showTimes.find(st => st.id === showTimeId)?.dateTime || new Date().toISOString(), 
-    eventLocation: event.location,
-    qrCodeValue: `EVENT:${event.slug},BOOKING_ID:${bookingId},SHOWTIME:${event.showTimes.find(st => st.id === showTimeId)?.dateTime}`,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   };
-  mockBookings.push(newBooking);
-  return newBooking;
+
+  try {
+    const response = await fetch(BOOKINGS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(apiPayload),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to create booking and parse error response.' }));
+      console.error("API Error creating booking:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
+    }
+    const createdApiBooking = await response.json();
+    return mapApiBookingToAppBooking(createdApiBooking);
+  } catch (error) {
+    console.error("Network or other error creating booking:", error);
+    throw error; // Re-throw to be caught by UI
+  }
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
-  return mockBookings.find(booking => booking.id === id);
+  try {
+    const response = await fetch(`${BOOKINGS_API_URL}/${id}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`Booking with ID ${id} not found via API.`);
+        return undefined;
+      }
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to fetch booking and parse error response.' }));
+      console.error(`API Error fetching booking ${id}:`, response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to fetch booking ${id}: ${response.status}`);
+    }
+    const apiBooking = await response.json();
+    return mapApiBookingToAppBooking(apiBooking);
+  } catch (error) {
+    console.error(`Network or other error fetching booking ${id}:`, error);
+    return undefined; // Or re-throw if preferred
+  }
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
-  return [...mockBookings].sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+  try {
+    const response = await fetch(BOOKINGS_API_URL);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to fetch bookings and parse error response.' }));
+      console.error("API Error fetching all admin bookings:", response.status, errorBody);
+      throw new Error(errorBody.message || `Failed to fetch bookings: ${response.status}`);
+    }
+    const apiBookings: any[] = await response.json();
+    return apiBookings.map(mapApiBookingToAppBooking).sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+  } catch (error) {
+    console.error("Network or other error fetching all admin bookings:", error);
+    return [];
+  }
 };
 
 
@@ -880,7 +918,7 @@ const initAdminMockData = async () => {
         });
 
         const createdEvent = await createEvent({ ...eventData, ticketTypes: finalTicketTypes, showTimes: finalShowTimes });
-        if(eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin';
+        if(createdEvent && eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin'; // Check if createdEvent is not undefined
     }
 };
 
