@@ -64,7 +64,7 @@ interface ApiShowTimeTicketAvailabilityFlat {
   showTimeId?: string;
   ticketTypeId?: string;
   ticketType?: { id: string; name: string; price: number }; // This is if API nests it, otherwise we use ticketTypeId
-  availableCount: number | string; // Can be string from API
+  availableCount: string | number; // Can be string from API
   createdAt?: string;
   updatedAt?: string;
 }
@@ -106,7 +106,7 @@ interface ApiEventFlat {
   organizer?: Organizer; 
   // ticketTypes will be fetched separately, not relying on this from event endpoint
   // ticketTypes?: ApiTicketTypeFlat[]; 
-  showTimes?: ApiShowTimeFlat[];   // This will likely be empty or not present from /events/slug, will be fetched separately
+  // showTimes?: ApiShowTimeFlat[];   // This will likely be empty or not present from /events/slug, will be fetched separately
   createdAt?: string;
   updatedAt?: string;
 }
@@ -215,17 +215,24 @@ const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> 
     console.warn("TICKET_TYPES_API_URL is not defined. Cannot fetch ticket types.");
     return [];
   }
-  const url = `${TICKET_TYPES_API_URL}?eventId=${eventId}`; // Assuming API supports ?eventId= query param
+  const url = `${TICKET_TYPES_API_URL}?eventid=${eventId}`; 
   try {
+    console.log(`Fetching ticket types for event ${eventId} from URL: ${url}`);
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`API Error fetching ticket types for event ${eventId}:`, response.status, await response.text());
       return [];
     }
     const apiTicketTypes: ApiTicketTypeFromEndpoint[] = await response.json();
+    console.log(`Received ${apiTicketTypes.length} ticket types from API for event ${eventId}.`);
     
-    // If the API doesn't filter by eventId and returns all, we need to filter here
+    // API should already filter by eventId with the query param.
+    // This client-side filter is a safeguard.
     const filteredApiTicketTypes = apiTicketTypes.filter(tt => String(tt.eventId) === String(eventId));
+    if (filteredApiTicketTypes.length !== apiTicketTypes.length) {
+        console.warn(`Client-side filter applied for ticket types of event ${eventId}. Initial: ${apiTicketTypes.length}, Filtered: ${filteredApiTicketTypes.length}. API might not be filtering correctly by eventid.`);
+    }
+
 
     return filteredApiTicketTypes.map(tt => ({
       id: String(tt.id),
@@ -270,18 +277,23 @@ export const getEventCategories = async (): Promise<Category[]> => {
 };
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
+  console.log(`Fetching event by slug: ${slug}`);
   const eventBase = await fetchEventBySlugFromApi(slug);
   
   if (!eventBase) {
+    console.warn(`Event with slug "${slug}" not found.`);
     return undefined;
   }
+  console.log(`Base event data fetched for slug "${slug}": ID ${eventBase.id}`);
 
   // Fetch and attach full organizer details if only ID is present
   if (!eventBase.organizer && eventBase.organizerId) {
     try {
+      console.log(`Fetching organizer details for ID: ${eventBase.organizerId} (event: ${slug})`);
       const organizerDetails = await getOrganizerById(eventBase.organizerId);
       if (organizerDetails) {
         eventBase.organizer = organizerDetails;
+        console.log(`Organizer details attached for event: ${slug}`);
       } else {
         console.warn(`Organizer with ID ${eventBase.organizerId} not found for event ${slug}.`);
       }
@@ -294,18 +306,22 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   eventBase.ticketTypes = await fetchTicketTypesForEvent(eventBase.id);
   if (!eventBase.ticketTypes || eventBase.ticketTypes.length === 0) {
       console.warn(`No ticket types found or fetched for event ${slug} (ID: ${eventBase.id}) from ${TICKET_TYPES_API_URL}. Booking page might not work correctly.`);
+  } else {
+      console.log(`Fetched ${eventBase.ticketTypes.length} ticket types for event ${slug} (ID: ${eventBase.id}).`);
   }
 
 
   // Fetch showtimes for the event
   const eventShowTimes: ShowTime[] = [];
   if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE) {
+    console.log(`Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
     try {
       const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
       if (!showtimesResponse.ok) {
-        console.warn(`Failed to fetch showtimes for event ${eventBase.id} (slug: ${slug}): ${showtimesResponse.status}`);
+        console.warn(`Failed to fetch showtimes for event ${eventBase.id} (slug: ${slug}): ${showtimesResponse.status} - ${await showtimesResponse.text()}`);
       } else {
         const basicShowTimesFromApi: ApiShowTimeFlat[] = await showtimesResponse.json();
+        console.log(`Fetched ${basicShowTimesFromApi.length} basic showtimes for event ${eventBase.id} (slug: ${slug}).`);
         
         // For each basic showtime, fetch its availabilities
         for (const basicSt of basicShowTimesFromApi) {
@@ -318,15 +334,17 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             ticketAvailabilities: [], // Initialize
           };
 
+          console.log(`Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
           try {
             const availabilityResponse = await fetch(`${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
             if (!availabilityResponse.ok) {
-              console.warn(`Failed to fetch availabilities for showTime ${basicSt.id} (event ${slug}): ${availabilityResponse.status}`);
+              console.warn(`Failed to fetch availabilities for showTime ${basicSt.id} (event ${slug}): ${availabilityResponse.status} - ${await availabilityResponse.text()}`);
             } else {
               const rawAvailabilities: ApiShowTimeTicketAvailabilityFlat[] = await availabilityResponse.json();
+              console.log(`Fetched ${rawAvailabilities.length} availabilities for showTime ${basicSt.id} (event ${slug}).`);
               
               detailedShowTime.ticketAvailabilities = rawAvailabilities.map(rawAvail => {
-                const masterTicketTypes = eventBase.ticketTypes || []; // Use the definitively fetched ticket types
+                const masterTicketTypes = eventBase.ticketTypes || []; 
                 const foundMasterType = masterTicketTypes.find(mtt => String(mtt.id) === String(rawAvail.ticketTypeId));
                 let ticketTypeDetails: Pick<TicketType, 'id' | 'name' | 'price'>;
 
@@ -335,7 +353,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
                 } else if (foundMasterType) {
                   ticketTypeDetails = { id: foundMasterType.id, name: foundMasterType.name, price: foundMasterType.price };
                 } else {
-                  console.warn(`Master TicketType with ID ${rawAvail.ticketTypeId} not found for showtime ${basicSt.id}, availability ${rawAvail.id}.`);
+                  console.warn(`Master TicketType with ID ${rawAvail.ticketTypeId} not found for showtime ${basicSt.id}, availability ${rawAvail.id}. RawAvail:`, rawAvail);
                   ticketTypeDetails = { id: String(rawAvail.ticketTypeId) || 'unknown-tt-id', name: 'Unknown Ticket Type', price: 0 };
                 }
                 return {
@@ -350,7 +368,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
               });
             }
           } catch (error) {
-            console.error(`Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
+            console.error(`Error fetching/processing availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           eventShowTimes.push(detailedShowTime);
         }
@@ -372,7 +390,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
           }
       });
   }
-  
+  console.log(`Finished processing event by slug "${slug}". Returning event object:`, eventBase);
   return eventBase;
 };
 
