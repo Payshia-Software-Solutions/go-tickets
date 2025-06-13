@@ -21,8 +21,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import CategoryForm from '@/components/admin/CategoryForm';
 
-// Removed: const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'; 
-
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,9 +38,7 @@ export default function AdminCategoriesPage() {
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Assuming adminGetAllCategories is updated to fetch from the new API URL
-      // If not, direct fetch: const response = await fetch(`https://gotickets-server.payshia.com/categories`);
-      const response = await fetch(`/api/admin/categories`); // Uses our backend route which then calls the external API
+      const response = await fetch(`/api/admin/categories`); 
       if (!response.ok) {
         throw new Error('Failed to fetch categories');
       }
@@ -76,7 +72,7 @@ export default function AdminCategoriesPage() {
     if (!categoryToDelete) return;
     setIsSubmitting(true); 
     try {
-      const response = await fetch(`/api/admin/categories/${categoryToDelete.id}`, { // Uses our backend route
+      const response = await fetch(`/api/admin/categories/${categoryToDelete.id}`, { 
         method: 'DELETE',
       });
       
@@ -115,7 +111,7 @@ export default function AdminCategoriesPage() {
   const handleCreateCategorySubmit = async (data: CategoryFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/admin/categories`, { // Uses our backend route
+      const response = await fetch(`/api/admin/categories`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -146,7 +142,7 @@ export default function AdminCategoriesPage() {
     if (!currentCategoryForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/admin/categories/${currentCategoryForEdit.id}`, { // Uses our backend route
+      const response = await fetch(`/api/admin/categories/${currentCategoryForEdit.id}`, { 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

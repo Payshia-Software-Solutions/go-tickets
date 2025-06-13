@@ -15,8 +15,26 @@ const parseApiDateString = (dateString?: string): string | undefined => {
     // Assuming API date strings are in UTC or should be treated as such for parsing
     // then converted to ISO standard format.
     const parsedDate = parse(dateString, "yyyy-MM-dd HH:mm:ss", new Date());
+    if (isNaN(parsedDate.getTime())) { // Check if parsing resulted in an invalid date
+        // Try parsing as ISO string directly if the first attempt fails or if it's already ISO
+        const isoParsedDate = new Date(dateString);
+        if (!isNaN(isoParsedDate.getTime())) {
+            return isoParsedDate.toISOString();
+        }
+        console.warn(`Could not parse date string: ${dateString} into a valid date.`);
+        return dateString; // Fallback to original string if all parsing fails
+    }
     return parsedDate.toISOString();
   } catch (error) {
+    // Fallback for if dateString is already a valid ISO string that parse() might not handle well
+    try {
+        const isoParsedDate = new Date(dateString);
+        if (!isNaN(isoParsedDate.getTime())) {
+            return isoParsedDate.toISOString();
+        }
+    } catch (isoError) {
+        // Ignore if this also fails
+    }
     console.warn(`Could not parse date string: ${dateString}`, error);
     return dateString; // Fallback to original string if parsing fails
   }
@@ -25,8 +43,8 @@ const parseApiDateString = (dateString?: string): string | undefined => {
 // Define interfaces for flat API responses to avoid 'any'
 interface ApiShowTimeTicketAvailabilityFlat {
   id: string;
-  ticketTypeId?: string; // If API provides it directly
-  ticketType?: { id: string; name: string; price: number }; // If API provides nested
+  ticketTypeId?: string; 
+  ticketType?: { id: string; name: string; price: number }; 
   availableCount: number;
   createdAt?: string;
   updatedAt?: string;
@@ -38,6 +56,17 @@ interface ApiShowTimeFlat {
   ticketAvailabilities?: ApiShowTimeTicketAvailabilityFlat[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface ApiTicketTypeFlat {
+    id: string;
+    eventId?: string;
+    name: string;
+    price: number;
+    availability: number;
+    description?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 interface ApiEventFlat {
@@ -52,22 +81,19 @@ interface ApiEventFlat {
   venueName: string;
   venueAddress?: string | null;
   organizerId: string;
-  organizer?: Organizer; // Full organizer might come from detail endpoint
-  ticketTypes?: TicketType[]; // Full ticket types might come from detail endpoint
-  showTimes?: ApiShowTimeFlat[]; // Use the flat version here
+  organizer?: Organizer; 
+  ticketTypes?: ApiTicketTypeFlat[]; 
+  showTimes?: ApiShowTimeFlat[]; 
   createdAt?: string;
   updatedAt?: string;
 }
 
 const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
-  // This function maps the flat API event structure to our app's Event type.
-  // It assumes the list endpoint might not provide full 'organizer', 'ticketTypes', 'showTimes'.
-  // The detail endpoint should provide these.
   return {
     id: apiEvent.id,
     name: apiEvent.name,
     slug: apiEvent.slug,
-    date: parseApiDateString(apiEvent.date) || new Date().toISOString(), // Ensure it's ISO
+    date: parseApiDateString(apiEvent.date) || new Date().toISOString(),
     location: apiEvent.location,
     description: apiEvent.description,
     category: apiEvent.category,
@@ -75,14 +101,27 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
     venueName: apiEvent.venueName,
     venueAddress: apiEvent.venueAddress,
     organizerId: apiEvent.organizerId,
-    organizer: apiEvent.organizer as Organizer,
-    ticketTypes: apiEvent.ticketTypes as TicketType[],
+    organizer: apiEvent.organizer ? {
+        ...apiEvent.organizer,
+        createdAt: parseApiDateString(apiEvent.organizer.createdAt),
+        updatedAt: parseApiDateString(apiEvent.organizer.updatedAt),
+    } : undefined,
+    ticketTypes: apiEvent.ticketTypes?.map((tt: ApiTicketTypeFlat) => ({
+        id: tt.id,
+        eventId: tt.eventId,
+        name: tt.name,
+        price: tt.price,
+        availability: tt.availability,
+        description: tt.description,
+        createdAt: parseApiDateString(tt.createdAt),
+        updatedAt: parseApiDateString(tt.updatedAt),
+    })) || [],
     showTimes: apiEvent.showTimes?.map((st: ApiShowTimeFlat) => ({
       id: st.id,
       eventId: apiEvent.id,
       dateTime: parseApiDateString(st.dateTime) || new Date().toISOString(),
-      createdAt: st.createdAt ? new Date(st.createdAt) : undefined,
-      updatedAt: st.updatedAt ? new Date(st.updatedAt) : undefined,
+      createdAt: parseApiDateString(st.createdAt),
+      updatedAt: parseApiDateString(st.updatedAt),
       ticketAvailabilities: st.ticketAvailabilities?.map((sta: ApiShowTimeTicketAvailabilityFlat) => ({
         id: sta.id,
         showTimeId: st.id,
@@ -93,22 +132,16 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
           price: sta.ticketType?.price || 0,
         },
         availableCount: sta.availableCount,
-        createdAt: sta.createdAt ? new Date(sta.createdAt) : undefined,
-        updatedAt: sta.updatedAt ? new Date(sta.updatedAt) : undefined,
+        createdAt: parseApiDateString(sta.createdAt),
+        updatedAt: parseApiDateString(sta.updatedAt),
       })) || [],
     })) || [],
-    // venue: { // This was duplicated, ensure correct structure based on Event type
-    //     name: apiEvent.venueName,
-    //     address: apiEvent.venueAddress || null,
-    // },
-    // Assuming Event type has a single venue object like this from previous structure:
      venue: {
         name: apiEvent.venueName,
         address: apiEvent.venueAddress || null,
-        // mapLink might need to be constructed or come from apiEvent if available
      },
-    createdAt: apiEvent.createdAt ? new Date(apiEvent.createdAt) : undefined,
-    updatedAt: apiEvent.updatedAt ? new Date(apiEvent.updatedAt) : undefined,
+    createdAt: parseApiDateString(apiEvent.createdAt),
+    updatedAt: parseApiDateString(apiEvent.updatedAt),
   };
 };
 
@@ -153,9 +186,6 @@ export const fetchEventBySlugFromApi = async (slug: string): Promise<Event | nul
   }
 };
 
-// This function is now for the PUBLIC side, fetching category *names* or *objects*
-// Based on the change request, it should now fetch Category objects
-// It will fetch from an internal API route to avoid CORS issues.
 export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> => {
   try {
     const response = await fetch(INTERNAL_PUBLIC_CATEGORY_API_URL);
@@ -164,8 +194,12 @@ export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> =
       return [];
     }
     const categories: Category[] = await response.json();
-    // Ensure IDs are strings if API returns numbers (though our internal route should handle this)
-    return categories.map(cat => ({ ...cat, id: String(cat.id) }));
+    return categories.map(cat => ({ 
+        ...cat, 
+        id: String(cat.id),
+        createdAt: parseApiDateString(cat.createdAt),
+        updatedAt: parseApiDateString(cat.updatedAt)
+    }));
   } catch (error) {
     console.error("Network error fetching public categories from internal route:", INTERNAL_PUBLIC_CATEGORY_API_URL, error);
     console.warn("This might be due to a CORS issue with the external API, network connectivity problem, or the external API endpoint being temporarily unavailable (relayed through internal API).");
@@ -194,7 +228,6 @@ export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
     .slice(0, limit);
 };
 
-// Updated to return Category[] objects
 export const getEventCategories = async (): Promise<Category[]> => {
   return fetchPublicEventCategoriesFromApi();
 };
@@ -210,19 +243,18 @@ export const searchEvents = async (query?: string, category?: string, date?: str
   if (category) params.set('category', category);
   if (date) params.set('date_gte', date);
   if (location) params.set('location_like', location);
-  // Price filters minPrice, maxPrice are not used in fetchEventsFromApi currently.
   return fetchEventsFromApi(params);
 };
 
 
 // In-memory data stores for entities NOT yet migrated to API or for specific mock scenarios
 const mockUsers: User[] = [
-  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
-  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date(), updatedAt: new Date() },
+  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockOrganizers: Organizer[] = [
-  { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date(), updatedAt: new Date() },
-  { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date(), updatedAt: new Date() },
+  { id: 'org-1', name: 'Music Makers Inc.', contactEmail: 'contact@musicmakers.com', website: 'https://musicmakers.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'org-2', name: 'Tech Events Global', contactEmail: 'info@techevents.com', website: 'https://techevents.com', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = [];
 const mockBookings: Booking[] = [];
@@ -231,7 +263,6 @@ const mockBookings: Booking[] = [];
 const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
 // --- Category Management (API based) ---
-// These functions are used by the ADMIN API routes, so they call the EXTERNAL API directly (server-to-server).
 export const adminGetAllCategories = async (): Promise<Category[]> => {
   try {
     const response = await fetch(EXTERNAL_CATEGORY_API_URL);
@@ -239,7 +270,12 @@ export const adminGetAllCategories = async (): Promise<Category[]> => {
       throw new Error(`Failed to fetch categories: ${response.status}`);
     }
     const categories: Category[] = await response.json();
-    return categories.map(cat => ({ ...cat, id: String(cat.id) })).sort((a, b) => a.name.localeCompare(b.name));
+    return categories.map(cat => ({ 
+        ...cat, 
+        id: String(cat.id),
+        createdAt: parseApiDateString(cat.createdAt),
+        updatedAt: parseApiDateString(cat.updatedAt)
+    })).sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error in adminGetAllCategories:", error);
     return [];
@@ -254,7 +290,12 @@ export const getCategoryById = async (id: string | number): Promise<Category | n
       throw new Error(`Failed to fetch category ${id}: ${response.status}`);
     }
     const category: Category = await response.json();
-    return { ...category, id: String(category.id) };
+    return { 
+        ...category, 
+        id: String(category.id),
+        createdAt: parseApiDateString(category.createdAt),
+        updatedAt: parseApiDateString(category.updatedAt)
+    };
   } catch (error) {
     console.error("Error in getCategoryById:", error);
     return null;
@@ -273,7 +314,12 @@ export const createCategory = async (data: CategoryFormData): Promise<Category> 
       throw new Error(errorBody.message || `Failed to create category: ${response.status}`);
     }
     const newCategory: Category = await response.json();
-    return { ...newCategory, id: String(newCategory.id) };
+    return { 
+        ...newCategory, 
+        id: String(newCategory.id),
+        createdAt: parseApiDateString(newCategory.createdAt),
+        updatedAt: parseApiDateString(newCategory.updatedAt)
+    };
   } catch (error) {
     console.error("Error in createCategory:", error);
     throw error;
@@ -292,7 +338,12 @@ export const updateCategory = async (categoryId: string | number, data: Category
       throw new Error(errorBody.message || `Failed to update category ${categoryId}: ${response.status}`);
     }
     const updatedCategory: Category = await response.json();
-    return { ...updatedCategory, id: String(updatedCategory.id) };
+    return { 
+        ...updatedCategory, 
+        id: String(updatedCategory.id),
+        createdAt: parseApiDateString(updatedCategory.createdAt),
+        updatedAt: parseApiDateString(updatedCategory.updatedAt)
+    };
   } catch (error) {
     console.error("Error in updateCategory:", error);
     throw error;
@@ -306,13 +357,12 @@ export const deleteCategory = async (categoryId: string | number): Promise<boole
     });
     if (!response.ok) {
        const errorBody = await response.json().catch(() => ({ message: 'Failed to delete category and parse error' }));
-      // Check for specific message from API about category in use
       if (errorBody.message && errorBody.message.toLowerCase().includes("in use")) {
           throw new Error(`Cannot delete category: It is currently in use by one or more events.`);
       }
       throw new Error(errorBody.message || `Failed to delete category ${categoryId}: ${response.status}`);
     }
-    return true; // Or response.status === 204 or check body for success message
+    return true; 
   } catch (error) {
     console.error("Error in deleteCategory:", error);
     throw error;
@@ -335,8 +385,8 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
     name: userData.name || '',
     isAdmin: userData.isAdmin || false,
     billingAddress: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
   mockUsers.push(newUser);
   return newUser;
@@ -345,7 +395,7 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
 export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
   const userIndex = mockUsers.findIndex(u => u.id === userId);
   if (userIndex === -1) return null;
-  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date() };
+  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date().toISOString() };
   if (typeof localStorage !== 'undefined') {
     const storedUser = localStorage.getItem('mypassUser');
     if (storedUser) {
@@ -372,8 +422,8 @@ export const createOrganizer = async (data: OrganizerFormData): Promise<Organize
     id: generateId('org'),
     ...data,
     website: data.website || null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
   mockOrganizers.push(newOrganizer);
   return newOrganizer;
@@ -386,7 +436,7 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
     ...mockOrganizers[index],
     ...data,
     website: data.website || null,
-    updatedAt: new Date(),
+    updatedAt: new Date().toISOString(),
   };
   return mockOrganizers[index];
 };
@@ -403,34 +453,31 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
 
 // --- Event Management (Mock - for admin operations) ---
 export const adminGetAllEvents = async (): Promise<Event[]> => {
-  // This function should fetch from your backend API that wraps the external event API
-  // For now, using local mock if API_BASE_URL is not set, otherwise trying to fetch.
   if (!API_BASE_URL) {
     console.warn("API_BASE_URL not set, adminGetAllEvents using local mockEventsStore.");
     return [...mockEventsStore].sort((a,b) => (b.date && a.date) ? new Date(b.date).getTime() - new Date(a.date).getTime() : 0);
   }
   try {
-    const response = await fetch(`${API_BASE_URL}/events`); // Assuming your backend has an /events route
+    const response = await fetch(`${API_BASE_URL}/events`); 
     if (!response.ok) {
       console.error("API Error fetching admin events:", response.status, await response.text());
-      return []; // Fallback to empty or could return mockEventsStore
+      return []; 
     }
     const apiEvents: ApiEventFlat[] = await response.json();
     return apiEvents.map(mapApiEventToAppEvent);
   } catch (error) {
     console.error("Network error fetching admin events:", error);
-    return []; // Fallback
+    return []; 
   }
 };
 
 export const getAdminEventById = async (id: string): Promise<Event | undefined> => {
-  // This function should fetch from your backend API that wraps the external event API
   if (!API_BASE_URL) {
     console.warn("API_BASE_URL not set, getAdminEventById using local mockEventsStore.");
     return mockEventsStore.find(event => event.id === id);
   }
    try {
-    const response = await fetch(`${API_BASE_URL}/events/${id}`); // Assuming your backend has an /events/:id route
+    const response = await fetch(`${API_BASE_URL}/events/${id}`); 
     if (!response.ok) {
       if (response.status === 404) return undefined;
       console.error(`API Error fetching admin event by id ${id}:`, response.status, await response.text());
@@ -446,24 +493,13 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
 
 
 export const createEvent = async (data: EventFormData): Promise<Event> => {
-  const organizer = await getOrganizerById(data.organizerId); // This still uses mockOrganizers
+  const organizer = await getOrganizerById(data.organizerId); 
   if (!organizer) throw new Error("Organizer not found");
 
   const categoryName = data.category.trim();
-
   let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
   if (!baseSlug) baseSlug = `event-${Date.now()}`;
-  
-  // Assuming your backend API handles slug uniqueness if you post to it.
-  // If this function is for direct client-side interaction with an external API (not recommended for create):
-  // const existingEvents = await fetchEventsFromApi(); // Fetch all to check slug, very inefficient.
-  // let finalSlug = baseSlug;
-  // let counter = 1;
-  // while (existingEvents.some(e => e.slug === finalSlug)) {
-  //   finalSlug = `${baseSlug}-${counter}`;
-  //   counter++;
-  // }
-  const finalSlug = baseSlug; // For mock, or rely on backend.
+  const finalSlug = baseSlug; 
 
   const newEventId = generateId('evt');
 
@@ -474,8 +510,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     price: ttData.price,
     availability: ttData.availability,
     description: ttData.description || null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }));
 
   const showTimes: ShowTime[] = data.showTimes.map(stData => {
@@ -484,8 +520,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       id: showTimeId,
       eventId: newEventId,
       dateTime: stData.dateTime.toISOString(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       ticketAvailabilities: stData.ticketAvailabilities.map(staData => {
         const parentTicketType = ticketTypes.find(tt => tt.id === staData.ticketTypeId);
         if (!parentTicketType) throw new Error(`Ticket type template with ID ${staData.ticketTypeId} not found for showtime.`);
@@ -495,14 +531,14 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
           ticketTypeId: parentTicketType.id,
           ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
           availableCount: staData.availableCount,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
       }),
     };
   });
   
-  const eventPayloadForApi = { // This structure should match what your backend API expects for event creation
+  const eventPayloadForApi = { 
     name: data.name,
     slug: finalSlug,
     date: data.date.toISOString(),
@@ -513,19 +549,16 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     organizerId: data.organizerId,
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
-    ticketTypes: data.ticketTypes.map(tt => ({name: tt.name, price: tt.price, availability: tt.availability, description: tt.description})), // simplified for API
+    ticketTypes: data.ticketTypes.map(tt => ({name: tt.name, price: tt.price, availability: tt.availability, description: tt.description})), 
     showTimes: data.showTimes.map(st => ({
       dateTime: st.dateTime.toISOString(),
       ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-        ticketTypeName: sta.ticketTypeName, // API might need name or ID to link
-        // ticketTypeId: find_ticket_type_id_from_name_if_needed()
+        ticketTypeName: sta.ticketTypeName, 
         availableCount: sta.availableCount
       }))
     }))
   };
 
-
-  // If API_BASE_URL is set, assume we are posting to a backend API
   if (API_BASE_URL) {
     const response = await fetch(`${API_BASE_URL}/events`, {
       method: 'POST',
@@ -539,7 +572,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     const createdApiEvent: ApiEventFlat = await response.json();
     return mapApiEventToAppEvent(createdApiEvent);
   } else {
-    // Fallback to local mock store manipulation
     console.warn("API_BASE_URL not set, createEvent using local mockEventsStore.");
     const newEvent: Event = {
       id: newEventId,
@@ -558,8 +590,8 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       },
       ticketTypes,
       showTimes,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     mockEventsStore.push(newEvent);
     return newEvent;
@@ -567,13 +599,13 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
 };
 
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
-  const organizer = await getOrganizerById(data.organizerId); // Still mock
+  const organizer = await getOrganizerById(data.organizerId); 
   if (!organizer) throw new Error("Organizer not found");
 
   const categoryName = data.category.trim();
   const finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
 
-   const eventPayloadForApi = { // Similar to createEvent payload
+   const eventPayloadForApi = { 
     name: data.name,
     slug: finalNewSlug,
     date: data.date.toISOString(),
@@ -584,13 +616,13 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     organizerId: data.organizerId,
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
-    ticketTypes: data.ticketTypes, // API needs to handle IDs for updates/creates
+    ticketTypes: data.ticketTypes, 
     showTimes: data.showTimes.map(st => ({
-      id: st.id?.startsWith('client-') ? undefined : st.id, // Pass ID if exists
+      id: st.id?.startsWith('client-') ? undefined : st.id, 
       dateTime: st.dateTime.toISOString(),
       ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-        id: sta.id?.startsWith('client-') ? undefined : sta.id, // Pass ID if exists
-        ticketTypeId: sta.ticketTypeId, // API needs to know which TT this availability belongs to
+        id: sta.id?.startsWith('client-') ? undefined : sta.id, 
+        ticketTypeId: sta.ticketTypeId, 
         ticketTypeName: sta.ticketTypeName,
         availableCount: sta.availableCount,
       }))
@@ -624,7 +656,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       return {
         id: existingTt?.id || generateId('tt'), eventId, name: ttData.name, price: ttData.price,
         availability: ttData.availability, description: ttData.description || null,
-        createdAt: existingTt?.createdAt || new Date(), updatedAt: new Date(),
+        createdAt: existingTt?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
     });
 
@@ -641,10 +673,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             id: existingSta?.id || generateId('sta'), showTimeId, ticketTypeId: parentTicketType.id,
             ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
             availableCount: staData.availableCount,
-            createdAt: existingSta?.createdAt || new Date(), updatedAt: new Date(),
+            createdAt: existingSta?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
           };
         }),
-        createdAt: existingSt?.createdAt || new Date(), updatedAt: new Date(),
+        createdAt: existingSt?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
     });
     
@@ -653,7 +685,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       location: data.location, description: data.description, category: categoryName,
       imageUrl: data.imageUrl, organizerId: data.organizerId, organizer: organizer,
       venue: { name: data.venueName, address: data.venueAddress || null },
-      ticketTypes: updatedTicketTypes, showTimes: updatedShowTimes, updatedAt: new Date(),
+      ticketTypes: updatedTicketTypes, showTimes: updatedShowTimes, updatedAt: new Date().toISOString(),
     };
     return mockEventsStore[eventIndex];
   }
@@ -661,7 +693,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
 
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
-    // Check mock bookings first if those are still relevant for deletion logic
     if (mockBookings.some(booking => booking.eventId === eventId)) {
       throw new Error(`Cannot delete event: Bookings are associated. Please manage bookings first.`);
     }
@@ -674,7 +705,7 @@ export const deleteEvent = async (eventId: string): Promise<boolean> => {
             const errorBody = await response.json().catch(() => ({ message: 'Failed to delete event via API and parse error' }));
             throw new Error(errorBody.message || `API error deleting event ${eventId}: ${response.status}`);
         }
-        return response.ok; // Or check status 200/204
+        return response.ok; 
     } else {
         console.warn(`API_BASE_URL not set, deleteEvent using local mockEventsStore for event ID: ${eventId}.`);
         const initialLength = mockEventsStore.length;
@@ -723,7 +754,7 @@ export const createBooking = async (
   if (!user) throw new Error("User not found for booking.");
 
   const event = API_BASE_URL 
-    ? await fetchEventBySlugFromApi(bookingData.tickets[0]?.eventNsid) // Assuming eventNsid is slug
+    ? await fetchEventBySlugFromApi(bookingData.tickets[0]?.eventNsid) 
     : mockEventsStore.find(e => e.id === bookingData.eventId);
     
   if (!event || !event.showTimes) throw new Error("Event or its showtimes not found for booking.");
@@ -731,10 +762,6 @@ export const createBooking = async (
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
 
-  // Need to find the showTime and update its availability *in the source of truth*
-  // If using API_BASE_URL, this implies an API call to update availability, which is complex for this mock.
-  // For simplicity, if API_BASE_URL is set, we will *not* update availability in this mock function.
-  // If not using API_BASE_URL, update local mockEventsStore.
   if (!API_BASE_URL) {
       const eventInStoreIndex = mockEventsStore.findIndex(e => e.id === event.id);
       if (eventInStoreIndex === -1) throw new Error("Event not found in mock store for availability update.");
@@ -776,19 +803,18 @@ export const createBooking = async (
       quantity: ticket.quantity,
       pricePerTicket: ticket.pricePerTicket,
       showTimeId: ticket.showTimeId,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     })),
     totalPrice: bookingData.totalPrice,
     billingAddress: bookingData.billingAddress,
     bookingDate: new Date().toISOString(),
     eventName: event.name,
-    // Find the specific showtime dateTime from the full event object fetched/found
     eventDate: event.showTimes.find(st => st.id === showTimeId)?.dateTime || new Date().toISOString(), 
     eventLocation: event.location,
     qrCodeValue: `EVENT:${event.slug},BOOKING_ID:${bookingId},SHOWTIME:${event.showTimes.find(st => st.id === showTimeId)?.dateTime}`,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
   mockBookings.push(newBooking);
   return newBooking;
