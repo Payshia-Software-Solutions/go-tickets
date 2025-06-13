@@ -32,6 +32,16 @@ const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: st
   Default: { icon: Zap, bgColor: 'bg-gray-100', iconColor: 'text-gray-600' },
 };
 
+// Helper function to capitalize each word in a string
+const capitalizeWords = (str: string): string => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -51,6 +61,12 @@ export default function HomePage() {
     document.title = 'GoTickets.lk - Discover & Book Event Tickets';
 
     const fetchData = async () => {
+      setIsLoadingPopular(true);
+      getPopularEvents(4).then(data => { 
+        setPopularEvents(data);
+        setIsLoadingPopular(false);
+      });
+
       setIsLoadingUpcoming(true);
       getUpcomingEvents(8).then(data => { 
         setUpcomingEvents(data);
@@ -61,12 +77,6 @@ export default function HomePage() {
       getEventCategories().then(data => { // Now returns Category[]
         setCategories(data);
         setIsLoadingCategories(false);
-      });
-      
-      setIsLoadingPopular(true);
-      getPopularEvents(4).then(data => { 
-        setPopularEvents(data);
-        setIsLoadingPopular(false);
       });
     };
     fetchData();
@@ -250,7 +260,8 @@ export default function HomePage() {
         ) : categories.length > 0 ? (
           <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-hide snap-x snap-mandatory md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:space-x-0 md:pb-0 md:snap-none">
             {categories.map((category) => {
-              const displayInfo = categoryDisplayData[category.name] || categoryDisplayData.Default;
+              const categoryKey = capitalizeWords(category.name);
+              const displayInfo = categoryDisplayData[categoryKey] || categoryDisplayData.Default;
               const IconComponent = displayInfo.icon;
               return (
                 <div key={String(category.id)} className="snap-center shrink-0 w-[40vw] sm:w-[30vw] md:w-full pb-1">
