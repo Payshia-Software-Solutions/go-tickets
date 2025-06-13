@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, ShowTime, ShowTimeTicketAvailability } from './types';
 import { parse, isValid } from 'date-fns';
 
 // API Base URL from environment variable
@@ -8,7 +8,7 @@ const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categori
 const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
 const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
 const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
-const SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/showtimes";
+// const SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/showtimes"; // Not directly used for bulk fetching, but good to have
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
 
 
@@ -20,10 +20,10 @@ const parseApiDateString = (dateString?: string): string | undefined => {
     const formatsToTry = [
       "yyyy-MM-dd HH:mm:ss.SSS",
       "yyyy-MM-dd HH:mm:ss",
-      "yyyy-MM-dd'T'HH:mm:ss.SSSX",
-      "yyyy-MM-dd'T'HH:mm:ssX",
-      "yyyy-MM-dd'T'HH:mm:ss.SSS",
-      "yyyy-MM-dd'T'HH:mm:ss",
+      "yyyy-MM-dd'T'HH:mm:ss.SSSX", // ISO with timezone
+      "yyyy-MM-dd'T'HH:mm:ssX",    // ISO with timezone
+      "yyyy-MM-dd'T'HH:mm:ss.SSS", // ISO without Z
+      "yyyy-MM-dd'T'HH:mm:ss",   // ISO without Z
       "yyyy-MM-dd",
     ];
 
@@ -33,14 +33,17 @@ const parseApiDateString = (dateString?: string): string | undefined => {
         if (isValid(parsed)) {
           return parsed;
         }
-      } catch (e) { /* Ignore */ }
+      } catch (e) { /* Ignore and try next format */ }
     }
+    // Fallback to native Date parsing if no format matches
     try {
       const nativeParsed = new Date(dateStr);
       if (isValid(nativeParsed)) {
         return nativeParsed;
       }
-    } catch(e) { /* Ignore */ }
+    } catch(e) { /* Ignore native parse error */ }
+    
+    console.warn(`Could not parse date string: "${dateStr}" with any known format or native Date. Returning null.`);
     return null;
   };
 
@@ -50,16 +53,18 @@ const parseApiDateString = (dateString?: string): string | undefined => {
     return parsedDateObject.toISOString();
   }
   
-  console.warn(`Could not parse date string: "${dateString}" into a valid ISO string. Returning original or undefined.`);
+  // If parsing completely fails, return original string or undefined.
+  // This might allow downstream code to attempt parsing or handle it.
+  console.warn(`parseApiDateString: Failed to parse "${dateString}" into a valid ISO string. Returning original or undefined.`);
   return dateString; 
 };
 
 // Define interfaces for flat API responses to avoid 'any'
 interface ApiShowTimeTicketAvailabilityFlat {
-  id: string;
+  id: string; // This is the ID of the ShowTimeTicketAvailability record
   showTimeId?: string;
   ticketTypeId?: string;
-  ticketType?: { id: string; name: string; price: number }; // If API nests this directly
+  ticketType?: { id: string; name: string; price: number }; // If API nests this directly (less common for dedicated availability endpoint)
   availableCount: number | string; // Can be string from API
   createdAt?: string;
   updatedAt?: string;
@@ -69,7 +74,7 @@ interface ApiShowTimeFlat {
   id: string;
   eventId?: string;
   dateTime: string;
-  ticketAvailabilities?: ApiShowTimeTicketAvailabilityFlat[];
+  ticketAvailabilities?: ApiShowTimeTicketAvailabilityFlat[]; // May or may not be populated by main event API
   createdAt?: string;
   updatedAt?: string;
 }
@@ -79,7 +84,7 @@ interface ApiTicketTypeFlat {
     eventId?: string;
     name: string;
     price: number;
-    availability: number;
+    availability: number; // This is template availability
     description?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -98,19 +103,20 @@ interface ApiEventFlat {
   venueAddress?: string | null;
   organizerId: string;
   organizer?: Organizer; 
-  ticketTypes?: ApiTicketTypeFlat[];
-  showTimes?: ApiShowTimeFlat[];
+  ticketTypes?: ApiTicketTypeFlat[]; // Master list of ticket types for the event
+  showTimes?: ApiShowTimeFlat[];   // Basic showtime info, may lack detailed availabilities
   createdAt?: string;
   updatedAt?: string;
 }
 
 const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
+  // Master ticket types are crucial for resolving names and prices later if only IDs are provided in availabilities
   const masterTicketTypes: TicketType[] = (apiEvent.ticketTypes || []).map((tt: ApiTicketTypeFlat) => ({
     id: tt.id,
     eventId: tt.eventId,
     name: tt.name,
     price: tt.price,
-    availability: tt.availability,
+    availability: tt.availability, // Template/default availability
     description: tt.description,
     createdAt: parseApiDateString(tt.createdAt),
     updatedAt: parseApiDateString(tt.updatedAt),
@@ -133,13 +139,15 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
         createdAt: parseApiDateString(apiEvent.organizer.createdAt),
         updatedAt: parseApiDateString(apiEvent.organizer.updatedAt),
     } : undefined,
-    ticketTypes: masterTicketTypes,
+    ticketTypes: masterTicketTypes, // Store the processed master ticket types
     showTimes: (apiEvent.showTimes || []).map((st: ApiShowTimeFlat) => ({
       id: st.id,
       eventId: st.eventId || apiEvent.id, 
       dateTime: parseApiDateString(st.dateTime) || new Date().toISOString(),
       createdAt: parseApiDateString(st.createdAt),
       updatedAt: parseApiDateString(st.updatedAt),
+      // If st.ticketAvailabilities is populated by the event API, map it.
+      // Otherwise, it will be an empty array, to be populated by a separate fetch in getEventBySlug.
       ticketAvailabilities: (st.ticketAvailabilities || []).map((sta: ApiShowTimeTicketAvailabilityFlat) => {
         let ticketTypeDetails: Pick<TicketType, 'id' | 'name' | 'price'>;
         
@@ -158,16 +166,16 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
               price: foundMasterType.price,
             };
           } else {
-            console.warn(`mapApiEventToAppEvent: Master TicketType with ID ${sta.ticketTypeId} not found for showtime ${st.id}.`);
+            console.warn(`mapApiEventToAppEvent: Master TicketType with ID ${sta.ticketTypeId} not found for showtime ${st.id}. This availability might be incomplete.`);
             ticketTypeDetails = { id: sta.ticketTypeId, name: 'Unknown Ticket Type', price: 0 };
           }
         } else {
-          console.warn(`mapApiEventToAppEvent: TicketType ID missing for an availability record in showtime ${st.id}.`);
+          console.warn(`mapApiEventToAppEvent: TicketType ID missing for an availability record in showtime ${st.id}. This availability will be incomplete.`);
           ticketTypeDetails = { id: 'unknown-tt-id', name: 'Unknown Ticket Type', price: 0 };
         }
         
         return {
-          id: sta.id,
+          id: sta.id, // ID of the ShowTimeTicketAvailability record
           showTimeId: sta.showTimeId || st.id, 
           ticketTypeId: ticketTypeDetails.id, 
           ticketType: ticketTypeDetails,
@@ -272,34 +280,68 @@ export const getEventCategories = async (): Promise<Category[]> => {
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
   let event = await fetchEventBySlugFromApi(slug);
-  if (event && !event.organizer && event.organizerId) {
-    // console.log(`Event ${slug} loaded, fetching organizer ${event.organizerId}...`);
-    try {
-      const organizerDetails = await getOrganizerById(event.organizerId);
-      if (organizerDetails) {
-        event.organizer = organizerDetails;
-      } else {
-        console.warn(`Organizer with ID ${event.organizerId} not found for event ${slug}.`);
-      }
-    } catch (error) {
-      console.error(`Error fetching organizer ${event.organizerId} for event ${slug}:`, error);
-    }
-  }
   
-  // Optional: Check for showtime details completeness
-  if (event && event.showTimes && event.showTimes.length > 0) {
-    const firstShowTime = event.showTimes[0];
-    if (!firstShowTime.ticketAvailabilities || firstShowTime.ticketAvailabilities.length === 0) {
-      console.warn(`Event ${slug}: Showtimes are present but lack ticketAvailabilities. This might indicate incomplete data from the /events/slug API endpoint or a mapping issue.`);
-    } else {
-      const firstAvailability = firstShowTime.ticketAvailabilities[0];
-      if (!firstAvailability.ticketType || firstAvailability.ticketType.name === 'Unknown Ticket Type') {
-         console.warn(`Event ${slug}: ShowTime ticket availabilities seem to be missing full ticketType details (name, price). This might be due to ticketTypeId mismatches or incomplete data from the API.`);
+  if (event) {
+    // Fetch and attach full organizer details if only ID is present
+    if (!event.organizer && event.organizerId) {
+      try {
+        const organizerDetails = await getOrganizerById(event.organizerId);
+        if (organizerDetails) {
+          event.organizer = organizerDetails;
+        } else {
+          console.warn(`Organizer with ID ${event.organizerId} not found for event ${slug}.`);
+        }
+      } catch (error) {
+        console.error(`Error fetching organizer ${event.organizerId} for event ${slug}:`, error);
       }
     }
+
+    // Fetch and populate detailed ticket availabilities for each showtime
+    if (event.showTimes && event.ticketTypes) {
+      const masterTicketTypes = event.ticketTypes; // These are already mapped TicketType objects
+      for (const showTime of event.showTimes) {
+        // Only fetch if availabilities seem missing or incomplete
+        if (!showTime.ticketAvailabilities || showTime.ticketAvailabilities.length === 0 || showTime.ticketAvailabilities.some(ta => ta.ticketType.name === 'Unknown Ticket Type')) {
+          try {
+            const availabilityResponse = await fetch(`${AVAILABILITY_API_URL}?showTimeId=${showTime.id}`);
+            if (!availabilityResponse.ok) {
+              console.warn(`Failed to fetch availabilities for showTime ${showTime.id} (event ${slug}): ${availabilityResponse.status}`);
+              showTime.ticketAvailabilities = []; // Ensure it's an empty array on failure
+              continue;
+            }
+            const rawAvailabilities: ApiShowTimeTicketAvailabilityFlat[] = await availabilityResponse.json();
+            
+            showTime.ticketAvailabilities = rawAvailabilities.map(rawAvail => {
+              const foundMasterType = masterTicketTypes.find(mtt => mtt.id === rawAvail.ticketTypeId);
+              let ticketTypeDetails: Pick<TicketType, 'id' | 'name' | 'price'>;
+              if (foundMasterType) {
+                ticketTypeDetails = { id: foundMasterType.id, name: foundMasterType.name, price: foundMasterType.price };
+              } else {
+                console.warn(`Master TicketType with ID ${rawAvail.ticketTypeId} not found for showtime ${showTime.id}, availability ${rawAvail.id}.`);
+                ticketTypeDetails = { id: rawAvail.ticketTypeId || 'unknown', name: 'Unknown Ticket Type', price: 0 };
+              }
+              return {
+                id: rawAvail.id, // ID of the availability record
+                showTimeId: rawAvail.showTimeId || showTime.id,
+                ticketTypeId: ticketTypeDetails.id,
+                ticketType: ticketTypeDetails,
+                availableCount: parseInt(String(rawAvail.availableCount), 10) || 0,
+                createdAt: parseApiDateString(rawAvail.createdAt),
+                updatedAt: parseApiDateString(rawAvail.updatedAt),
+              };
+            });
+          } catch (error) {
+            console.error(`Error fetching availabilities for showTime ${showTime.id} (event ${slug}):`, error);
+            showTime.ticketAvailabilities = []; // Ensure it's an empty array on error
+          }
+        }
+      }
+    } else if (event && !event.showTimes) {
+        console.warn(`Event ${slug} loaded, but has no showTimes array.`);
+    } else if (event && !event.ticketTypes) {
+        console.warn(`Event ${slug} loaded, but has no ticketTypes array (master definitions). This will prevent showtime availabilities from being fully detailed.`);
+    }
   }
-
-
   return event || undefined;
 };
 
@@ -908,17 +950,17 @@ export const transformApiBookingToAppBooking = (apiBooking: any): Booking => {
       parsedBillingAddress = JSON.parse(apiBooking.billing_address);
     } catch (e) {
       console.error("Failed to parse billing_address string:", e, "Raw:", apiBooking.billing_address);
-      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; // Default
     }
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
   } else {
-    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; // Default
   }
 
   const rawTotalPrice = apiBooking.total_price ?? apiBooking.totalPrice; 
-  let parsedPrice = parseFloat(String(rawTotalPrice));
-  if (!Number.isFinite(parsedPrice)) {
+  let parsedPrice = parseFloat(String(rawTotalPrice)); // Ensure input to parseFloat is a string
+  if (!Number.isFinite(parsedPrice)) { // Check if parsing resulted in a valid number
       console.warn(`Invalid totalPrice value received: ${rawTotalPrice} for booking ID ${apiBooking.id}. Defaulting to 0.`);
       parsedPrice = 0;
   }
@@ -1016,11 +1058,12 @@ export const createBooking = async (
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
-  // console.log(`Fetching booking by ID: ${id} from: ${BOOKINGS_API_URL}/${id}`);
+  console.log(`Attempting to fetch booking by ID: ${id} from: ${BOOKINGS_API_URL}/${id}`);
   try {
     const response = await fetch(`${BOOKINGS_API_URL}/${id}`);
     if (!response.ok) {
       if (response.status === 404) {
+        console.log(`Booking with ID ${id} not found (404).`);
         return undefined;
       }
       const errorBodyText = await response.text();
@@ -1033,7 +1076,10 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
       throw new Error(`Failed to fetch booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking = await response.json();
-    return transformApiBookingToAppBooking(apiBooking);
+    // console.log(`Successfully fetched booking ${id}. Raw data:`, JSON.stringify(apiBooking, null, 2));
+    const mappedBooking = transformApiBookingToAppBooking(apiBooking);
+    // console.log(`Mapped booking ${id}:`, JSON.stringify(mappedBooking, null, 2));
+    return mappedBooking;
   } catch (error) {
     console.error(`Network or other error fetching booking ${id}:`, error);
     return undefined;
@@ -1041,7 +1087,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
-  // console.log(`Attempting to fetch all admin bookings from: ${BOOKINGS_API_URL}`);
+  console.log(`Attempting to fetch all admin bookings from: ${BOOKINGS_API_URL}`);
   try {
     const response = await fetch(BOOKINGS_API_URL);
     if (!response.ok) {
@@ -1051,7 +1097,7 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
       } catch (textError) {
         console.error("Failed to even get text from error response:", textError);
       }
-      // console.error("API Error fetching all admin bookings. Status:", response.status, "Body:", errorBodyText);
+      console.error("API Error fetching all admin bookings. Status:", response.status, "Body:", errorBodyText);
       let errorBodyJsonMessage = 'Failed to parse error JSON.';
       try {
         const errorJson = JSON.parse(errorBodyText);
@@ -1063,6 +1109,7 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
     const responseData = await response.json();
     // console.log("Raw response data from bookings API:", JSON.stringify(responseData, null, 2));
 
+    // Check if responseData itself is the array, or if it's nested under 'data' or 'bookings'
     const apiBookings: any[] = Array.isArray(responseData)
       ? responseData
       : responseData.data || responseData.bookings || []; 
@@ -1072,18 +1119,18 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
         return [];
     }
 
-    // console.log(`Found ${apiBookings.length} bookings from API. Mapping now...`);
+    console.log(`Found ${apiBookings.length} bookings from API. Mapping now...`);
 
     const mappedBookings = apiBookings.map(booking => {
       try {
         return transformApiBookingToAppBooking(booking);
       } catch (mapError) {
         console.error("Error mapping individual booking:", JSON.stringify(booking, null, 2), "Error:", mapError);
-        return null; 
+        return null; // Skip this booking if mapping fails
       }
-    }).filter(booking => booking !== null) as Booking[]; 
+    }).filter(booking => booking !== null) as Booking[]; // Filter out nulls if any mapping failed
 
-    // console.log(`Successfully mapped ${mappedBookings.length} bookings.`);
+    console.log(`Successfully mapped ${mappedBookings.length} bookings.`);
 
     return mappedBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
   } catch (error) {
@@ -1101,6 +1148,12 @@ const initAdminMockData = async () => {
         return;
     }
     
+    // Only proceed if ORGANIZERS_API_URL is set, because mock events need an organizer.
+    if (!ORGANIZERS_API_URL) {
+      console.warn("ORGANIZERS_API_URL not set. Skipping admin mock event data initialization as it requires an organizer.");
+      return;
+    }
+
     const allOrganizers = await adminGetAllOrganizers(); 
     if (!allOrganizers || allOrganizers.length === 0) {
         console.warn("No organizers found (or ORGANIZERS_API_URL not set/returning empty); cannot initialize admin mock event data that depends on an organizer.");
@@ -1160,6 +1213,8 @@ const initAdminMockData = async () => {
     }
 };
 
+// Initialize mock data if API_BASE_URL (for events) is not set AND ORGANIZERS_API_URL (for organizers) IS set.
+// This implies we want to use real organizers but mock events.
 if (!API_BASE_URL && ORGANIZERS_API_URL) { 
     initAdminMockData();
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
