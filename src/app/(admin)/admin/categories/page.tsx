@@ -21,7 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import CategoryForm from '@/components/admin/CategoryForm';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'; // Not used directly if category service uses its own URL
+// Removed: const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api'; 
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -318,3 +318,4 @@ export default function AdminCategoriesPage() {
     </div>
   );
 }
+
