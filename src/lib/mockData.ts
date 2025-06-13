@@ -755,25 +755,19 @@ export const processMockPayment = async (
 // --- Booking Management (API based) ---
 
 const mapApiBookingToAppBooking = (apiBooking: any): Booking => {
-  // The billingAddress from the API might be a stringified JSON or an object.
-  // Robustly parse it if it's a string.
   let parsedBillingAddress: BillingAddress;
   if (typeof apiBooking.billing_address === 'string') {
     try {
       parsedBillingAddress = JSON.parse(apiBooking.billing_address);
     } catch (e) {
       console.error("Failed to parse billing_address string:", e);
-      // Fallback to a default/empty billing address structure if parsing fails
-      // This matches the BillingAddressSchema structure with empty strings
       parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
     }
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
   } else {
-    // Fallback if billing_address is missing or not in expected format
     parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
   }
-
 
   return {
     id: String(apiBooking.id),
@@ -784,17 +778,17 @@ const mapApiBookingToAppBooking = (apiBooking: any): Booking => {
     eventName: apiBooking.event_name || apiBooking.eventName || "N/A",
     eventLocation: apiBooking.event_location || apiBooking.eventLocation || "N/A",
     qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`,
-    totalPrice: parseFloat(apiBooking.total_price || apiBooking.totalPrice) || 0,
+    totalPrice: parseFloat(String(apiBooking.total_price || apiBooking.totalPrice)) || 0,
     billingAddress: parsedBillingAddress,
     bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: any) => ({
       id: String(bt.id),
-      bookingId: String(apiBooking.id),
+      bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id), // Use booking_id from item, fallback to parent
       ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
       ticketTypeName: bt.ticket_type_name || bt.ticketTypeName || "N/A",
-      showTimeId: String(bt.show_time_id || bt.showTimeId),
+      showTimeId: String(bt.show_time_id || bt.showTimeId || 'unknown-showtime-id'),
       quantity: parseInt(String(bt.quantity), 10) || 0,
       pricePerTicket: parseFloat(String(bt.price_per_ticket || bt.pricePerTicket)) || 0,
-      eventNsid: bt.event_nsid || apiBooking.event_slug || "N/A", // Assuming event_slug might be part of apiBooking
+      eventNsid: String(bt.event_nsid || apiBooking.event_slug || bt.eventId || 'unknown-event-nsid'), // Prefer event_nsid (slug), fallback to parent slug, then bt.eventId
       createdAt: parseApiDateString(bt.created_at || bt.createdAt),
       updatedAt: parseApiDateString(bt.updated_at || bt.updatedAt),
     })),
