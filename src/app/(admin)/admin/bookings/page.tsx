@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { Booking } from '@/lib/types';
 // Removed: import { adminGetAllBookings } from '@/lib/mockData';
+import { transformApiBookingToAppBooking } from '@/lib/mockData'; // Import the transformer
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import Link from 'next/link';
 import { Loader2, Ticket, ExternalLink, Mail, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // Keep only NEXT_PUBLIC_API_BASE_URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -21,7 +22,6 @@ export default function AdminBookingsPage() {
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Determine the correct path based on whether NEXT_PUBLIC_API_BASE_URL is set
       const endpointPath = API_BASE_URL ? '/bookings' : '/api/admin/bookings';
       const fullFetchUrl = API_BASE_URL ? `${API_BASE_URL}${endpointPath}` : endpointPath;
 
@@ -32,8 +32,14 @@ export default function AdminBookingsPage() {
         console.error("Failed to fetch bookings. Status:", response.status, "Body:", errorBody);
         throw new Error(`Failed to fetch bookings. Status: ${response.status}`);
       }
-      const allBookings: Booking[] = await response.json();
-      setBookings(allBookings);
+      const rawData: any[] = await response.json();
+
+      // If fetching directly from external API, map the data
+      const processedBookings = API_BASE_URL
+        ? rawData.map(transformApiBookingToAppBooking)
+        : rawData; // Data from internal API is already mapped
+
+      setBookings(processedBookings);
     } catch (error) {
        console.error("Error fetching bookings:", error);
        toast({
@@ -128,7 +134,7 @@ export default function AdminBookingsPage() {
                         <TableCell className="whitespace-nowrap">{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{booking.userId}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">{totalTickets}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
                         <TableCell className="text-right space-x-1 whitespace-nowrap">
                           <Button variant="outline" size="sm" asChild title="View Booking Confirmation">
