@@ -41,7 +41,7 @@ export default function AdminOrganizersPage() {
   const fetchOrganizers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/organizers`);
+      const response = await fetch(`${API_BASE_URL}/organizers`);
       if (!response.ok) {
         throw new Error('Failed to fetch organizers');
       }
@@ -75,7 +75,7 @@ export default function AdminOrganizersPage() {
     if (!organizerToDelete) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/organizers/${organizerToDelete.id}`, {
+      const response = await fetch(`${API_BASE_URL}/organizers/${organizerToDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -115,7 +115,7 @@ export default function AdminOrganizersPage() {
   const handleCreateOrganizerSubmit = async (data: OrganizerFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/organizers`, {
+      const response = await fetch(`${API_BASE_URL}/organizers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -147,7 +147,7 @@ export default function AdminOrganizersPage() {
     if (!currentOrganizerForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/organizers/${currentOrganizerForEdit.id}`, {
+      const response = await fetch(`${API_BASE_URL}/organizers/${currentOrganizerForEdit.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

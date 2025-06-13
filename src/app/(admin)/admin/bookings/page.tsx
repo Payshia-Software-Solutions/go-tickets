@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { Loader2, Ticket, ExternalLink, Mail, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // Keep only NEXT_PUBLIC_API_BASE_URL
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -22,12 +22,15 @@ export default function AdminBookingsPage() {
     setIsLoading(true);
     try {
       // Determine the correct path based on whether NEXT_PUBLIC_API_BASE_URL is set
-      const endpointPath = process.env.NEXT_PUBLIC_API_BASE_URL ? '/bookings' : '/admin/bookings';
-      const fullFetchUrl = `${API_BASE_URL}${endpointPath}`;
+      const endpointPath = API_BASE_URL ? '/bookings' : '/api/admin/bookings';
+      const fullFetchUrl = API_BASE_URL ? `${API_BASE_URL}${endpointPath}` : endpointPath;
+
 
       const response = await fetch(fullFetchUrl);
       if (!response.ok) {
-        throw new Error('Failed to fetch bookings');
+        const errorBody = await response.text();
+        console.error("Failed to fetch bookings. Status:", response.status, "Body:", errorBody);
+        throw new Error(`Failed to fetch bookings. Status: ${response.status}`);
       }
       const allBookings: Booking[] = await response.json();
       setBookings(allBookings);
@@ -35,7 +38,7 @@ export default function AdminBookingsPage() {
        console.error("Error fetching bookings:", error);
        toast({
         title: "Error Fetching Bookings",
-        description: "Could not load bookings from the server.",
+        description: (error instanceof Error && error.message) ? error.message : "Could not load bookings from the server.",
         variant: "destructive",
       });
     } finally {
@@ -115,7 +118,9 @@ export default function AdminBookingsPage() {
                 </TableHeader>
                 <TableBody>
                   {bookings.map((booking) => {
-                    const totalTickets = booking.bookedTickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
+                    const totalTickets = (booking.bookedTickets && Array.isArray(booking.bookedTickets))
+                      ? booking.bookedTickets.reduce((sum, ticket) => sum + (ticket.quantity || 0), 0)
+                      : 0;
                     return (
                       <TableRow key={booking.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
