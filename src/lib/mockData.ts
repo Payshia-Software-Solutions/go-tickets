@@ -1,6 +1,6 @@
 
 import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
-import { parse } from 'date-fns';
+import { parse, isValid } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -10,36 +10,43 @@ const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
 const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
 
 
-// Helper to parse "YYYY-MM-DD HH:MM:SS" to ISO string or Date object
+// Helper to parse various date strings to ISO string
 const parseApiDateString = (dateString?: string): string | undefined => {
   if (!dateString) return undefined;
-  try {
-    // Assuming API date strings are in UTC or should be treated as such for parsing
-    // then converted to ISO standard format.
-    const parsedDate = parse(dateString, "yyyy-MM-dd HH:mm:ss", new Date());
-    if (isNaN(parsedDate.getTime())) { // Check if parsing resulted in an invalid date
-        // Try parsing as ISO string directly if the first attempt fails or if it's already ISO
-        const isoParsedDate = new Date(dateString);
-        if (!isNaN(isoParsedDate.getTime())) {
-            return isoParsedDate.toISOString();
-        }
-        console.warn(`Could not parse date string: ${dateString} into a valid date.`);
-        return dateString; // Fallback to original string if all parsing fails
+
+  const tryParseVariousFormats = (dateStr: string): Date | null => {
+    // Common formats the API might send, ordered by specificity or likelihood
+    const formatsToTry = [
+      "yyyy-MM-dd HH:mm:ss.SSS", // With milliseconds, space separator
+      "yyyy-MM-dd HH:mm:ss",     // Without milliseconds, space separator
+      "yyyy-MM-dd'T'HH:mm:ss.SSSX", // ISO 8601 with Z or offset, milliseconds
+      "yyyy-MM-dd'T'HH:mm:ssX",    // ISO 8601 with Z or offset, no milliseconds
+      "yyyy-MM-dd'T'HH:mm:ss.SSS", // ISO 8601 without Z/offset, milliseconds
+      "yyyy-MM-dd'T'HH:mm:ss",    // ISO 8601 without Z/offset, no milliseconds
+    ];
+
+    for (const fmt of formatsToTry) {
+      const parsed = parse(dateStr, fmt, new Date());
+      if (isValid(parsed)) {
+        return parsed;
+      }
     }
-    return parsedDate.toISOString();
-  } catch (error) {
-    // Fallback for if dateString is already a valid ISO string that parse() might not handle well
-    try {
-        const isoParsedDate = new Date(dateString);
-        if (!isNaN(isoParsedDate.getTime())) {
-            return isoParsedDate.toISOString();
-        }
-    } catch (isoError) {
-        // Ignore if this also fails
+    // Fallback to direct Date constructor for other ISO-like or common formats
+    const nativeParsed = new Date(dateStr);
+    if (isValid(nativeParsed)) {
+      return nativeParsed;
     }
-    console.warn(`Could not parse date string: ${dateString}`, error);
-    return dateString; // Fallback to original string if parsing fails
+    return null;
+  };
+
+  const parsedDateObject = tryParseVariousFormats(dateString);
+
+  if (parsedDateObject) {
+    return parsedDateObject.toISOString();
   }
+  
+  console.warn(`Could not parse date string: "${dateString}" into a valid ISO string. Returning original or undefined.`);
+  return dateString; // Fallback to original string if critical, or undefined if preferred
 };
 
 // Define interfaces for flat API responses to avoid 'any'
@@ -839,7 +846,7 @@ export const transformApiBookingToAppBooking = (apiBooking: any): Booking => {
     billingAddress: parsedBillingAddress,
     bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: any) => ({
       id: String(bt.id),
-      bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id), // Use parent booking ID as fallback
+      bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id),
       ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
       ticketTypeName: bt.ticket_type_name || bt.ticketTypeName || "N/A",
       showTimeId: String(bt.show_time_id || bt.showTimeId || 'unknown-showtime-id'),
@@ -1066,3 +1073,5 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events is skipped because organizers are also mocked locally. This might be fine if organizers are pre-populated or not required immediately.");
 }
 
+
+    

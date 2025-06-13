@@ -41,7 +41,7 @@ export default function AdminEventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/events`);
+      const response = await fetch(`${API_BASE_URL}/events`);
       if (!response.ok) {
         throw new Error('Failed to fetch events');
       }
@@ -75,7 +75,7 @@ export default function AdminEventsPage() {
     if (!eventToDelete) return;
     setIsLoading(true); // Or a specific delete loading state
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/events/${eventToDelete.id}`, {
+      const response = await fetch(`${API_BASE_URL}/events/${eventToDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -108,7 +108,7 @@ export default function AdminEventsPage() {
     // Fetch the full event data in case list view is partial
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/events/${event.id}`);
+      const response = await fetch(`${API_BASE_URL}/events/${event.id}`);
       if (!response.ok) throw new Error('Failed to fetch event details');
       const fullEventData = await response.json();
       setCurrentEventForEdit(fullEventData);
@@ -124,7 +124,7 @@ export default function AdminEventsPage() {
   const handleCreateEventSubmit = async (data: EventFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/events`, {
+      const response = await fetch(`${API_BASE_URL}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -156,7 +156,7 @@ export default function AdminEventsPage() {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/events/${currentEventForEdit.id}`, {
+      const response = await fetch(`${API_BASE_URL}/events/${currentEventForEdit.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
