@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import type { Booking } from '@/lib/types';
+import type { Booking, BillingAddress } from '@/lib/types'; // Added BillingAddress
 // Removed: import { adminGetAllBookings } from '@/lib/mockData';
 import { transformApiBookingToAppBooking } from '@/lib/mockData'; // Import the transformer
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,58 @@ import { Loader2, Ticket, ExternalLink, Mail, MessageSquare } from 'lucide-react
 import { useToast } from '@/hooks/use-toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+// Define interfaces for the raw API response structure
+interface RawApiBookedTicket {
+  id: string | number;
+  booking_id?: string | number;
+  bookingId?: string | number;
+  ticket_type_id?: string | number;
+  ticketTypeId?: string | number;
+  ticket_type_name?: string;
+  ticketTypeName?: string;
+  show_time_id?: string | number;
+  showTimeId?: string | number;
+  quantity: string | number;
+  price_per_ticket?: string | number;
+  pricePerTicket?: string | number;
+  event_nsid?: string;
+  event_slug?: string;
+  eventId?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
+interface RawApiBooking {
+  id: string | number;
+  event_id?: string | number;
+  eventId?: string | number;
+  user_id?: string | number;
+  userId?: string | number;
+  booking_date?: string;
+  bookingDate?: string;
+  event_date?: string;
+  eventDate?: string;
+  event_name?: string;
+  eventName?: string;
+  event_location?: string;
+  eventLocation?: string;
+  qr_code_value?: string;
+  qrCodeValue?: string;
+  total_price?: string | number;
+  totalPrice?: string | number;
+  billing_address?: string | BillingAddress;
+  booked_tickets?: RawApiBookedTicket[];
+  bookedTickets?: RawApiBookedTicket[];
+  event_slug?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -32,12 +84,12 @@ export default function AdminBookingsPage() {
         console.error("Failed to fetch bookings. Status:", response.status, "Body:", errorBody);
         throw new Error(`Failed to fetch bookings. Status: ${response.status}`);
       }
-      const rawData: any[] = await response.json();
+      const rawData: RawApiBooking[] = await response.json();
 
       // If fetching directly from external API, map the data
       const processedBookings = API_BASE_URL
-        ? rawData.map(transformApiBookingToAppBooking)
-        : rawData; // Data from internal API is already mapped
+        ? rawData.map(item => transformApiBookingToAppBooking(item)) // Pass item instead of entire rawData
+        : rawData.map(item => transformApiBookingToAppBooking(item)); // Also map if from internal API, ensure consistency
 
       setBookings(processedBookings);
     } catch (error) {
@@ -171,3 +223,4 @@ export default function AdminBookingsPage() {
     </div>
   );
 }
+
