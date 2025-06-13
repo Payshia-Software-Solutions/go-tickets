@@ -137,10 +137,11 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
         updatedAt: parseApiDateString(sta.updatedAt),
       })) || [],
     })) || [],
-     venue: { // Ensure venue object is populated for Event interface
-        name: apiEvent.venueName,
-        address: apiEvent.venueAddress || null,
-     },
+    // venue: { // Ensure venue object is populated for Event interface
+    //     name: apiEvent.venueName,
+    //     address: apiEvent.venueAddress || null,
+    //  },
+    mapLink: `https://maps.google.com/?q=${encodeURIComponent(apiEvent.venueAddress || apiEvent.location)}`,
     createdAt: parseApiDateString(apiEvent.createdAt),
     updatedAt: parseApiDateString(apiEvent.updatedAt),
   };
@@ -294,8 +295,8 @@ export const getCategoryById = async (id: string | number): Promise<Category | n
     return { 
         ...category, 
         id: String(category.id),
-        createdAt: parseApiDateString(cat.createdAt),
-        updatedAt: parseApiDateString(cat.updatedAt)
+        createdAt: parseApiDateString(category.createdAt),
+        updatedAt: parseApiDateString(category.updatedAt)
     };
   } catch (error) {
     console.error("Error in getCategoryById:", error);
@@ -588,10 +589,12 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       imageUrl: data.imageUrl,
       organizerId: data.organizerId,
       organizer: organizer,
-      venue: {
-          name: data.venueName,
-          address: data.venueAddress || null,
-      },
+      // venue: {
+      //     name: data.venueName,
+      //     address: data.venueAddress || null,
+      // },
+      venueName: data.venueName,
+      venueAddress: data.venueAddress || null,
       ticketTypes,
       showTimes,
       createdAt: new Date().toISOString(),
@@ -688,7 +691,9 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       ...originalEvent, name: data.name, slug: finalNewSlug, date: data.date.toISOString(),
       location: data.location, description: data.description, category: categoryName,
       imageUrl: data.imageUrl, organizerId: data.organizerId, organizer: organizer,
-      venue: { name: data.venueName, address: data.venueAddress || null },
+      // venue: { name: data.venueName, address: data.venueAddress || null },
+      venueName: data.venueName,
+      venueAddress: data.venueAddress || null,
       ticketTypes: updatedTicketTypes, showTimes: updatedShowTimes, updatedAt: new Date().toISOString(),
     };
     return mockEventsStore[eventIndex];
@@ -750,24 +755,51 @@ export const processMockPayment = async (
 // --- Booking Management (API based) ---
 
 const mapApiBookingToAppBooking = (apiBooking: any): Booking => {
+  // The billingAddress from the API might be a stringified JSON or an object.
+  // Robustly parse it if it's a string.
+  let parsedBillingAddress: BillingAddress;
+  if (typeof apiBooking.billing_address === 'string') {
+    try {
+      parsedBillingAddress = JSON.parse(apiBooking.billing_address);
+    } catch (e) {
+      console.error("Failed to parse billing_address string:", e);
+      // Fallback to a default/empty billing address structure if parsing fails
+      // This matches the BillingAddressSchema structure with empty strings
+      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+    }
+  } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
+    parsedBillingAddress = apiBooking.billing_address;
+  } else {
+    // Fallback if billing_address is missing or not in expected format
+    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+  }
+
+
   return {
-    ...apiBooking,
-    id: String(apiBooking.id), // Ensure ID is string
-    eventId: String(apiBooking.event_id || apiBooking.eventId), // Handle potential snake_case
+    id: String(apiBooking.id),
+    eventId: String(apiBooking.event_id || apiBooking.eventId),
     userId: String(apiBooking.user_id || apiBooking.userId),
     bookingDate: parseApiDateString(apiBooking.booking_date || apiBooking.bookingDate) || new Date().toISOString(),
     eventDate: parseApiDateString(apiBooking.event_date || apiBooking.eventDate) || new Date().toISOString(),
-    createdAt: parseApiDateString(apiBooking.created_at || apiBooking.createdAt),
-    updatedAt: parseApiDateString(apiBooking.updated_at || apiBooking.updatedAt),
-    // Ensure nested booked_tickets also have their dates parsed and IDs as strings
-    bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets)?.map((bt: any) => ({
-      ...bt,
+    eventName: apiBooking.event_name || apiBooking.eventName || "N/A",
+    eventLocation: apiBooking.event_location || apiBooking.eventLocation || "N/A",
+    qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`,
+    totalPrice: parseFloat(apiBooking.total_price || apiBooking.totalPrice) || 0,
+    billingAddress: parsedBillingAddress,
+    bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: any) => ({
       id: String(bt.id),
+      bookingId: String(apiBooking.id),
       ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
+      ticketTypeName: bt.ticket_type_name || bt.ticketTypeName || "N/A",
       showTimeId: String(bt.show_time_id || bt.showTimeId),
+      quantity: parseInt(String(bt.quantity), 10) || 0,
+      pricePerTicket: parseFloat(String(bt.price_per_ticket || bt.pricePerTicket)) || 0,
+      eventNsid: bt.event_nsid || apiBooking.event_slug || "N/A", // Assuming event_slug might be part of apiBooking
       createdAt: parseApiDateString(bt.created_at || bt.createdAt),
       updatedAt: parseApiDateString(bt.updated_at || bt.updatedAt),
-    })) || [],
+    })),
+    createdAt: parseApiDateString(apiBooking.created_at || apiBooking.createdAt),
+    updatedAt: parseApiDateString(apiBooking.updated_at || apiBooking.updatedAt),
   };
 };
 
@@ -783,27 +815,32 @@ export const createBooking = async (
   const user = await getUserByEmail(bookingData.userId); // Assuming userId is email for mock getUserByEmail
   if (!user) throw new Error("User not found for booking.");
 
-  // The event for context, not for availability update here.
-  const event = await getEventBySlug(bookingData.tickets[0]?.eventNsid); 
+  const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
+  if (!eventNsidForLookup) throw new Error("Event NSID (slug) missing from cart items for booking context.");
+  
+  const event = await getEventBySlug(eventNsidForLookup); 
   if (!event || !event.showTimes) throw new Error("Event or its showtimes not found for booking context.");
   
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
 
+  const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
+  if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
+
   const apiPayload = {
     event_id: bookingData.eventId,
-    user_id: user.id, // Use the actual user ID
+    user_id: user.id, 
     booking_date: new Date().toISOString(),
-    event_date: event.showTimes.find(st => st.id === showTimeId)?.dateTime || new Date().toISOString(), // Use specific showtime's date
+    event_date: showTimeToUse.dateTime, 
     event_name: event.name,
     event_location: event.location,
-    qr_code_value: `EVENT:${event.slug},BOOKING_ID:TEMP,SHOWTIME:${showTimeId}`, // QR might be generated by backend
+    qr_code_value: `EVENT:${event.slug},BOOKING_ID:TEMP_PENDING_API,SHOWTIME:${showTimeId}`,
     total_price: bookingData.totalPrice,
     billing_address: bookingData.billingAddress,
     booked_tickets: bookingData.tickets.map(ticket => ({
-      event_nsid: ticket.eventNsid, // May not be needed by backend if event_id is present
+      event_nsid: ticket.eventNsid,
       ticket_type_id: ticket.ticketTypeId,
-      ticket_type_name: ticket.ticketTypeName, // May not be needed by backend
+      ticket_type_name: ticket.ticketTypeName,
       quantity: ticket.quantity,
       price_per_ticket: ticket.pricePerTicket,
       show_time_id: ticket.showTimeId,
