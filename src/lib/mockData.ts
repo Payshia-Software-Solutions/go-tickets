@@ -651,11 +651,10 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
-    // Send billing_address as an object or null, not stringified.
+    // Send billing_address as an object or null
     if (dataToUpdate.billingAddress !== undefined) {
         apiPayload.billing_address = dataToUpdate.billingAddress; 
     }
-
 
     try {
       const response = await fetch(`${USERS_API_URL}/${userId}`, {
@@ -1268,22 +1267,22 @@ export const createBooking = async (
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
   const apiPayload = {
-    event_id: bookingData.eventId, 
-    user_id: bookingData.userId, 
-    booking_date: new Date().toISOString(),
-    event_date: showTimeToUse.dateTime, 
-    event_name: event.name,
-    event_location: event.location,
-    qr_code_value: `EVENT:${event.slug},BOOKING_ID:TEMP_PENDING_API,SHOWTIME:${showTimeId}`,
-    total_price: bookingData.totalPrice,
-    billing_address: bookingData.billingAddress,
-    booked_tickets: bookingData.tickets.map(ticket => ({
-      event_nsid: ticket.eventNsid, 
-      ticket_type_id: ticket.ticketTypeId,
-      ticket_type_name: ticket.ticketTypeName,
+    userId: bookingData.userId,
+    eventId: bookingData.eventId,
+    totalPrice: String(bookingData.totalPrice), // Send as string
+    bookingDate: new Date().toISOString(), // API likely expects ISO string
+    eventName: event.name,
+    eventDate: showTimeToUse.dateTime, // Assumes API expects ISO string from showtime
+    eventLocation: event.location,
+    qrCodeValue: `QR_BOOKING_${generateId()}`, // Let API generate if possible, or use a simpler format
+    billingAddress: bookingData.billingAddress, // Send as object
+    bookedTickets: bookingData.tickets.map(ticket => ({
+      eventNsid: ticket.eventNsid,
+      ticketTypeId: ticket.ticketTypeId,
+      ticketTypeName: ticket.ticketTypeName,
       quantity: ticket.quantity,
-      price_per_ticket: ticket.pricePerTicket,
-      show_time_id: ticket.showTimeId, 
+      pricePerTicket: ticket.pricePerTicket,
+      showTimeId: ticket.showTimeId,
     })),
   };
 
@@ -1447,3 +1446,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
+
