@@ -645,14 +645,19 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
 
 export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
   if (API_BASE_URL && USERS_API_URL) {
-    const apiPayload: Partial<RawApiUser & { billing_address?: string | BillingAddress }> = {};
+    const apiPayload: Partial<RawApiUser & { billing_address?: string | BillingAddress | null }> = {};
+
 
     if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
     if (dataToUpdate.billingAddress !== undefined) {
-        apiPayload.billing_address = dataToUpdate.billingAddress;
+      if (dataToUpdate.billingAddress === null) {
+        apiPayload.billing_address = null; // Send actual null if API expects it
+      } else {
+        apiPayload.billing_address = JSON.stringify(dataToUpdate.billingAddress);
+      }
     }
 
     try {
@@ -1448,4 +1453,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
-
