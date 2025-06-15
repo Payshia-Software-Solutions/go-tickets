@@ -263,27 +263,27 @@ export const getEventCategories = async (): Promise<Category[]> => {
 };
 
 export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
-  console.log(`Fetching event by slug: ${slug}`);
+  console.log(`[getEventBySlug] Fetching event by slug: ${slug}`);
   const eventBase = await fetchEventBySlugFromApi(slug);
   
   if (!eventBase) {
-    console.warn(`Event with slug "${slug}" not found.`);
+    console.warn(`[getEventBySlug] Event with slug "${slug}" not found via fetchEventBySlugFromApi.`);
     return undefined;
   }
-  console.log(`Base event data fetched for slug "${slug}": ID ${eventBase.id}`);
+  console.log(`[getEventBySlug] Base event data fetched for slug "${slug}": ID ${eventBase.id}, Name: ${eventBase.name}`);
 
   if (!eventBase.organizer && eventBase.organizerId) {
     try {
-      console.log(`Fetching organizer details for ID: ${eventBase.organizerId} (event: ${slug})`);
+      console.log(`[getEventBySlug] Fetching organizer details for ID: ${eventBase.organizerId} (event: ${slug})`);
       const organizerDetails = await getOrganizerById(eventBase.organizerId);
       if (organizerDetails) {
         eventBase.organizer = organizerDetails;
-        console.log(`Organizer details attached for event: ${slug}`);
+        console.log(`[getEventBySlug] Organizer details attached for event: ${slug}`);
       } else {
-        console.warn(`Organizer with ID ${eventBase.organizerId} not found for event ${slug}.`);
+        console.warn(`[getEventBySlug] Organizer with ID ${eventBase.organizerId} not found for event ${slug}.`);
       }
     } catch (error) {
-      console.error(`Error fetching organizer ${eventBase.organizerId} for event ${slug}:`, error);
+      console.error(`[getEventBySlug] Error fetching organizer ${eventBase.organizerId} for event ${slug}:`, error);
     }
   }
 
@@ -291,21 +291,21 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   eventBase.ticketTypes = masterTicketTypes;
 
   if (!eventBase.ticketTypes || eventBase.ticketTypes.length === 0) {
-      console.warn(`No ticket types found or fetched for event ${slug} (ID: ${eventBase.id}) from ${TICKET_TYPES_API_URL}. Booking page might not work correctly.`);
+      console.warn(`[getEventBySlug] No master ticket types found or fetched for event ${slug} (ID: ${eventBase.id}). Booking page might not work correctly.`);
   } else {
-      console.log(`Fetched ${eventBase.ticketTypes.length} master ticket types for event ${slug} (ID: ${eventBase.id}).`);
+      console.log(`[getEventBySlug] Fetched ${eventBase.ticketTypes.length} master ticket types for event ${slug} (ID: ${eventBase.id}).`);
   }
 
   const populatedShowTimes: ShowTime[] = [];
   if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE) {
-    console.log(`Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
+    console.log(`[getEventBySlug] Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
     try {
       const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
       if (!showtimesResponse.ok) {
-        console.warn(`Failed to fetch showtimes for event ${eventBase.id} (slug: ${slug}): ${showtimesResponse.status} - ${await showtimesResponse.text()}`);
+        console.warn(`[getEventBySlug] Failed to fetch showtimes for event ${eventBase.id} (slug: ${slug}): ${showtimesResponse.status} - ${await showtimesResponse.text()}`);
       } else {
         const basicShowTimesFromApi: ApiShowTimeFlat[] = await showtimesResponse.json();
-        console.log(`Fetched ${basicShowTimesFromApi.length} basic showtimes for event ${eventBase.id} (slug: ${slug}).`);
+        console.log(`[getEventBySlug] Fetched ${basicShowTimesFromApi.length} basic showtimes for event ${eventBase.id} (slug: ${slug}).`);
         
         for (const basicSt of basicShowTimesFromApi) {
           const detailedShowTime: ShowTime = {
@@ -317,20 +317,20 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             ticketAvailabilities: [], 
           };
 
-          console.log(`Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
+          console.log(`[getEventBySlug] Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
           let rawAvailabilities: ApiShowTimeTicketAvailabilityFlat[] = [];
           try {
             const availabilityResponse = await fetch(`${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
             if (!availabilityResponse.ok) {
-              console.warn(`Failed to fetch availabilities for showTime ${basicSt.id} (event ${slug}): ${availabilityResponse.status} - ${await availabilityResponse.text()}`);
+              console.warn(`[getEventBySlug] Failed to fetch availabilities for showTime ${basicSt.id} (event ${slug}): ${availabilityResponse.status} - ${await availabilityResponse.text()}`);
             } else {
               rawAvailabilities = await availabilityResponse.json();
-              console.log(`Fetched ${rawAvailabilities.length} availability records for showTime ${basicSt.id} (event ${slug}).`);
+              console.log(`[getEventBySlug] Fetched ${rawAvailabilities.length} availability records for showTime ${basicSt.id} (event ${slug}).`);
             }
           } catch (error) {
-            console.error(`Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
+            console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
-
+          
           const availabilitiesMap = new Map<string, ApiShowTimeTicketAvailabilityFlat>();
           rawAvailabilities.forEach(avail => {
             if (avail.ticketTypeId) {
@@ -341,7 +341,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
           detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
             const specificAvailability = availabilitiesMap.get(masterTt.id);
             const availableCount = specificAvailability ? (parseInt(String(specificAvailability.availableCount), 10) || 0) : 0;
-            const availabilityRecordId = specificAvailability ? specificAvailability.id : generateId('sta-mock'); 
+            const availabilityRecordId = specificAvailability ? specificAvailability.id : generateId('sta-mock');
 
             return {
               id: availabilityRecordId,
@@ -358,23 +358,23 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
         }
       }
     } catch (error) {
-      console.error(`Error fetching or processing showtimes for event ${eventBase.id} (slug: ${slug}):`, error);
+      console.error(`[getEventBySlug] Error fetching or processing showtimes for event ${eventBase.id} (slug: ${slug}):`, error);
     }
   }
   eventBase.showTimes = populatedShowTimes;
 
-  if (eventBase.showTimes.length === 0) {
-      console.warn(`No showtimes were successfully fetched or populated for event ${slug}.`);
-  } else {
+  if (eventBase.showTimes.length === 0 && masterTicketTypes.length > 0) { // Check if masterTicketTypes has items
+      console.warn(`[getEventBySlug] No showtimes were successfully fetched or populated for event ${slug}, but master ticket types exist. Event page may not show showtimes.`);
+  } else if (eventBase.showTimes.length > 0) {
       eventBase.showTimes.forEach(st => {
           if (st.ticketAvailabilities.length === 0 && masterTicketTypes.length > 0) {
-              console.warn(`Showtime ${st.id} for event ${slug} has no ticket availabilities after fetch, even though master ticket types exist. This means no availability records were found for this showtime, or all are sold out (count 0).`);
+              console.warn(`[getEventBySlug] Showtime ${st.id} for event ${slug} has no ticket availabilities after fetch, even though master ticket types exist. This means no availability records were found for this showtime, or all are sold out (count 0).`);
           } else if (st.ticketAvailabilities.length !== (masterTicketTypes.length || 0)) {
-              console.warn(`Mismatch in ticket availability count for showtime ${st.id} (Event ${slug}). Expected ${masterTicketTypes.length}, got ${st.ticketAvailabilities.length}. This means not all master ticket types had corresponding availability records or were defaulted to 0.`);
+              console.warn(`[getEventBySlug] Mismatch in ticket availability count for showtime ${st.id} (Event ${slug}). Expected ${masterTicketTypes.length}, got ${st.ticketAvailabilities.length}. This means not all master ticket types had corresponding availability records or were defaulted to 0.`);
           }
       });
   }
-  console.log(`Finished processing event by slug "${slug}". Returning event object with ${eventBase.showTimes.length} showtimes and ${eventBase.ticketTypes?.length} master ticket types.`);
+  console.log(`[getEventBySlug] Finished processing event by slug "${slug}". Returning event object with ${eventBase.showTimes.length} showtimes and ${eventBase.ticketTypes?.length} master ticket types.`);
   return eventBase;
 };
 
@@ -543,36 +543,67 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
 };
 
 export const getUserByEmail = async (email: string): Promise<User | null> => {
+  const normalizedQueryEmail = email.toLowerCase();
   if (API_BASE_URL && USERS_API_URL) {
+    const fetchUrl = `${USERS_API_URL}?email=${encodeURIComponent(normalizedQueryEmail)}`;
+    console.log(`[getUserByEmail] Fetching from: ${fetchUrl}`);
     try {
-      const response = await fetch(`${USERS_API_URL}?email=${encodeURIComponent(email)}`);
+      const response = await fetch(fetchUrl);
+      console.log(`[getUserByEmail] Response status for ${normalizedQueryEmail}: ${response.status}`);
+
       if (!response.ok) {
-        if (response.status === 404) return null; // Common case if user not found by email query
-        console.error(`API Error fetching user by email ${email}:`, response.status, await response.text());
+        if (response.status === 404) {
+          console.log(`[getUserByEmail] User ${normalizedQueryEmail} not found (404). Returning null.`);
+          return null;
+        }
+        const errorText = await response.text();
+        console.error(`[getUserByEmail] API Error fetching user by email ${normalizedQueryEmail}: Status ${response.status}, Body: ${errorText}`);
         return null; 
       }
-      const usersData: RawApiUser[] = await response.json();
-      if (usersData && usersData.length > 0) {
-        return mapApiUserToAppUser(usersData[0]);
+
+      const responseText = await response.text();
+      console.log(`[getUserByEmail] Raw API response for ${normalizedQueryEmail}: ${responseText}`); 
+      
+      let usersData: RawApiUser[] = [];
+      try {
+        usersData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error(`[getUserByEmail] Failed to parse JSON response for ${normalizedQueryEmail}:`, parseError, "Raw text was:", responseText);
+        return null;
       }
+
+      console.log(`[getUserByEmail] Parsed usersData for ${normalizedQueryEmail}:`, usersData);
+
+      if (usersData && usersData.length > 0) {
+        const foundUser = usersData.find(u => u.email.toLowerCase() === normalizedQueryEmail);
+        if (foundUser) {
+            console.log(`[getUserByEmail] User ${normalizedQueryEmail} found in API response. Returning user.`);
+            return mapApiUserToAppUser(foundUser);
+        } else {
+            console.log(`[getUserByEmail] User ${normalizedQueryEmail} NOT strictly found in API response list (checked ${usersData.length} users). Returning null.`);
+            return null;
+        }
+      }
+      console.log(`[getUserByEmail] No user data or empty array for ${normalizedQueryEmail}. Returning null.`);
       return null;
     } catch (error) {
-      console.error(`Network error fetching user by email ${email}:`, error);
+      console.error(`[getUserByEmail] Network error fetching user by email ${normalizedQueryEmail}:`, error);
       return null;
     }
   } else {
-    console.warn("API_BASE_URL or USERS_API_URL not set, getUserByEmail using local mockUsers.");
-    return mockUsers.find(user => user.email === email) || null;
+    console.warn("[getUserByEmail] API_BASE_URL or USERS_API_URL not set, using local mockUsers.");
+    return mockUsers.find(user => user.email.toLowerCase() === normalizedQueryEmail) || null;
   }
 };
 
+
 export const createUser = async (userData: { email: string, name?: string, isAdmin?: boolean }): Promise<User> => {
   if (API_BASE_URL && USERS_API_URL) {
-    console.log(`Attempting to create user via API: ${USERS_API_URL}`);
+    console.log(`[createUser] Attempting to create user via API: ${USERS_API_URL} for email: ${userData.email}`);
     const payload = {
       email: userData.email,
       name: userData.name || '',
-      isAdmin: userData.isAdmin ? '1' : '0', // Sending as string "0" or "1"
+      isAdmin: userData.isAdmin ? '1' : '0', 
     };
     try {
       const response = await fetch(USERS_API_URL, {
@@ -589,12 +620,12 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
       }
       const newApiUser: RawApiUser = await response.json();
       return mapApiUserToAppUser(newApiUser);
-    } catch (error) { // Catch network errors or re-throw specific errors
-      console.error("Error in createUser API call:", error);
-      throw error; // Re-throw the error (could be the specific "already in use" or a network error)
+    } catch (error) { 
+      console.error("[createUser] Error in API call:", error);
+      throw error; 
     }
   } else {
-    console.warn("API_BASE_URL or USERS_API_URL not set, createUser using local mockUsers.");
+    console.warn("[createUser] API_BASE_URL or USERS_API_URL not set, using local mockUsers.");
     if (mockUsers.some(u => u.email === userData.email)) {
       throw new Error("User with this email already exists in mock store.");
     }
@@ -621,8 +652,6 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
     if (dataToUpdate.billingAddress !== undefined) {
-        // Assuming API can handle billing_address as an object.
-        // If it needs a JSON string, use: JSON.stringify(dataToUpdate.billingAddress)
         apiPayload.billing_address = dataToUpdate.billingAddress;
     }
 
