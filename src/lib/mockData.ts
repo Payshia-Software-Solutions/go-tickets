@@ -492,7 +492,7 @@ export const deleteCategory = async (categoryId: string | number): Promise<boole
       method: 'DELETE',
     });
     if (!response.ok) {
-       const errorBody = await response.json().catch(() => ({ message: 'Failed to delete category and parse error' }));
+       const errorBody = await response.json().catch(() => ({ message: 'Failed to delete category and parse error response.' }));
       if (errorBody.message && errorBody.message.toLowerCase().includes("in use")) {
           throw new Error(`Cannot delete category: It is currently in use by one or more events.`);
       }
@@ -568,6 +568,7 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
 
 export const createUser = async (userData: { email: string, name?: string, isAdmin?: boolean }): Promise<User> => {
   if (API_BASE_URL && USERS_API_URL) {
+    console.log(`Attempting to create user via API: ${USERS_API_URL}`);
     const payload = {
       email: userData.email,
       name: userData.name || '',
@@ -1415,3 +1416,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
+
