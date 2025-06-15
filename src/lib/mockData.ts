@@ -651,10 +651,11 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
+    // Send billing_address as an object or null, not stringified.
     if (dataToUpdate.billingAddress !== undefined) {
-        // Send as a direct object or null, not stringified
-        apiPayload.billing_address = dataToUpdate.billingAddress;
+        apiPayload.billing_address = dataToUpdate.billingAddress; 
     }
+
 
     try {
       const response = await fetch(`${USERS_API_URL}/${userId}`, {
@@ -1254,9 +1255,6 @@ export const createBooking = async (
     billingAddress: BillingAddress;
   }
 ): Promise<Booking> => {
-  const user = await getUserByEmail(bookingData.userId); 
-  if (!user) throw new Error("User not found for booking.");
-
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
   if (!eventNsidForLookup) throw new Error("Event NSID (slug) missing from cart items for booking context.");
 
@@ -1271,7 +1269,7 @@ export const createBooking = async (
 
   const apiPayload = {
     event_id: bookingData.eventId, 
-    user_id: user.id, 
+    user_id: bookingData.userId, 
     booking_date: new Date().toISOString(),
     event_date: showTimeToUse.dateTime, 
     event_name: event.name,
@@ -1449,4 +1447,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
-
