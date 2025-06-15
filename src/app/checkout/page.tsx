@@ -6,13 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox'; // Added Checkbox
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"; // Added Form components
+// Removed: import { Label } from '@/components/ui/label';
+// Removed: import { Checkbox } from '@/components/ui/checkbox';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking, processMockPayment, updateUser } from '@/lib/mockData'; 
+import { createBooking, processMockPayment } from '@/lib/mockData'; 
 import type { BillingAddress } from '@/lib/types';
 import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ const CheckoutPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [saveAddress, setSaveAddress] = useState(true);
+  // Removed: const [saveAddress, setSaveAddress] = useState(true);
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
@@ -48,11 +48,9 @@ const CheckoutPage = () => {
   }, []);
 
   useEffect(() => {
+    // Pre-fill form if user has a billing address, but don't rely on saving it to user profile anymore
     if (user?.billingAddress) {
       billingForm.reset(user.billingAddress);
-      setSaveAddress(false); // User already has a saved address, so don't save by default unless they opt-in
-    } else {
-      setSaveAddress(true); // No saved address, so default to saving
     }
   }, [user, billingForm]);
 
@@ -88,7 +86,6 @@ const CheckoutPage = () => {
       const paymentResult = await processMockPayment({ 
         amount: finalTotal, 
         billingAddress: billingData,
-        // Add other mock card details if needed by processMockPayment
       });
 
       if (!paymentResult.success) {
@@ -99,18 +96,15 @@ const CheckoutPage = () => {
 
       toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
 
-      // Save billing address if user opted in
-      if (saveAddress) {
-        await updateUser(user.id, { billingAddress: billingData });
-        // Optionally, re-fetch user or update context if needed immediately elsewhere
-        // For simplicity, we assume the AuthContext user might not reflect this immediately
-        // without a full re-login or specific context update mechanism.
-         toast({ title: "Address Saved", description: "Your billing address has been saved for future use." });
-      }
+      // // Logic to save billing address to user profile is REMOVED
+      // if (saveAddress) {
+      //   await updateUser(user.id, { billingAddress: billingData });
+      //   toast({ title: "Address Saved", description: "Your billing address has been saved for future use." });
+      // }
       
       const bookingPayload = {
         eventId: primaryEventId,
-        userId: user.id,
+        userId: user.id, // Assuming createBooking in mockData can use this to find the user object if needed by API
         tickets: cart.map(item => ({ 
             eventNsid: item.eventNsid,
             ticketTypeId: item.ticketTypeId, 
@@ -119,8 +113,8 @@ const CheckoutPage = () => {
             pricePerTicket: item.pricePerTicket,
             showTimeId: item.showTimeId,
         })),
-        totalPrice: finalTotal, // Use final total including taxes
-        billingAddress: billingData,
+        totalPrice: finalTotal, 
+        billingAddress: billingData, // Billing address is now part of the booking payload
       };
 
       const newBooking = await createBooking(bookingPayload);
@@ -192,7 +186,7 @@ const CheckoutPage = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold">LKR {(item.quantity * item.pricePerTicket).toFixed(2)}</p>
-                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.ticketTypeId, item.showTimeId)} aria-label="Remove item">
+                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.ticketTypeId, item.showTimeId)} aria-label="Remove item" suppressHydrationWarning>
                       <Trash2 className="h-4 w-4 text-destructive"/>
                     </Button>
                   </div>
@@ -230,7 +224,7 @@ const CheckoutPage = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Billing Address</CardTitle>
-                  <CardDescription>Enter your billing information.</CardDescription>
+                  <CardDescription>Enter your billing information for this booking.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <FormField
@@ -292,16 +286,7 @@ const CheckoutPage = () => {
                       )}
                     />
                   </div>
-                  <div className="flex items-center space-x-2 pt-2">
-                    <Checkbox
-                      id="saveAddress"
-                      checked={saveAddress}
-                      onCheckedChange={(checked) => setSaveAddress(checked as boolean)}
-                    />
-                    <Label htmlFor="saveAddress" className="text-sm font-normal">
-                      Save this address for future payments
-                    </Label>
-                  </div>
+                  {/* Removed "Save this address" checkbox and label */}
                 </CardContent>
               </Card>
 
@@ -336,8 +321,9 @@ const CheckoutPage = () => {
               <Button 
                 size="lg" 
                 className="w-full" 
-                onClick={billingForm.handleSubmit(handleConfirmBooking)} // Trigger form submit
+                onClick={billingForm.handleSubmit(handleConfirmBooking)}
                 disabled={!user || isProcessing || cart.length === 0 || !billingForm.formState.isValid && billingForm.formState.isSubmitted}
+                suppressHydrationWarning
               >
                 {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Proceed to Payment</>}
               </Button>
@@ -350,3 +336,5 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
+
+    
