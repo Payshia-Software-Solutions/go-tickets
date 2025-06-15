@@ -39,7 +39,7 @@ const Header = () => {
   const ThemeToggleButton = () => {
     if (!mounted) {
       return (
-        <Button variant="ghost" size="icon" disabled className="h-9 w-9">
+        <Button variant="ghost" size="icon" disabled className="h-9 w-9" suppressHydrationWarning>
           <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme (loading)</span>
@@ -49,7 +49,7 @@ const Header = () => {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-9 w-9">
+          <Button variant="ghost" size="icon" className="h-9 w-9" suppressHydrationWarning>
             <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             <span className="sr-only">Toggle theme</span>
@@ -78,7 +78,7 @@ const Header = () => {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full" suppressHydrationWarning>
               <Avatar className="h-10 w-10">
                 <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
                 <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
@@ -114,8 +114,8 @@ const Header = () => {
     }
     return (
       <div className="space-x-2">
-        <Button variant="outline" onClick={() => router.push('/login')}>Login</Button>
-        <Button onClick={() => router.push('/signup')}>Sign Up</Button>
+        <Button variant="outline" onClick={() => router.push('/login')} suppressHydrationWarning>Login</Button>
+        <Button onClick={() => router.push('/signup')} suppressHydrationWarning>Sign Up</Button>
       </div>
     );
   };
@@ -148,12 +148,12 @@ const Header = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9">
+            <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
               <Search className="h-4 w-4" />
             </Button>
           </form>
 
-          <Button variant="ghost" size="icon" onClick={() => router.push('/checkout')} className="relative">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/checkout')} className="relative" suppressHydrationWarning>
             <ShoppingCart className="h-5 w-5" />
             {totalItems > 0 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
@@ -172,7 +172,7 @@ const Header = () => {
           <div className="md:hidden">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" suppressHydrationWarning>
                   <Menu className="h-6 w-6" />
                    <span className="sr-only">Open menu</span>
                 </Button>
@@ -194,7 +194,7 @@ const Header = () => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
-                       <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9">
+                       <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
                          <Search className="h-4 w-4" />
                          <span className="sr-only">Search</span>
                        </Button>
@@ -215,22 +215,22 @@ const Header = () => {
                                   <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                               </div>
                           </div>
-                          <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/account_dashboard'); setIsMobileMenuOpen(false); }}>
+                          <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/account_dashboard'); setIsMobileMenuOpen(false); }} suppressHydrationWarning>
                             <Ticket className="mr-2 h-4 w-4" /> My Bookings
                           </Button>
                           {user.isAdmin && (
-                            <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/admin/dashboard'); setIsMobileMenuOpen(false); }}>
+                            <Button variant="ghost" className="w-full justify-start mb-2" onClick={() => { router.push('/admin/dashboard'); setIsMobileMenuOpen(false); }} suppressHydrationWarning>
                               <ShieldCheck className="mr-2 h-4 w-4" /> Admin Panel
                             </Button>
                           )}
-                          <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }}>
+                          <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive/90" onClick={() => { logout(); setIsMobileMenuOpen(false); }} suppressHydrationWarning>
                             <LogOut className="mr-2 h-4 w-4" /> Logout
                           </Button>
                         </>
                       ) : (
                         <div className="flex flex-col space-y-2">
-                          <Button variant="outline" className="w-full" onClick={() => { router.push('/login'); setIsMobileMenuOpen(false); }}>Login</Button>
-                          <Button className="w-full" onClick={() => { router.push('/signup'); setIsMobileMenuOpen(false); }}>Sign Up</Button>
+                          <Button variant="outline" className="w-full" onClick={() => { router.push('/login'); setIsMobileMenuOpen(false); }} suppressHydrationWarning>Login</Button>
+                          <Button className="w-full" onClick={() => { router.push('/signup'); setIsMobileMenuOpen(false); }} suppressHydrationWarning>Sign Up</Button>
                         </div>
                       )}
                     </div>
@@ -246,4 +246,3 @@ const Header = () => {
 };
 
 export default Header;
-
