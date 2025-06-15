@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import type { User } from '@/lib/types'; // Import User type
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +15,23 @@ import { Menu, Search, Ticket, LogOut, ShoppingCart, ShieldCheck, Sun, Moon } fr
 import { useCart } from '@/contexts/CartContext';
 import { useTheme } from 'next-themes';
 
+const getInitial = (name?: string | null, email?: string): string => {
+  if (name && name.trim().length > 0) {
+    return name.trim().charAt(0).toUpperCase();
+  }
+  if (email && email.trim().length > 0) {
+    return email.trim().charAt(0).toUpperCase();
+  }
+  return 'U'; // Default fallback
+};
+
 const Header = () => {
   const { user, logout, loading } = useAuth();
   const { totalItems } = useCart();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme(); // Added theme
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -80,8 +91,8 @@ const Header = () => {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full" suppressHydrationWarning>
               <Avatar className="h-10 w-10">
-                <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
-                <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email || 'User avatar'} />
+                <AvatarFallback>{getInitial(user.name, user.email)}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
@@ -207,8 +218,8 @@ const Header = () => {
                         <>
                           <div className="flex items-center mb-3">
                               <Avatar className="h-10 w-10 mr-2">
-                                  <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email} />
-                                  <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                                  <AvatarImage src={`https://avatar.vercel.sh/${user.email}.png`} alt={user.name || user.email || 'User avatar'} />
+                                  <AvatarFallback>{getInitial(user.name, user.email)}</AvatarFallback>
                               </Avatar>
                               <div>
                                   <p className="text-sm font-medium leading-none">{user.name || 'User'}</p>
@@ -246,3 +257,5 @@ const Header = () => {
 };
 
 export default Header;
+
+    
