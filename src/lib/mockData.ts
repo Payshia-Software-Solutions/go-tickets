@@ -651,7 +651,7 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
-    // Send billing_address as an object or null
+    // billing_address should be an object or null as per previous fix
     if (dataToUpdate.billingAddress !== undefined) {
         apiPayload.billing_address = dataToUpdate.billingAddress; 
     }
@@ -1251,9 +1251,10 @@ export const createBooking = async (
     userId: string;
     tickets: BookedTicketItem[]; 
     totalPrice: number;
-    billingAddress: BillingAddress;
+    billingAddress: BillingAddress; // Still received from checkout page
   }
 ): Promise<Booking> => {
+
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
   if (!eventNsidForLookup) throw new Error("Event NSID (slug) missing from cart items for booking context.");
 
@@ -1267,26 +1268,31 @@ export const createBooking = async (
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
   const apiPayload = {
-    userId: bookingData.userId,
-    eventId: bookingData.eventId,
-    totalPrice: String(bookingData.totalPrice), // Send as string
-    bookingDate: new Date().toISOString(), // API likely expects ISO string
+    // Fields aligned with the booking table schema
+    userId: parseInt(bookingData.userId, 10), // Expects int
+    eventId: parseInt(bookingData.eventId, 10), // Expects int
+    totalPrice: bookingData.totalPrice, // Expects decimal, send as number
+    // bookingDate is auto by DB
     eventName: event.name,
-    eventDate: showTimeToUse.dateTime, // Assumes API expects ISO string from showtime
+    eventDate: showTimeToUse.dateTime, // Expects datetime, ISO string is fine
     eventLocation: event.location,
-    qrCodeValue: `QR_BOOKING_${generateId()}`, // Let API generate if possible, or use a simpler format
-    billingAddress: bookingData.billingAddress, // Send as object
-    bookedTickets: bookingData.tickets.map(ticket => ({
-      eventNsid: ticket.eventNsid,
-      ticketTypeId: ticket.ticketTypeId,
-      ticketTypeName: ticket.ticketTypeName,
-      quantity: ticket.quantity,
-      pricePerTicket: ticket.pricePerTicket,
-      showTimeId: ticket.showTimeId,
-    })),
+    qrCodeValue: `QR_BOOKING_${generateId()}`, // API might generate this, placeholder
+    // createdAt, updatedAt are auto by DB
+
+    // Fields NOT in the main bookings table, removed for now to fix "Invalid input"
+    // billingAddress: bookingData.billingAddress, 
+    // bookedTickets: bookingData.tickets.map(ticket => ({
+    //   eventNsid: ticket.eventNsid,
+    //   ticketTypeId: ticket.ticketTypeId,
+    //   ticketTypeName: ticket.ticketTypeName,
+    //   quantity: ticket.quantity,
+    //   pricePerTicket: ticket.pricePerTicket,
+    //   showTimeId: ticket.showTimeId,
+    // })),
   };
 
   try {
+    console.log("Sending booking payload:", JSON.stringify(apiPayload, null, 2));
     const response = await fetch(BOOKINGS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1299,6 +1305,8 @@ export const createBooking = async (
       throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
     }
     const createdApiBooking: RawApiBooking = await response.json();
+    // The createdApiBooking from POST might not have billingAddress or bookedTickets.
+    // The transformApiBookingToAppBooking can handle this.
     return transformApiBookingToAppBooking(createdApiBooking);
   } catch (error) {
     console.error("Network or other error creating booking:", error);
@@ -1446,4 +1454,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
-
