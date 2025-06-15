@@ -10,7 +10,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string) => Promise<boolean>;
   logout: () => void;
-  signup: (name: string, email: string) => Promise<boolean>;
+  signup: (name: string, email: string) => Promise<void>; // Changed to Promise<void>
   loading: boolean;
 }
 
@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast(); 
   const localStorageKey = 'mypassUser';
 
   useEffect(() => {
@@ -51,29 +51,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signup = async (name: string, email: string) => {
     setLoading(true);
-    const normalizedEmail = email.toLowerCase(); // Normalize email
+    const normalizedEmail = email.toLowerCase(); 
 
-    try {
-      const existingUser = await getUserByEmail(normalizedEmail); // Check with normalized email
-      if (existingUser) {
-        setLoading(false);
-        toast({ title: "Signup Failed", description: "This email address is already registered.", variant: "destructive" });
-        return false;
-      }
-
-      // If no existing user, proceed to create
-      const newUser = await apiCreateUser({ email: normalizedEmail, name }); // Use normalized email for creation
-      setUser(newUser);
-      localStorage.setItem(localStorageKey, JSON.stringify(newUser));
+    const existingUser = await getUserByEmail(normalizedEmail);
+    if (existingUser) {
       setLoading(false);
-      return true;
-
-    } catch (error: any) { // Catch errors from getUserByEmail or apiCreateUser
-      setLoading(false);
-      // The error from apiCreateUser might already be "email already in use" from the API
-      toast({ title: "Signup Failed", description: error.message || "An unexpected error occurred. Please try again.", variant: "destructive" });
-      return false;
+      throw new Error("This email address is already registered (pre-check).");
     }
+
+    // apiCreateUser (mockData.createUser) will throw an error if API creation fails,
+    // including specific "already in use" errors from the server.
+    // No need for a try-catch here if we let errors propagate.
+    const newUser = await apiCreateUser({ email: normalizedEmail, name });
+    setUser(newUser);
+    localStorage.setItem(localStorageKey, JSON.stringify(newUser));
+    setLoading(false);
+    // If successful, no explicit return is needed; absence of error implies success.
   };
 
   return (

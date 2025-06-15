@@ -581,14 +581,17 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Failed to create user via API and parse error' }));
+        const errorBody = await response.json().catch(() => ({ message: `API error ${response.status} during user creation.` }));
+        if (response.status === 409 || (errorBody.message && (errorBody.message.toLowerCase().includes('duplicate') || errorBody.message.toLowerCase().includes('already exists') || errorBody.message.toLowerCase().includes('already in use')))) {
+            throw new Error("This email address is already in use on the server.");
+        }
         throw new Error(errorBody.message || `API error creating user: ${response.status}`);
       }
       const newApiUser: RawApiUser = await response.json();
       return mapApiUserToAppUser(newApiUser);
-    } catch (error) {
-      console.error("Network or other error creating user via API:", error);
-      throw error;
+    } catch (error) { // Catch network errors or re-throw specific errors
+      console.error("Error in createUser API call:", error);
+      throw error; // Re-throw the error (could be the specific "already in use" or a network error)
     }
   } else {
     console.warn("API_BASE_URL or USERS_API_URL not set, createUser using local mockUsers.");

@@ -15,7 +15,7 @@ import { UserPlus, Loader2 } from 'lucide-react'; // Added Loader2
 const SignupFormContent = () => {
   const { signup } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams(); // This is now inside the Suspense boundary
+  const searchParams = useSearchParams(); 
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,13 +30,14 @@ const SignupFormContent = () => {
       return;
     }
     setIsLoading(true);
-    const success = await signup(name, email);
-    if (success) {
+    try {
+      await signup(name, email); // signup from context now returns Promise<void> or throws
       toast({ title: "Signup Successful", description: "Welcome! Your account has been created." });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
-    } else {
-      toast({ title: "Signup Failed", description: "This email may already be in use or an error occurred.", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: "Signup Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
   };
