@@ -8,6 +8,7 @@ const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categori
 const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
 const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
 const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
+const USERS_API_URL = "https://gotickets-server.payshia.com/users";
 
 const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/showtimes/event";
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
@@ -66,8 +67,8 @@ interface ApiShowTimeTicketAvailabilityFlat {
   id: string; 
   showTimeId?: string;
   ticketTypeId?: string;
-  ticketType?: { id: string; name: string; price: number }; // This is if API nests it, otherwise we use ticketTypeId
-  availableCount: string | number; // Can be string from API
+  ticketType?: { id: string; name: string; price: number }; 
+  availableCount: string | number; 
   createdAt?: string;
   updatedAt?: string;
 }
@@ -76,18 +77,16 @@ interface ApiShowTimeFlat {
   id: string;
   eventId?: string;
   dateTime: string;
-  // ticketAvailabilities array is NOT expected directly from /showtimes/event/{eventId}
-  // It will be populated from a separate call to /availability?showTimeId={id}
   createdAt?: string;
   updatedAt?: string;
 }
 
-interface ApiTicketTypeFromEndpoint { // For dedicated /ticket-types endpoint
+interface ApiTicketTypeFromEndpoint { 
     id: string;
-    eventId?: string; // Important: Ensure API provides this or filter based on URL param
+    eventId?: string; 
     name: string;
-    price: string; // string from API
-    availability: string; // string from API (template availability)
+    price: string; 
+    availability: string; 
     description?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -107,8 +106,6 @@ interface ApiEventFlat {
   venueAddress?: string | null;
   organizerId: string;
   organizer?: Organizer; 
-  // ticketTypes will be fetched separately, not relying on this from event endpoint
-  // showTimes will be fetched separately
   createdAt?: string;
   updatedAt?: string;
 }
@@ -131,8 +128,8 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
         createdAt: parseApiDateString(apiEvent.organizer.createdAt),
         updatedAt: parseApiDateString(apiEvent.organizer.updatedAt),
     } : undefined,
-    ticketTypes: [], // Initialize as empty, will be populated by getEventBySlug from dedicated endpoint
-    showTimes: [], // Initialize as empty, will be populated by getEventBySlug from dedicated endpoint
+    ticketTypes: [], 
+    showTimes: [], 
     mapLink: `https://maps.google.com/?q=${encodeURIComponent(apiEvent.venueAddress || apiEvent.location)}`,
     createdAt: parseApiDateString(apiEvent.createdAt),
     updatedAt: parseApiDateString(apiEvent.updatedAt),
@@ -202,7 +199,6 @@ export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> =
 };
 
 
-// New function to fetch ticket types for a specific event
 const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> => {
   if (!TICKET_TYPES_API_URL) {
     console.warn("TICKET_TYPES_API_URL is not defined. Cannot fetch ticket types.");
@@ -219,8 +215,6 @@ const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> 
     const apiTicketTypes: ApiTicketTypeFromEndpoint[] = await response.json();
     console.log(`Received ${apiTicketTypes.length} ticket types from API for event ${eventId}.`);
     
-    // API should ideally filter by eventid with the query param.
-    // This client-side filter is a safeguard.
     const filteredApiTicketTypes = apiTicketTypes.filter(tt => String(tt.eventId) === String(eventId));
     if (filteredApiTicketTypes.length !== apiTicketTypes.length) {
         console.warn(`Client-side filter applied for ticket types of event ${eventId}. Initial: ${apiTicketTypes.length}, Filtered: ${filteredApiTicketTypes.length}. API might not be filtering correctly by eventid.`);
@@ -231,7 +225,7 @@ const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> 
       eventId: String(tt.eventId),
       name: tt.name,
       price: parseFloat(tt.price) || 0,
-      availability: parseInt(tt.availability, 10) || 0, // This is template availability
+      availability: parseInt(tt.availability, 10) || 0, 
       description: tt.description || null,
       createdAt: parseApiDateString(tt.createdAt),
       updatedAt: parseApiDateString(tt.updatedAt),
@@ -278,7 +272,6 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   }
   console.log(`Base event data fetched for slug "${slug}": ID ${eventBase.id}`);
 
-  // Fetch and attach full organizer details if only ID is present
   if (!eventBase.organizer && eventBase.organizerId) {
     try {
       console.log(`Fetching organizer details for ID: ${eventBase.organizerId} (event: ${slug})`);
@@ -294,7 +287,6 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
     }
   }
 
-  // Fetch definitive ticket types for the event
   const masterTicketTypes = await fetchTicketTypesForEvent(eventBase.id);
   eventBase.ticketTypes = masterTicketTypes;
 
@@ -304,7 +296,6 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
       console.log(`Fetched ${eventBase.ticketTypes.length} master ticket types for event ${slug} (ID: ${eventBase.id}).`);
   }
 
-  // Fetch showtimes for the event from the dedicated showtimes endpoint
   const populatedShowTimes: ShowTime[] = [];
   if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE) {
     console.log(`Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
@@ -323,7 +314,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             dateTime: parseApiDateString(basicSt.dateTime) || new Date().toISOString(),
             createdAt: parseApiDateString(basicSt.createdAt),
             updatedAt: parseApiDateString(basicSt.updatedAt),
-            ticketAvailabilities: [], // Initialize
+            ticketAvailabilities: [], 
           };
 
           console.log(`Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
@@ -383,7 +374,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
           }
       });
   }
-  console.log(`Finished processing event by slug "${slug}". Returning event object with ${eventBase.showTimes.length} showtimes and ${eventBase.ticketTypes?.length} master ticket types.`, JSON.stringify(eventBase, null, 2));
+  console.log(`Finished processing event by slug "${slug}". Returning event object with ${eventBase.showTimes.length} showtimes and ${eventBase.ticketTypes?.length} master ticket types.`);
   return eventBase;
 };
 
@@ -515,42 +506,156 @@ export const deleteCategory = async (categoryId: string | number): Promise<boole
 };
 
 
-// --- User Management (Mock - for admin/auth operations if not hitting API yet) ---
+// --- User Management (API or Mock) ---
+interface RawApiUser {
+  id: string | number;
+  email: string;
+  name?: string | null;
+  isAdmin: string | number; // Expecting "0" or "1", or number 0 or 1
+  createdAt?: string;
+  updatedAt?: string;
+  // billingAddress might be a JSON string or an object from API, or not present
+  billing_address?: string | BillingAddress | null;
+}
+
+const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
+  let billingAddress: BillingAddress | null = null;
+  if (typeof apiUser.billing_address === 'string') {
+    try {
+      billingAddress = JSON.parse(apiUser.billing_address);
+    } catch {
+      // console.warn("Failed to parse billing_address string for user:", apiUser.id);
+      billingAddress = null;
+    }
+  } else if (typeof apiUser.billing_address === 'object' && apiUser.billing_address !== null) {
+    billingAddress = apiUser.billing_address;
+  }
+
+  return {
+    id: String(apiUser.id),
+    email: apiUser.email,
+    name: apiUser.name || null,
+    isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1,
+    billingAddress: billingAddress,
+    createdAt: parseApiDateString(apiUser.createdAt),
+    updatedAt: parseApiDateString(apiUser.updatedAt),
+  };
+};
+
 export const getUserByEmail = async (email: string): Promise<User | null> => {
-  return mockUsers.find(user => user.email === email) || null;
+  if (API_BASE_URL && USERS_API_URL) {
+    try {
+      const response = await fetch(`${USERS_API_URL}?email=${encodeURIComponent(email)}`);
+      if (!response.ok) {
+        if (response.status === 404) return null; // Common case if user not found by email query
+        console.error(`API Error fetching user by email ${email}:`, response.status, await response.text());
+        return null; 
+      }
+      const usersData: RawApiUser[] = await response.json();
+      if (usersData && usersData.length > 0) {
+        return mapApiUserToAppUser(usersData[0]);
+      }
+      return null;
+    } catch (error) {
+      console.error(`Network error fetching user by email ${email}:`, error);
+      return null;
+    }
+  } else {
+    console.warn("API_BASE_URL or USERS_API_URL not set, getUserByEmail using local mockUsers.");
+    return mockUsers.find(user => user.email === email) || null;
+  }
 };
 
 export const createUser = async (userData: { email: string, name?: string, isAdmin?: boolean }): Promise<User> => {
-  if (mockUsers.some(u => u.email === userData.email)) {
-    throw new Error("User with this email already exists.");
+  if (API_BASE_URL && USERS_API_URL) {
+    const payload = {
+      email: userData.email,
+      name: userData.name || '',
+      isAdmin: userData.isAdmin ? '1' : '0', // Sending as string "0" or "1"
+    };
+    try {
+      const response = await fetch(USERS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to create user via API and parse error' }));
+        throw new Error(errorBody.message || `API error creating user: ${response.status}`);
+      }
+      const newApiUser: RawApiUser = await response.json();
+      return mapApiUserToAppUser(newApiUser);
+    } catch (error) {
+      console.error("Network or other error creating user via API:", error);
+      throw error;
+    }
+  } else {
+    console.warn("API_BASE_URL or USERS_API_URL not set, createUser using local mockUsers.");
+    if (mockUsers.some(u => u.email === userData.email)) {
+      throw new Error("User with this email already exists in mock store.");
+    }
+    const newUser: User = {
+      id: generateId('user'),
+      email: userData.email,
+      name: userData.name || '',
+      isAdmin: userData.isAdmin || false,
+      billingAddress: null, 
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mockUsers.push(newUser);
+    return newUser;
   }
-  const newUser: User = {
-    id: generateId('user'),
-    email: userData.email,
-    name: userData.name || '',
-    isAdmin: userData.isAdmin || false,
-    billingAddress: null, 
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  mockUsers.push(newUser);
-  return newUser;
 };
 
 export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
-  const userIndex = mockUsers.findIndex(u => u.id === userId);
-  if (userIndex === -1) return null;
-  mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date().toISOString() };
-  if (typeof localStorage !== 'undefined') {
-    const storedUser = localStorage.getItem('mypassUser'); 
-    if (storedUser) {
-      const parsedUser: User = JSON.parse(storedUser);
-      if (parsedUser.id === userId) {
-        localStorage.setItem('mypassUser', JSON.stringify(mockUsers[userIndex]));
+  if (API_BASE_URL && USERS_API_URL) {
+    const apiPayload: Partial<RawApiUser & { billing_address?: string | BillingAddress }> = {};
+
+    if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
+    if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
+    if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
+    
+    if (dataToUpdate.billingAddress !== undefined) {
+        // Assuming API can handle billing_address as an object.
+        // If it needs a JSON string, use: JSON.stringify(dataToUpdate.billingAddress)
+        apiPayload.billing_address = dataToUpdate.billingAddress;
+    }
+
+    try {
+      const response = await fetch(`${USERS_API_URL}/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiPayload),
+      });
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        const errorBody = await response.json().catch(() => ({ message: `Failed to update user ${userId} via API and parse error` }));
+        throw new Error(errorBody.message || `API error updating user ${userId}: ${response.status}`);
+      }
+      const updatedApiUser: RawApiUser = await response.json();
+      return mapApiUserToAppUser(updatedApiUser);
+    } catch (error) {
+      console.error(`Network or other error updating user ${userId} via API:`, error);
+      throw error; 
+    }
+
+  } else {
+    console.warn(`API_BASE_URL or USERS_API_URL not set, updateUser using local mockUsers for user ID: ${userId}.`);
+    const userIndex = mockUsers.findIndex(u => u.id === userId);
+    if (userIndex === -1) return null;
+    mockUsers[userIndex] = { ...mockUsers[userIndex], ...dataToUpdate, updatedAt: new Date().toISOString() };
+    if (typeof localStorage !== 'undefined') {
+      const storedUser = localStorage.getItem('mypassUser'); 
+      if (storedUser) {
+        const parsedUser: User = JSON.parse(storedUser);
+        if (parsedUser.id === userId) {
+          localStorage.setItem('mypassUser', JSON.stringify(mockUsers[userIndex]));
+        }
       }
     }
+    return mockUsers[userIndex];
   }
-  return mockUsers[userIndex];
 };
 
 // --- Organizer Management (API Based) ---
@@ -692,7 +797,6 @@ export const adminGetAllEvents = async (): Promise<Event[]> => {
       return [];
     }
     const apiEvents: ApiEventFlat[] = await response.json();
-    // This mapping will be shallow; getEventBySlug does the deep fetching for individual views
     return apiEvents.map(mapApiEventToAppEvent);
   } catch (error) {
     console.error("Network error fetching admin events:", error);
@@ -703,16 +807,8 @@ export const adminGetAllEvents = async (): Promise<Event[]> => {
 export const getAdminEventById = async (id: string): Promise<Event | undefined> => {
   if (!API_BASE_URL) {
     console.warn("API_BASE_URL not set, getAdminEventById using local mockEventsStore.");
-    // For mock store, we assume it's fully populated if it exists
     return mockEventsStore.find(event => event.id === id);
   }
-  // If API_BASE_URL is set, we should use getEventBySlug to get fully populated event
-  // (assuming /events/{id} on API doesn't give fully populated details)
-  // However, if the slug is not known here, this is problematic.
-  // For admin list views, usually a less detailed event object is fine.
-  // For admin edit, a full fetch (like getEventBySlug) is needed.
-  // This function might need to be re-evaluated based on admin edit requirements.
-  // For now, assume it fetches a basic event structure similar to the list.
    try {
     const response = await fetch(`${API_BASE_URL}/events/${id}`);
     if (!response.ok) {
@@ -721,8 +817,6 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
       return undefined;
     }
     const apiEvent: ApiEventFlat = await response.json();
-    // This will return a shallow event. If admin edit needs full details,
-    // it should call getEventBySlug with the event's slug.
     return mapApiEventToAppEvent(apiEvent);
   } catch (error) {
     console.error(`Network error fetching admin event by id ${id}:`, error);
@@ -742,7 +836,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
 
   const newEventId = generateId('evt'); 
 
-  // These are definitions of master ticket types for the event
   const ticketTypes: TicketType[] = data.ticketTypes.map(ttData => ({
     id: ttData.id && !ttData.id.startsWith('client-') ? ttData.id : generateId('tt'), 
     eventId: newEventId, 
@@ -754,7 +847,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     updatedAt: new Date().toISOString(),
   }));
 
-  // These are definitions of showtimes, with their specific ticket availabilities
   const showTimes: ShowTime[] = data.showTimes.map(stData => {
     const showTimeId = stData.id && !stData.id.startsWith('client-') ? stData.id : generateId('st'); 
     return {
@@ -814,8 +906,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
       throw new Error(errorBody.message || `API error creating event: ${response.status}`);
     }
     const createdApiEvent: ApiEventFlat = await response.json();
-    // To get fully populated object with all IDs from DB, re-fetch using getEventBySlug.
-    // This ensures consistency.
     if (createdApiEvent.slug) {
       const fullyPopulatedEvent = await getEventBySlug(createdApiEvent.slug);
       if (fullyPopulatedEvent) return fullyPopulatedEvent;
@@ -895,8 +985,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       throw new Error(errorBody.message || `API error updating event ${eventId}: ${response.status}`);
     }
     const updatedApiEvent: ApiEventFlat = await response.json();
-    // Re-fetch to get the fully populated object, ensuring all sub-records (ticket types, showtimes, availabilities)
-    // reflect the latest state from the DB with correct IDs.
     if (updatedApiEvent.slug) {
       const fullyPopulatedEvent = await getEventBySlug(updatedApiEvent.slug);
       if (fullyPopulatedEvent) return fullyPopulatedEvent;
@@ -1080,12 +1168,12 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
       parsedBillingAddress = JSON.parse(apiBooking.billing_address);
     } catch {
       console.error("Failed to parse billing_address string:", "Raw:", apiBooking.billing_address);
-      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; // Default
+      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; 
     }
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
   } else {
-    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; // Default
+    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; 
   }
 
   const rawTotalPrice = apiBooking.total_price ?? apiBooking.totalPrice; 
@@ -1202,7 +1290,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
       try {
         const errorJson = JSON.parse(errorBodyText);
         errorJsonMessage = errorJson.message || JSON.stringify(errorJson);
-      } catch { /* ignore */ }
+      } catch {}
       throw new Error(`Failed to fetch booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking: RawApiBooking = await response.json();
@@ -1230,7 +1318,7 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
       try {
         const errorJson = JSON.parse(errorBodyText);
         errorBodyJsonMessage = errorJson.message || JSON.stringify(errorJson);
-      } catch { /* ignore */ }
+      } catch {}
       throw new Error(`Failed to fetch bookings: ${response.status}. Message: ${errorBodyJsonMessage}`);
     }
 
@@ -1269,7 +1357,6 @@ const initAdminMockData = async () => {
     if (mockEventsStore.length > 0 && mockEventsStore.some(e => e.id === 'evt-predefined-1-admin')) return;
 
     if (API_BASE_URL) {
-        // If a real event API is configured, don't create mock events.
         return;
     }
     
@@ -1305,7 +1392,6 @@ const initAdminMockData = async () => {
             showTimes: [
                 { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 15, 18, 0), 
                   ticketAvailabilities: [
-                    // These ticketTypeId and ticketTypeName will be resolved against the ticketTypes above during createEvent mock
                     { id: generateId('sta'), ticketTypeId: "NEEDS_REPLACEMENT_GA_ADMIN", ticketTypeName: "General Admission", availableCount: 200 },
                     { id: generateId('sta'), ticketTypeId: "NEEDS_REPLACEMENT_VIP_ADMIN", ticketTypeName: "VIP Pass", availableCount: 50 }
                   ]
@@ -1315,7 +1401,6 @@ const initAdminMockData = async () => {
     ];
 
     for (const eventData of defaultEventDataList) {
-        // The mock createEvent will handle linking ticketTypeIds correctly based on names if IDs aren't final
         try {
           const createdEvent = await createEvent(eventData);
           if(createdEvent && eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin'; 
@@ -1330,5 +1415,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
-
-    
