@@ -4,13 +4,13 @@
 import type { User }from '@/lib/types';
 import { getUserByEmail, createUser as apiCreateUser } from '@/lib/mockData';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+// Removed: import { useToast } from '@/hooks/use-toast'; 
 
 interface AuthContextType {
   user: User | null;
   login: (email: string) => Promise<boolean>;
   logout: () => void;
-  signup: (name: string, email: string) => Promise<void>; // Changed to Promise<void>
+  signup: (name: string, email: string) => Promise<void>; 
   loading: boolean;
 }
 
@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast(); 
+  // Removed: const { toast } = useToast(); 
   const localStorageKey = 'mypassUser';
 
   useEffect(() => {
@@ -58,15 +58,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
       throw new Error("This email address is already registered (pre-check).");
     }
-
-    // apiCreateUser (mockData.createUser) will throw an error if API creation fails,
-    // including specific "already in use" errors from the server.
-    // No need for a try-catch here if we let errors propagate.
+    
     const newUser = await apiCreateUser({ email: normalizedEmail, name });
     setUser(newUser);
     localStorage.setItem(localStorageKey, JSON.stringify(newUser));
     setLoading(false);
-    // If successful, no explicit return is needed; absence of error implies success.
   };
 
   return (
