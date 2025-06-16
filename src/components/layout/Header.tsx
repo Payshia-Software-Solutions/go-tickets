@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import type { User } from '@/lib/types'; // Import User type
+// Removed: import type { User } from '@/lib/types'; 
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,7 @@ const Header = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { theme, setTheme } = useTheme(); // Added theme
+  const { setTheme } = useTheme(); // Removed unused 'theme'
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
