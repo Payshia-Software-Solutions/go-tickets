@@ -35,8 +35,15 @@ const SignupFormContent = () => {
       toast({ title: "Signup Successful", description: "Welcome! Your account has been created." });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
-    } catch (error: any) {
-      toast({ title: "Signup Failed", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+    } catch (error) {
+      let errorMessage = "An unexpected error occurred.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        // If the error is just a string, use it directly
+        errorMessage = error;
+      }
+      toast({ title: "Signup Failed", description: errorMessage, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
