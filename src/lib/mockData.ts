@@ -683,20 +683,14 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
 
     if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
-    // Password update should ideally be a separate, more secure flow, not part of general update
-    // if (dataToUpdate.password !== undefined) apiPayload.password = dataToUpdate.password; 
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
     if (dataToUpdate.billingAddress === null) {
-        // If explicitly set to null, send nulls to clear fields (if API supports it)
-        // Or send empty strings if API expects that to clear
-        // Or omit them if API clears fields that are not present in payload
-        // Assuming API clears if fields are sent as null or empty string. For this example, sending them if they were ever set.
-        apiPayload.billing_street = null; // Or ""
-        apiPayload.billing_city = null;   // Or ""
-        apiPayload.billing_state = null;  // Or ""
-        apiPayload.billing_postal_code = null; // Or ""
-        apiPayload.billing_country = null; // Or ""
+        apiPayload.billing_street = null;
+        apiPayload.billing_city = null;
+        apiPayload.billing_state = null;
+        apiPayload.billing_postal_code = null;
+        apiPayload.billing_country = null;
     } else if (dataToUpdate.billingAddress) {
         apiPayload.billing_street = dataToUpdate.billingAddress.street;
         apiPayload.billing_city = dataToUpdate.billingAddress.city;
@@ -704,7 +698,6 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
         apiPayload.billing_postal_code = dataToUpdate.billingAddress.postalCode;
         apiPayload.billing_country = dataToUpdate.billingAddress.country;
     }
-
 
     try {
       const response = await fetch(`${USERS_API_URL}/${userId}`, {
@@ -714,8 +707,19 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
       });
       if (!response.ok) {
         if (response.status === 404) return null;
-        const errorBody = await response.json().catch(() => ({ message: `Failed to update user ${userId} via API and parse error` }));
-        throw new Error(errorBody.message || `API error updating user ${userId}: ${response.status}`);
+        const errorBody = await response.json().catch(() => ({ message: `Failed to update user ${userId} via API and parse error. Status: ${response.status}` }));
+        
+        let detailedErrorMessage = errorBody.message || `API error updating user ${userId}: ${response.status}`;
+        if (errorBody.errors && typeof errorBody.errors === 'object') {
+          const fieldErrors = Object.entries(errorBody.errors)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map(([field, messages]: [string, any]) => `${field}: ${(Array.isArray(messages) ? messages.join(', ') : String(messages))}`)
+            .join('; ');
+          if (fieldErrors) {
+            detailedErrorMessage = `${detailedErrorMessage}. Details: ${fieldErrors}`;
+          }
+        }
+        throw new Error(detailedErrorMessage);
       }
       const updatedApiUser: RawApiUser = await response.json();
       return mapApiUserToAppUser(updatedApiUser);
@@ -1242,6 +1246,9 @@ interface RawApiBooking {
   createdAt?: string;
   updated_at?: string;
   updatedAt?: string;
+  // New fields based on sample
+  showtime?: string;
+  tickettype?: string;
 }
 
 
@@ -1257,7 +1264,25 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
   } else {
-    parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; 
+    // Attempt to construct from individual fields if main object is missing but components exist
+    // This is less likely if the API is consistent, but as a fallback.
+    // @ts-ignore - allow checking potentially non-existent fields for this fallback
+    if (apiBooking.billing_street || apiBooking.billing_city) {
+        parsedBillingAddress = {
+            // @ts-ignore
+            street: apiBooking.billing_street || "",
+            // @ts-ignore
+            city: apiBooking.billing_city || "",
+            // @ts-ignore
+            state: apiBooking.billing_state || "",
+            // @ts-ignore
+            postalCode: apiBooking.billing_postal_code || "",
+            // @ts-ignore
+            country: apiBooking.billing_country || "",
+        };
+    } else {
+        parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" }; 
+    }
   }
 
   const rawTotalPrice = apiBooking.total_price ?? apiBooking.totalPrice; 
@@ -1278,9 +1303,9 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`, 
     totalPrice: parsedPrice,
     billingAddress: parsedBillingAddress,
-    // Booked tickets are not part of the main booking table, so this array would be empty
-    // unless your API's GET /bookings/{id} endpoint specifically joins and returns them.
-    // For now, assuming it does based on previous structure, but this might need adjustment.
+    // The API response for GET /bookings or /bookings/{id} might not include booked_tickets.
+    // If it does, the map below will work. If not, this will be an empty array.
+    // This transformation relies on the specific shape of your API response for bookings.
     bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
       bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id), 
@@ -1306,13 +1331,12 @@ async function patchAvailabilityRecord(availabilityRecordId: string, newCount: n
     return false;
   }
   const url = `${AVAILABILITY_API_URL}/${availabilityRecordId}`;
-  // The API for availability seems to expect `availableCount` as a string from sample data.
   const payload = { availableCount: String(newCount) }; 
   console.log(`[patchAvailabilityRecord] Updating availability ID ${availabilityRecordId} to count ${newCount}. URL: ${url}, Payload:`, payload);
 
   try {
     const response = await fetch(url, {
-      method: 'PUT', // Or PATCH, depending on API design for partial updates
+      method: 'PUT', 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -1335,7 +1359,6 @@ async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId:
     console.error("[updateAvailabilityForBookedItem] AVAILABILITY_API_URL is not defined.");
     return;
   }
-  // Fetch all availability records for the showTimeId
   const fetchUrl = `${AVAILABILITY_API_URL}?showTimeId=${showTimeId}`;
   console.log(`[updateAvailabilityForBookedItem] Fetching availability records for showTimeId: ${showTimeId}, ticketTypeId: ${ticketTypeId} from ${fetchUrl}`);
 
@@ -1351,7 +1374,6 @@ async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId:
         return;
     }
 
-    // Find the specific record for the ticketTypeId
     const specificRecord = availabilityRecords.find(ar => ar.ticketTypeId === ticketTypeId);
 
     if (specificRecord) {
@@ -1361,7 +1383,6 @@ async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId:
         return;
       }
       const newCount = currentCount - quantityBooked;
-      // Do not let count go below 0 client-side; API might also enforce this
       const countToSet = Math.max(0, newCount); 
       
       if (newCount < 0) {
@@ -1382,7 +1403,7 @@ export const createBooking = async (
     userId: string;
     tickets: BookedTicketItem[]; 
     totalPrice: number;
-    billingAddress: BillingAddress; // This field will NOT be sent to /bookings based on schema
+    billingAddress: BillingAddress; 
   }
 ): Promise<Booking> => {
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
@@ -1397,17 +1418,18 @@ export const createBooking = async (
   const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
-  // Prepare payload according to the bookings table schema
+  const showTimeDateTime = parseISO(showTimeToUse.dateTime);
+
   const apiPayload = {
     userId: parseInt(bookingData.userId, 10), 
     eventId: parseInt(bookingData.eventId, 10), 
     totalPrice: bookingData.totalPrice, 
     eventName: event.name, 
-    eventDate: showTimeToUse.dateTime, 
+    eventDate: showTimeToUse.dateTime, // Full ISO string for eventDate
     eventLocation: event.location, 
     qrCodeValue: `QR_BOOKING_${generateId()}`,
-    showtime: format(parseISO(showTimeToUse.dateTime), "HH:mm:ss"),
-    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '),
+    showtime: format(showTimeDateTime, "HH:mm:ss"), // Only time part for showtime
+    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), // Comma-separated ticket type names
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1430,7 +1452,6 @@ export const createBooking = async (
     throw error;
   }
 
-  // After successful booking creation, update ticket availabilities for each booked item
   if (createdApiBooking && createdApiBooking.id) {
     console.log(`[createBooking] Booking ${createdApiBooking.id} created. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
     for (const ticketItem of bookingData.tickets) {
@@ -1587,3 +1608,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
+
