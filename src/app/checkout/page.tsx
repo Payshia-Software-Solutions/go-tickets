@@ -153,11 +153,11 @@ const CheckoutPage = () => {
         try {
           await updateUser(user.id, { billingAddress: formBillingData });
           toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
-        } catch (updateError) {
+        } catch (updateError: unknown) {
           console.error("Failed to update user billing address:", updateError);
           toast({
             title: "Profile Update Failed",
-            description: "Could not save the new billing address to your profile, but booking will proceed.",
+            description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
             variant: "default" 
           });
         }
@@ -176,7 +176,7 @@ const CheckoutPage = () => {
             showTimeId: item.showTimeId,
         })),
         totalPrice: finalTotal,
-        billingAddress: billingDataForBooking, // This is passed for record-keeping / payment, not to save directly on booking table
+        billingAddress: billingDataForBooking, 
       };
 
       const newBooking = await createBooking(bookingPayloadForCreateBooking);
@@ -303,9 +303,9 @@ const CheckoutPage = () => {
                         onCheckedChange={(checked) => setUseDefaultAddress(Boolean(checked))}
                         disabled={!canUseDefaultAddress}
                       />
-                      <Label htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      <FormLabel htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                         Use my saved billing address
-                      </Label>
+                      </FormLabel>
                     </div>
                   )}
 
@@ -376,9 +376,9 @@ const CheckoutPage = () => {
                             checked={saveNewAddress}
                             onCheckedChange={(checked) => setSaveNewAddress(Boolean(checked))}
                         />
-                        <Label htmlFor="saveNewAddress" className="text-sm font-medium leading-none">
+                        <FormLabel htmlFor="saveNewAddress" className="text-sm font-medium leading-none">
                             Save this address to my profile for future payments
-                        </Label>
+                        </FormLabel>
                      </div>
                   )}
                 </CardContent>
@@ -431,3 +431,4 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
+
