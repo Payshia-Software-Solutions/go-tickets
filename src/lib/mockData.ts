@@ -1,6 +1,6 @@
 
 import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData } from './types';
-import { parse, isValid } from 'date-fns';
+import { parse, isValid, format } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -514,7 +514,7 @@ interface RawApiUser {
   email: string;
   password?: string;
   name?: string | null;
-  isAdmin: string | number;
+  isAdmin: string | number; // API sends '0' or '1'
   createdAt?: string;
   updatedAt?: string;
   billing_street?: string | null;
@@ -545,9 +545,9 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   return {
     id: String(apiUser.id),
     email: apiUser.email,
-    password: apiUser.password,
+    password: apiUser.password, 
     name: apiUser.name || null,
-    isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1,
+    isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1, // Handle string '0'/'1' or number 0/1
     billingAddress: billingAddress,
     createdAt: parseApiDateString(apiUser.createdAt),
     updatedAt: parseApiDateString(apiUser.updatedAt),
@@ -688,11 +688,15 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
     if (dataToUpdate.billingAddress === null) {
-        apiPayload.billing_street = null;
-        apiPayload.billing_city = null;
-        apiPayload.billing_state = null;
-        apiPayload.billing_postal_code = null;
-        apiPayload.billing_country = null;
+        // If explicitly set to null, send nulls to clear fields (if API supports it)
+        // Or send empty strings if API expects that to clear
+        // Or omit them if API clears fields that are not present in payload
+        // Assuming API clears if fields are sent as null or empty string. For this example, sending them if they were ever set.
+        apiPayload.billing_street = null; // Or ""
+        apiPayload.billing_city = null;   // Or ""
+        apiPayload.billing_state = null;  // Or ""
+        apiPayload.billing_postal_code = null; // Or ""
+        apiPayload.billing_country = null; // Or ""
     } else if (dataToUpdate.billingAddress) {
         apiPayload.billing_street = dataToUpdate.billingAddress.street;
         apiPayload.billing_city = dataToUpdate.billingAddress.city;
@@ -1395,15 +1399,15 @@ export const createBooking = async (
 
   // Prepare payload according to the bookings table schema
   const apiPayload = {
-    userId: parseInt(bookingData.userId, 10), // int
-    eventId: parseInt(bookingData.eventId, 10), // int
-    totalPrice: bookingData.totalPrice, // decimal(10,2) - send as number
-    eventName: event.name, // varchar(255)
-    eventDate: showTimeToUse.dateTime, // datetime - ensure this is in a format API accepts (ISO string is usually fine)
-    eventLocation: event.location, // varchar(255)
-    qrCodeValue: `QR_BOOKING_${generateId()}`, // text
-    // bookingDate, createdAt, updatedAt are auto-managed by DB
-    // billingAddress and bookedTickets are NOT part of this table
+    userId: parseInt(bookingData.userId, 10), 
+    eventId: parseInt(bookingData.eventId, 10), 
+    totalPrice: bookingData.totalPrice, 
+    eventName: event.name, 
+    eventDate: showTimeToUse.dateTime, 
+    eventLocation: event.location, 
+    qrCodeValue: `QR_BOOKING_${generateId()}`,
+    showtime: format(parseISO(showTimeToUse.dateTime), "HH:mm:ss"),
+    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '),
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1434,13 +1438,10 @@ export const createBooking = async (
         await updateAvailabilityForBookedItem(ticketItem.ticketTypeId, ticketItem.showTimeId, ticketItem.quantity);
       } catch (availError) {
         console.error(`[createBooking] Failed to update availability for ticketType ${ticketItem.ticketTypeId} on showTime ${ticketItem.showTimeId} for booking ${createdApiBooking.id}. Error:`, availError);
-        // Decide if this should be a critical failure or just logged. For now, logging.
       }
     }
   }
 
-  // Return the booking object (transformed)
-  // Manually attach billingAddress to the app-level Booking object for client-side use if needed, as it's not stored on main booking record in DB
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
   appBooking.billingAddress = bookingData.billingAddress; 
   return appBooking;
@@ -1466,7 +1467,6 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
     }
     const apiBooking: RawApiBooking = await response.json();
     const mappedBooking = transformApiBookingToAppBooking(apiBooking);
-    // If bookedTickets are stored separately, you might need another API call here to fetch and attach them
     return mappedBooking;
   } catch (error) {
     console.error(`Network or other error fetching booking ${id}:`, error);
