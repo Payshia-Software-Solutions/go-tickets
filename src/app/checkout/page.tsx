@@ -6,7 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -16,9 +17,17 @@ import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, Save } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
+
+const defaultBillingValues: BillingAddress = {
+  street: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: "",
+};
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
@@ -26,14 +35,9 @@ const CheckoutPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [useDefaultAddress, setUseDefaultAddress] = useState(false);
+  const [saveNewAddress, setSaveNewAddress] = useState(true); // Default to true if entering new
 
-  const defaultBillingValues: BillingAddress = {
-    street: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "",
-  };
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
@@ -46,22 +50,62 @@ const CheckoutPage = () => {
     }
   }, []);
 
+  // Effect to initialize form and `useDefaultAddress` based on `user`
   useEffect(() => {
-    // Pre-fill form if user has a billing address
-    if (user?.billingAddress && typeof user.billingAddress === 'object') {
-      billingForm.reset({
-        street: user.billingAddress.street || "",
-        city: user.billingAddress.city || "",
-        state: user.billingAddress.state || "",
-        postalCode: user.billingAddress.postalCode || "",
-        country: user.billingAddress.country || "",
-      });
+    if (user) {
+      if (user.billingAddress && Object.values(user.billingAddress).some(v => v)) { // Check if address is not all empty strings
+        setUseDefaultAddress(true);
+        billingForm.reset({
+          street: user.billingAddress.street || "",
+          city: user.billingAddress.city || "",
+          state: user.billingAddress.state || "",
+          postalCode: user.billingAddress.postalCode || "",
+          country: user.billingAddress.country || "",
+        });
+      } else {
+        setUseDefaultAddress(false);
+        billingForm.reset(defaultBillingValues);
+      }
     } else {
+      // No user, ensure form is clear and default address is not used
+      setUseDefaultAddress(false);
       billingForm.reset(defaultBillingValues);
     }
-  }, [user, billingForm]); // billingForm is stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Depend on user to re-evaluate
 
-  const handleConfirmBooking = async (billingData: BillingAddress) => {
+  // Effect to sync form when `useDefaultAddress` changes or user data updates
+  useEffect(() => {
+    if (useDefaultAddress) {
+      if (user && user.billingAddress && Object.values(user.billingAddress).some(v => v)) {
+        billingForm.reset({
+          street: user.billingAddress.street || "",
+          city: user.billingAddress.city || "",
+          state: user.billingAddress.state || "",
+          postalCode: user.billingAddress.postalCode || "",
+          country: user.billingAddress.country || "",
+        });
+      } else {
+        // This case implies user.billingAddress is null/empty, so "use default" shouldn't be possible
+        // but as a fallback, clear form.
+        setUseDefaultAddress(false); // Cannot use default if no default exists
+        billingForm.reset(defaultBillingValues);
+      }
+    } else {
+      // When switching to manual entry, clear the form
+      // Only clear if the form wasn't already being manually edited for a new address
+      // Check if current form values are different from defaultBillingValues, indicating manual input in progress
+      const currentFormValues = billingForm.getValues();
+      const isManuallyEditing = JSON.stringify(currentFormValues) !== JSON.stringify(defaultBillingValues);
+      if (!isManuallyEditing && (!user || !user.billingAddress || JSON.stringify(currentFormValues) === JSON.stringify(user.billingAddress))) {
+         billingForm.reset(defaultBillingValues);
+      }
+      setSaveNewAddress(true); // Default to saving a newly entered address
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useDefaultAddress, user]); // Depend on user as well for re-sync if user logs in/out
+
+  const handleConfirmBooking = async (formBillingData: BillingAddress) => {
     if (!user) {
       toast({
         title: "Login Required",
@@ -79,19 +123,21 @@ const CheckoutPage = () => {
 
     setIsProcessing(true);
 
+    const billingDataForBooking = useDefaultAddress && user?.billingAddress ? user.billingAddress : formBillingData;
+
     const primaryEventId = cart[0]?.eventId;
     if (!primaryEventId) {
          toast({ title: "Error", description: "Event ID missing from cart.", variant: "destructive" });
          setIsProcessing(false);
          return;
     }
-    const taxes = totalPrice * 0.1; // Mock 10% tax
+    const taxes = totalPrice * 0.1; 
     const finalTotal = totalPrice + taxes;
 
     try {
       const paymentResult = await processMockPayment({
         amount: finalTotal,
-        billingAddress: billingData,
+        billingAddress: billingDataForBooking,
       });
 
       if (!paymentResult.success) {
@@ -102,17 +148,17 @@ const CheckoutPage = () => {
 
       toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
 
-      // Update user's billing address on their profile
-      if (user && updateUser) {
+      // Update user's billing address on their profile IF they entered a new one AND chose to save it
+      if (!useDefaultAddress && saveNewAddress && user && updateUser) {
         try {
-          await updateUser(user.id, { billingAddress: billingData });
-          toast({ title: "Billing Address Saved", description: "Your billing address has been saved to your profile." });
+          await updateUser(user.id, { billingAddress: formBillingData });
+          toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
         } catch (updateError) {
           console.error("Failed to update user billing address:", updateError);
           toast({
-            title: "Address Profile Update Failed",
-            description: "Could not save the billing address to your profile, but booking will proceed. You can update your address in account settings.",
-            variant: "default"
+            title: "Profile Update Failed",
+            description: "Could not save the new billing address to your profile, but booking will proceed.",
+            variant: "default" 
           });
         }
       }
@@ -130,7 +176,7 @@ const CheckoutPage = () => {
             showTimeId: item.showTimeId,
         })),
         totalPrice: finalTotal,
-        // Billing address is now saved to user profile, not directly on booking record
+        billingAddress: billingDataForBooking, // This is passed for record-keeping / payment, not to save directly on booking table
       };
 
       const newBooking = await createBooking(bookingPayloadForCreateBooking);
@@ -152,6 +198,12 @@ const CheckoutPage = () => {
       setIsProcessing(false);
     }
   };
+  
+  const canUseDefaultAddress = !!(user && user.billingAddress && Object.values(user.billingAddress).some(v => v));
+
+  const submitButtonDisabled = !user || isProcessing || cart.length === 0 || 
+                              (!useDefaultAddress && !billingForm.formState.isValid && billingForm.formState.isSubmitted);
+
 
   if (authLoading) {
     return (
@@ -240,16 +292,30 @@ const CheckoutPage = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Billing Address</CardTitle>
-                  <CardDescription>Enter your billing information. This will be saved to your profile.</CardDescription>
+                  <CardDescription>Enter your billing information.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {user && canUseDefaultAddress && (
+                    <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md bg-muted/30">
+                      <Checkbox
+                        id="useDefaultAddress"
+                        checked={useDefaultAddress}
+                        onCheckedChange={(checked) => setUseDefaultAddress(Boolean(checked))}
+                        disabled={!canUseDefaultAddress}
+                      />
+                      <Label htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Use my saved billing address
+                      </Label>
+                    </div>
+                  )}
+
                   <FormField
                     control={billingForm.control}
                     name="street"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Street Address</FormLabel>
-                        <FormControl><Input placeholder="123 Main St" {...field} /></FormControl>
+                        <FormControl><Input placeholder="123 Main St" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -261,7 +327,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>City</FormLabel>
-                          <FormControl><Input placeholder="Anytown" {...field} /></FormControl>
+                          <FormControl><Input placeholder="Anytown" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -272,7 +338,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>State / Province</FormLabel>
-                          <FormControl><Input placeholder="CA" {...field} /></FormControl>
+                          <FormControl><Input placeholder="CA" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -285,7 +351,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Postal / Zip Code</FormLabel>
-                          <FormControl><Input placeholder="90210" {...field} /></FormControl>
+                          <FormControl><Input placeholder="90210" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -296,12 +362,25 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Country</FormLabel>
-                          <FormControl><Input placeholder="United States" {...field} /></FormControl>
+                          <FormControl><Input placeholder="United States" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
+                  
+                  {user && !useDefaultAddress && (
+                     <div className="flex items-center space-x-2 pt-4">
+                        <Checkbox
+                            id="saveNewAddress"
+                            checked={saveNewAddress}
+                            onCheckedChange={(checked) => setSaveNewAddress(Boolean(checked))}
+                        />
+                        <Label htmlFor="saveNewAddress" className="text-sm font-medium leading-none">
+                            Save this address to my profile for future payments
+                        </Label>
+                     </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -314,6 +393,7 @@ const CheckoutPage = () => {
                         Payment will be handled by our secure payment gateway.
                         You will be redirected to complete your payment after confirming your order details.
                     </p>
+                    {/* Actual payment fields would go here in a real app */}
                 </CardContent>
               </Card>
             </form>
@@ -337,7 +417,7 @@ const CheckoutPage = () => {
                 size="lg"
                 className="w-full"
                 onClick={billingForm.handleSubmit(handleConfirmBooking)}
-                disabled={!user || isProcessing || cart.length === 0 || (!billingForm.formState.isValid && billingForm.formState.isSubmitted) }
+                disabled={submitButtonDisabled}
                 suppressHydrationWarning
               >
                 {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Proceed to Payment</>}
