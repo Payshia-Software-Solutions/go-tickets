@@ -6,8 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -17,7 +17,7 @@ import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, Save } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
 
@@ -36,7 +36,7 @@ const CheckoutPage = () => {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
-  const [saveNewAddress, setSaveNewAddress] = useState(true); // Default to true if entering new
+  const [saveNewAddress, setSaveNewAddress] = useState(true);
 
 
   const billingForm = useForm<BillingAddress>({
@@ -46,14 +46,14 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Checkout | GoTickets.lk';
+      document.title = 'Checkout | Event Horizon Tickets';
     }
   }, []);
 
   // Effect to initialize form and `useDefaultAddress` based on `user`
   useEffect(() => {
     if (user) {
-      if (user.billingAddress && Object.values(user.billingAddress).some(v => v)) { // Check if address is not all empty strings
+      if (user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '')) {
         setUseDefaultAddress(true);
         billingForm.reset({
           street: user.billingAddress.street || "",
@@ -67,17 +67,15 @@ const CheckoutPage = () => {
         billingForm.reset(defaultBillingValues);
       }
     } else {
-      // No user, ensure form is clear and default address is not used
       setUseDefaultAddress(false);
       billingForm.reset(defaultBillingValues);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]); // Depend on user to re-evaluate
+  }, [user, billingForm]);
 
-  // Effect to sync form when `useDefaultAddress` changes or user data updates
+  // Effect to sync form when `useDefaultAddress` changes
   useEffect(() => {
     if (useDefaultAddress) {
-      if (user && user.billingAddress && Object.values(user.billingAddress).some(v => v)) {
+      if (user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '')) {
         billingForm.reset({
           street: user.billingAddress.street || "",
           city: user.billingAddress.city || "",
@@ -86,24 +84,20 @@ const CheckoutPage = () => {
           country: user.billingAddress.country || "",
         });
       } else {
-        // This case implies user.billingAddress is null/empty, so "use default" shouldn't be possible
-        // but as a fallback, clear form.
-        setUseDefaultAddress(false); // Cannot use default if no default exists
+        // This case implies user.billingAddress is null/empty, or user became null
+        // So "use default" shouldn't be possible. Switch off and clear.
+        setUseDefaultAddress(false);
         billingForm.reset(defaultBillingValues);
       }
     } else {
-      // When switching to manual entry, clear the form
-      // Only clear if the form wasn't already being manually edited for a new address
-      // Check if current form values are different from defaultBillingValues, indicating manual input in progress
-      const currentFormValues = billingForm.getValues();
-      const isManuallyEditing = JSON.stringify(currentFormValues) !== JSON.stringify(defaultBillingValues);
-      if (!isManuallyEditing && (!user || !user.billingAddress || JSON.stringify(currentFormValues) === JSON.stringify(user.billingAddress))) {
-         billingForm.reset(defaultBillingValues);
-      }
+      // When switching to manual entry (useDefaultAddress is false),
+      // reset to empty fields for the user to type in a new address.
+      // This ensures that if they toggle off "use default", they get a clean slate.
+      billingForm.reset(defaultBillingValues);
       setSaveNewAddress(true); // Default to saving a newly entered address
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useDefaultAddress, user]); // Depend on user as well for re-sync if user logs in/out
+  }, [useDefaultAddress, user, billingForm]);
+
 
   const handleConfirmBooking = async (formBillingData: BillingAddress) => {
     if (!user) {
@@ -123,7 +117,9 @@ const CheckoutPage = () => {
 
     setIsProcessing(true);
 
-    const billingDataForBooking = useDefaultAddress && user?.billingAddress ? user.billingAddress : formBillingData;
+    const billingDataForBooking = (useDefaultAddress && user?.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== ''))
+      ? user.billingAddress
+      : formBillingData;
 
     const primaryEventId = cart[0]?.eventId;
     if (!primaryEventId) {
@@ -131,7 +127,7 @@ const CheckoutPage = () => {
          setIsProcessing(false);
          return;
     }
-    const taxes = totalPrice * 0.1; 
+    const taxes = totalPrice * 0.1;
     const finalTotal = totalPrice + taxes;
 
     try {
@@ -148,18 +144,22 @@ const CheckoutPage = () => {
 
       toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
 
-      // Update user's billing address on their profile IF they entered a new one AND chose to save it
       if (!useDefaultAddress && saveNewAddress && user && updateUser) {
-        try {
-          await updateUser(user.id, { billingAddress: formBillingData });
-          toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
-        } catch (updateError: unknown) {
-          console.error("Failed to update user billing address:", updateError);
-          toast({
-            title: "Profile Update Failed",
-            description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
-            variant: "default" 
-          });
+        // Check if the entered form data is actually different from default empty values
+        // and different from potentially existing (but not used) user.billingAddress
+        const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
+        if (isNewAddressMeaningful) {
+            try {
+            await updateUser(user.id, { billingAddress: formBillingData });
+            toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
+            } catch (updateError: unknown) {
+            console.error("Failed to update user billing address:", updateError);
+            toast({
+                title: "Profile Update Failed",
+                description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
+                variant: "default"
+            });
+            }
         }
       }
 
@@ -176,7 +176,7 @@ const CheckoutPage = () => {
             showTimeId: item.showTimeId,
         })),
         totalPrice: finalTotal,
-        billingAddress: billingDataForBooking, 
+        billingAddress: billingDataForBooking,
       };
 
       const newBooking = await createBooking(bookingPayloadForCreateBooking);
@@ -198,10 +198,10 @@ const CheckoutPage = () => {
       setIsProcessing(false);
     }
   };
-  
-  const canUseDefaultAddress = !!(user && user.billingAddress && Object.values(user.billingAddress).some(v => v));
 
-  const submitButtonDisabled = !user || isProcessing || cart.length === 0 || 
+  const canUseDefaultAddress = !!(user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== ''));
+
+  const submitButtonDisabled = !user || isProcessing || cart.length === 0 ||
                               (!useDefaultAddress && !billingForm.formState.isValid && billingForm.formState.isSubmitted);
 
 
@@ -368,7 +368,7 @@ const CheckoutPage = () => {
                       )}
                     />
                   </div>
-                  
+
                   {user && !useDefaultAddress && (
                      <div className="flex items-center space-x-2 pt-4">
                         <Checkbox
@@ -391,9 +391,8 @@ const CheckoutPage = () => {
                 <CardContent>
                     <p className="text-sm text-muted-foreground">
                         Payment will be handled by our secure payment gateway.
-                        You will be redirected to complete your payment after confirming your order details.
+                        This is a mock payment step.
                     </p>
-                    {/* Actual payment fields would go here in a real app */}
                 </CardContent>
               </Card>
             </form>
