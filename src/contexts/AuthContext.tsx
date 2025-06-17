@@ -1,16 +1,15 @@
 
 "use client";
 
-import type { User }from '@/lib/types';
+import type { User, SignupFormData } from '@/lib/types'; // Added SignupFormData
 import { getUserByEmail, createUser as apiCreateUser } from '@/lib/mockData';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-// Removed: import { useToast } from '@/hooks/use-toast'; 
 
 interface AuthContextType {
   user: User | null;
   login: (email: string) => Promise<boolean>;
   logout: () => void;
-  signup: (name: string, email: string) => Promise<void>; 
+  signup: (data: SignupFormData) => Promise<void>; // Changed signature
   loading: boolean;
 }
 
@@ -19,7 +18,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  // Removed: const { toast } = useToast(); 
   const localStorageKey = 'mypassUser';
 
   useEffect(() => {
@@ -49,9 +47,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem(localStorageKey);
   };
 
-  const signup = async (name: string, email: string) => {
+  const signup = async (data: SignupFormData) => { // Changed signature
     setLoading(true);
-    const normalizedEmail = email.toLowerCase(); 
+    const normalizedEmail = data.email.toLowerCase();
 
     const existingUser = await getUserByEmail(normalizedEmail);
     if (existingUser) {
@@ -59,10 +57,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error("This email address is already registered (pre-check).");
     }
     
-    const newUser = await apiCreateUser({ email: normalizedEmail, name });
+    // apiCreateUser (which is mockData.createUser) will now expect SignupFormData
+    // It will handle constructing the payload for the API, including individual billing fields
+    const newUser = await apiCreateUser(data); 
     setUser(newUser);
     localStorage.setItem(localStorageKey, JSON.stringify(newUser));
     setLoading(false);
+    // No specific return needed, success is implicit if no error is thrown
   };
 
   return (
@@ -79,4 +80,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

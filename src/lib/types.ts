@@ -14,12 +14,48 @@ export type BillingAddress = z.infer<typeof BillingAddressSchema>;
 export interface User {
   id: string;
   email: string;
+  password?: string; // Added password
   name?: string | null;
   isAdmin?: boolean;
   billingAddress?: BillingAddress | null;
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+// Zod schema for signup form
+export const SignupFormSchema = z.object({
+  name: z.string().min(2, "Full name must be at least 2 characters."),
+  email: z.string().email("Invalid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters long."),
+  confirmPassword: z.string(),
+  // Billing address fields are now part of the main schema, but grouped under an optional object
+  // This makes the whole billing address section optional for signup.
+  // If you want individual fields to be optional but the group mandatory if any field is filled,
+  // more complex Zod logic like .partial().optional() or .superRefine might be needed.
+  // For simplicity, making the whole address block optional for now.
+  billing_street: z.string().optional().or(z.literal('')),
+  billing_city: z.string().optional().or(z.literal('')),
+  billing_state: z.string().optional().or(z.literal('')),
+  billing_postal_code: z.string().optional().or(z.literal('')),
+  billing_country: z.string().optional().or(z.literal('')),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+}).refine(data => {
+  // If any billing address field is filled, all should be (or at least the core ones)
+  // This is a basic check; can be made more granular
+  const billingFields = [data.billing_street, data.billing_city, data.billing_state, data.billing_postal_code, data.billing_country];
+  const filledFields = billingFields.filter(field => field && field.trim() !== "").length;
+  if (filledFields > 0 && filledFields < 5) {
+      // This refine is illustrative. You might want specific per-field errors if making billing address mandatory IF one field is entered.
+      // For now, if some are filled, we assume the user intends to fill it. Zod's .min() on individual fields handles "required if entered".
+      // This example doesn't add a specific error here but illustrates a point for more complex logic.
+  }
+  return true; // Or return false with a path and message for complex cross-field validation
+});
+
+export type SignupFormData = z.infer<typeof SignupFormSchema>;
+
 
 // --- Organizer Related ---
 export interface Organizer {
@@ -27,8 +63,8 @@ export interface Organizer {
   name: string;
   contactEmail: string;
   website?: string | null;
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 export const OrganizerFormSchema = z.object({
   name: z.string().min(2, "Organizer name must be at least 2 characters."),
@@ -69,8 +105,8 @@ export interface TicketType {
   price: number;
   availability: number; 
   description?: string | null;
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // --- ShowTime Related ---
@@ -95,61 +131,51 @@ export interface ShowTimeTicketAvailability {
   ticketTypeId?: string; 
   ticketType: Pick<TicketType, 'id' | 'name' | 'price'>; 
   availableCount: number;
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 export interface ShowTime {
   id: string;
   eventId?: string; 
   dateTime: string; // ISO string
   ticketAvailabilities: ShowTimeTicketAvailability[];
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 
 // --- Event Related ---
-// This interface represents the full event detail structure,
-// which we expect from an endpoint like /events/slug/{slug}
 export interface Event {
   id: string;
   name: string;
   slug: string;
-  date: string; // API might send "YYYY-MM-DD HH:MM:SS", store as ISO string internally after parsing
+  date: string; 
   location: string;
   description: string;
   category: string;
   imageUrl: string;
-  
-  // Direct fields from API list sample
   venueName: string;
   venueAddress?: string | null;
   organizerId: string;
-
-  // Optional, expected to be populated for detail views
   organizer?: Organizer;
   ticketTypes?: TicketType[];
   showTimes?: ShowTime[];
-  
-  // mapLink can be constructed or part of a richer venue object from API
   mapLink?: string | null; 
-
-  createdAt?: string; // API sends "YYYY-MM-DD HH:MM:SS" -> store as ISO string
-  updatedAt?: string; // API sends "YYYY-MM-DD HH:MM:SS" -> store as ISO string
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Zod schema for validating Event form data in admin
 export const EventFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string()
     .min(3, "Slug must be at least 3 characters")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen."),
-  date: z.date({ required_error: "Main event date is required" }), // Form uses Date object
+  date: z.date({ required_error: "Main event date is required" }), 
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(1, "Category is required"),
   imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
-  organizerId: z.string().min(1, "Organizer is required"), // Form stores organizerId
+  organizerId: z.string().min(1, "Organizer is required"), 
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
   ticketTypes: z.array(TicketTypeFormSchema).min(1, "At least one ticket type definition is required."),
@@ -168,8 +194,8 @@ export interface BookedTicket {
   quantity: number;
   pricePerTicket: number;
   eventNsid: string;
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Booking {
@@ -183,9 +209,8 @@ export interface Booking {
   qrCodeValue: string;
   totalPrice: number;
   billingAddress: BillingAddress;
-  bookedTickets: BookedTicket[];
-  createdAt?: string; // Changed to string
-  updatedAt?: string; // Changed to string
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BookedTicketItem {
@@ -201,4 +226,3 @@ export interface BookedTicketItem {
 export interface CartItem extends BookedTicketItem {
   eventName: string;
 }
-

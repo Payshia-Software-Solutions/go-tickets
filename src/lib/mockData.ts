@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData } from './types'; // Added SignupFormData
 import { parse, isValid } from 'date-fns';
 
 // API Base URL from environment variable
@@ -390,8 +390,8 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 
 // In-memory data stores for entities NOT yet migrated to API or for specific mock scenarios
 const mockUsers: User[] = [
-  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, password: "password123", billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, password: "password123", billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = []; 
 
@@ -510,11 +510,11 @@ export const deleteCategory = async (categoryId: string | number): Promise<boole
 interface RawApiUser {
   id: string | number;
   email: string;
+  password?: string; // Added password
   name?: string | null;
-  isAdmin: string | number; // Expecting "0" or "1", or number 0 or 1
+  isAdmin: string | number;
   createdAt?: string;
   updatedAt?: string;
-  // New individual billing address fields from API
   billing_street?: string | null;
   billing_city?: string | null;
   billing_state?: string | null;
@@ -524,8 +524,6 @@ interface RawApiUser {
 
 const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   let billingAddress: BillingAddress | null = null;
-
-  // Construct billingAddress object if any of the individual fields exist
   if (
     apiUser.billing_street ||
     apiUser.billing_city ||
@@ -545,6 +543,7 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   return {
     id: String(apiUser.id),
     email: apiUser.email,
+    password: apiUser.password, // Map password
     name: apiUser.name || null,
     isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1,
     billingAddress: billingAddress,
@@ -608,14 +607,31 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
 };
 
 
-export const createUser = async (userData: { email: string, name?: string, isAdmin?: boolean }): Promise<User> => {
+export const createUser = async (data: SignupFormData): Promise<User> => {
   if (API_BASE_URL && USERS_API_URL) {
-    console.log(`[createUser] Attempting to create user via API: ${USERS_API_URL} for email: ${userData.email}`);
-    const payload = {
-      email: userData.email,
-      name: userData.name || '',
-      isAdmin: userData.isAdmin ? '1' : '0', 
+    console.log(`[createUser] Attempting to create user via API: ${USERS_API_URL} for email: ${data.email}`);
+    // Construct payload based on RawApiUser structure expected by the backend
+    const payload: Partial<RawApiUser> = {
+      email: data.email.toLowerCase(),
+      name: data.name,
+      password: data.password, // Send password
+      isAdmin: '0', // Default to not admin on signup
+      // Add individual billing address fields if provided
+      billing_street: data.billing_street || undefined,
+      billing_city: data.billing_city || undefined,
+      billing_state: data.billing_state || undefined,
+      billing_postal_code: data.billing_postal_code || undefined,
+      billing_country: data.billing_country || undefined,
     };
+    
+    // Remove undefined billing fields to keep payload clean if they are empty strings
+    Object.keys(payload).forEach(key => {
+      const K = key as keyof typeof payload;
+      if (payload[K] === undefined || payload[K] === '') {
+        delete payload[K];
+      }
+    });
+    
     try {
       const response = await fetch(USERS_API_URL, {
         method: 'POST',
@@ -637,15 +653,22 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
     }
   } else {
     console.warn("[createUser] API_BASE_URL or USERS_API_URL not set, using local mockUsers.");
-    if (mockUsers.some(u => u.email === userData.email)) {
+    if (mockUsers.some(u => u.email === data.email.toLowerCase())) {
       throw new Error("User with this email already exists in mock store.");
     }
     const newUser: User = {
       id: generateId('user'),
-      email: userData.email,
-      name: userData.name || '',
-      isAdmin: userData.isAdmin || false,
-      billingAddress: null, 
+      email: data.email.toLowerCase(),
+      name: data.name,
+      password: data.password,
+      isAdmin: false,
+      billingAddress: (data.billing_street || data.billing_city) ? { // Basic check if any billing info provided
+          street: data.billing_street || "",
+          city: data.billing_city || "",
+          state: data.billing_state || "",
+          postalCode: data.billing_postal_code || "",
+          country: data.billing_country || "",
+      } : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -656,30 +679,26 @@ export const createUser = async (userData: { email: string, name?: string, isAdm
 
 export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
   if (API_BASE_URL && USERS_API_URL) {
-    // Prepare a payload that matches the RawApiUser structure for the API
     const apiPayload: Partial<RawApiUser> = {};
 
     if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
+    if (dataToUpdate.password !== undefined) apiPayload.password = dataToUpdate.password;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
-    // Handle individual billing address fields
     if (dataToUpdate.billingAddress === null) {
-        // If explicitly set to null, send nulls for individual fields to clear them
         apiPayload.billing_street = null;
         apiPayload.billing_city = null;
         apiPayload.billing_state = null;
         apiPayload.billing_postal_code = null;
         apiPayload.billing_country = null;
     } else if (dataToUpdate.billingAddress) {
-        // If an object is provided, map its fields
         apiPayload.billing_street = dataToUpdate.billingAddress.street;
         apiPayload.billing_city = dataToUpdate.billingAddress.city;
         apiPayload.billing_state = dataToUpdate.billingAddress.state;
         apiPayload.billing_postal_code = dataToUpdate.billingAddress.postalCode;
         apiPayload.billing_country = dataToUpdate.billingAddress.country;
     }
-    // Any other fields from User that map directly to RawApiUser can be added here
 
     try {
       const response = await fetch(`${USERS_API_URL}/${userId}`, {
@@ -1276,11 +1295,9 @@ export const createBooking = async (
     userId: string;
     tickets: BookedTicketItem[]; 
     totalPrice: number;
-    billingAddress: BillingAddress;
+    billingAddress: BillingAddress; // This is now part of the input from checkout
   }
 ): Promise<Booking> => {
-  // User is already identified by bookingData.userId (which is an ID)
-
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
   if (!eventNsidForLookup) throw new Error("Event NSID (slug) missing from cart items for booking context.");
 
@@ -1293,18 +1310,16 @@ export const createBooking = async (
   const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
+  // Payload aligns with the database schema (camelCase, correct data types)
   const apiPayload = {
-    userId: parseInt(bookingData.userId, 10), 
-    eventId: parseInt(bookingData.eventId, 10),
-    totalPrice: bookingData.totalPrice, // Keep as number, API will handle decimal
-    // bookingDate is auto by DB
+    userId: parseInt(bookingData.userId, 10), // Ensure it's an int if DB expects int
+    eventId: parseInt(bookingData.eventId, 10), // Ensure it's an int
+    totalPrice: bookingData.totalPrice, // Send as number, DB will handle decimal
     eventName: event.name,
-    eventDate: showTimeToUse.dateTime, 
+    eventDate: showTimeToUse.dateTime, // This should be an ISO string
     eventLocation: event.location,
-    qrCodeValue: `QR_BOOKING_${generateId()}`, // API might generate this
-    // createdAt, updatedAt are auto by DB
-    // billingAddress and bookedTickets are NOT part of the main bookings table.
-    // If they need to be saved, it's via separate API calls or a different API structure.
+    qrCodeValue: `QR_BOOKING_${generateId()}`, // API might generate this or it might be set later
+    // billingAddress and bookedTickets are NOT sent to this /bookings endpoint as per current understanding
   };
   console.log("[createBooking] Sending payload to API:", JSON.stringify(apiPayload, null, 2));
 
@@ -1321,7 +1336,13 @@ export const createBooking = async (
       throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
     }
     const createdApiBooking: RawApiBooking = await response.json();
-    return transformApiBookingToAppBooking(createdApiBooking);
+    // Manually attach billingAddress to the returned App Booking object
+    // as the API doesn't store/return it directly from /bookings.
+    // This is for client-side consistency if needed immediately after creation.
+    const appBooking = transformApiBookingToAppBooking(createdApiBooking);
+    appBooking.billingAddress = bookingData.billingAddress; 
+
+    return appBooking;
   } catch (error) {
     console.error("Network or other error creating booking:", error);
     throw error;
