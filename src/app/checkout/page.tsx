@@ -35,68 +35,58 @@ const CheckoutPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
-  const [saveNewAddress, setSaveNewAddress] = useState(true);
-
+  const [saveNewAddress, setSaveNewAddress] = useState(true); // Default to true when entering new
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
     defaultValues: defaultBillingValues,
   });
 
+  // Helper to determine if the user has a non-empty saved billing address
+  const hasSavedBillingAddress = user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '');
+
+  // Effect 1: Initialize `useDefaultAddress` state when user data loads or changes.
+  // This effect primarily decides if the "Use default address" checkbox should be initially checked.
+  useEffect(() => {
+    if (user) {
+      if (hasSavedBillingAddress) {
+        setUseDefaultAddress(true);
+      } else {
+        setUseDefaultAddress(false);
+      }
+    } else {
+      setUseDefaultAddress(false); // No user, so can't use default
+    }
+  }, [user, hasSavedBillingAddress]); // Re-run if user or their address status changes
+
+  // Effect 2: Update the form content when `useDefaultAddress` state changes, or when user data (and thus potentially the default address) changes.
+  useEffect(() => {
+    if (useDefaultAddress && hasSavedBillingAddress && user && user.billingAddress) {
+      // User wants to use default, and a valid default address exists
+      billingForm.reset({
+        street: user.billingAddress.street || "",
+        city: user.billingAddress.city || "",
+        state: user.billingAddress.state || "",
+        postalCode: user.billingAddress.postalCode || "",
+        country: user.billingAddress.country || "",
+      });
+    } else {
+      // User does not want to use default, or no valid default address exists
+      // Clear form for manual input.
+      billingForm.reset(defaultBillingValues);
+      if (!useDefaultAddress) { // Only manage saveNewAddress if explicitly entering new
+          setSaveNewAddress(true); // Default to wanting to save a newly entered address
+      }
+    }
+  }, [useDefaultAddress, user, billingForm, hasSavedBillingAddress]); // React to user, checkbox, and form instance
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       document.title = 'Checkout | Event Horizon Tickets';
     }
   }, []);
-
-  // Effect to initialize form and `useDefaultAddress` based on `user`
-  useEffect(() => {
-    if (user) {
-      if (user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '')) {
-        setUseDefaultAddress(true);
-        billingForm.reset({
-          street: user.billingAddress.street || "",
-          city: user.billingAddress.city || "",
-          state: user.billingAddress.state || "",
-          postalCode: user.billingAddress.postalCode || "",
-          country: user.billingAddress.country || "",
-        });
-      } else {
-        setUseDefaultAddress(false);
-        billingForm.reset(defaultBillingValues);
-      }
-    } else {
-      setUseDefaultAddress(false);
-      billingForm.reset(defaultBillingValues);
-    }
-  }, [user, billingForm]);
-
-  // Effect to sync form when `useDefaultAddress` changes
-  useEffect(() => {
-    if (useDefaultAddress) {
-      if (user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '')) {
-        billingForm.reset({
-          street: user.billingAddress.street || "",
-          city: user.billingAddress.city || "",
-          state: user.billingAddress.state || "",
-          postalCode: user.billingAddress.postalCode || "",
-          country: user.billingAddress.country || "",
-        });
-      } else {
-        // This case implies user.billingAddress is null/empty, or user became null
-        // So "use default" shouldn't be possible. Switch off and clear.
-        setUseDefaultAddress(false);
-        billingForm.reset(defaultBillingValues);
-      }
-    } else {
-      // When switching to manual entry (useDefaultAddress is false),
-      // reset to empty fields for the user to type in a new address.
-      // This ensures that if they toggle off "use default", they get a clean slate.
-      billingForm.reset(defaultBillingValues);
-      setSaveNewAddress(true); // Default to saving a newly entered address
-    }
-  }, [useDefaultAddress, user, billingForm]);
 
 
   const handleConfirmBooking = async (formBillingData: BillingAddress) => {
@@ -117,7 +107,7 @@ const CheckoutPage = () => {
 
     setIsProcessing(true);
 
-    const billingDataForBooking = (useDefaultAddress && user?.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== ''))
+    const billingDataForBooking = (useDefaultAddress && hasSavedBillingAddress && user?.billingAddress)
       ? user.billingAddress
       : formBillingData;
 
@@ -144,9 +134,8 @@ const CheckoutPage = () => {
 
       toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
 
+      // If a new address was entered (not using default) AND the user wants to save it
       if (!useDefaultAddress && saveNewAddress && user && updateUser) {
-        // Check if the entered form data is actually different from default empty values
-        // and different from potentially existing (but not used) user.billingAddress
         const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
         if (isNewAddressMeaningful) {
             try {
@@ -157,7 +146,7 @@ const CheckoutPage = () => {
             toast({
                 title: "Profile Update Failed",
                 description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
-                variant: "default"
+                variant: "default" // Changed to default as it's not a critical booking error
             });
             }
         }
@@ -165,7 +154,7 @@ const CheckoutPage = () => {
 
       const bookingPayloadForCreateBooking = {
         userId: user.id,
-        eventId: primaryEventId,
+        eventId: primaryEventId, 
         tickets: cart.map(item => ({
             eventNsid: item.eventNsid,
             eventId: item.eventId,
@@ -176,7 +165,8 @@ const CheckoutPage = () => {
             showTimeId: item.showTimeId,
         })),
         totalPrice: finalTotal,
-        billingAddress: billingDataForBooking,
+        // billingAddress is NOT sent to /bookings endpoint as per schema,
+        // it's handled for user profile update above.
       };
 
       const newBooking = await createBooking(bookingPayloadForCreateBooking);
@@ -198,12 +188,12 @@ const CheckoutPage = () => {
       setIsProcessing(false);
     }
   };
+  
+  const isFormReadOnly = useDefaultAddress && hasSavedBillingAddress;
 
-  const canUseDefaultAddress = !!(user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== ''));
-
-  const submitButtonDisabled = !user || isProcessing || cart.length === 0 ||
-                              (!useDefaultAddress && !billingForm.formState.isValid && billingForm.formState.isSubmitted);
-
+  // Determine if the submit button should be disabled
+  const isManualBillingAddressInvalid = !useDefaultAddress && !billingForm.formState.isValid && billingForm.formState.isSubmitted;
+  const submitButtonDisabled = !user || isProcessing || cart.length === 0 || isManualBillingAddressInvalid;
 
   if (authLoading) {
     return (
@@ -295,13 +285,13 @@ const CheckoutPage = () => {
                   <CardDescription>Enter your billing information.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {user && canUseDefaultAddress && (
+                  {user && hasSavedBillingAddress && (
                     <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md bg-muted/30">
                       <Checkbox
                         id="useDefaultAddress"
                         checked={useDefaultAddress}
                         onCheckedChange={(checked) => setUseDefaultAddress(Boolean(checked))}
-                        disabled={!canUseDefaultAddress}
+                        disabled={!hasSavedBillingAddress} // Should always be enabled if visible
                       />
                       <FormLabel htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                         Use my saved billing address
@@ -315,7 +305,7 @@ const CheckoutPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Street Address</FormLabel>
-                        <FormControl><Input placeholder="123 Main St" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
+                        <FormControl><Input placeholder="123 Main St" {...field} readOnly={isFormReadOnly} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -327,7 +317,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>City</FormLabel>
-                          <FormControl><Input placeholder="Anytown" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
+                          <FormControl><Input placeholder="Anytown" {...field} readOnly={isFormReadOnly} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -338,7 +328,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>State / Province</FormLabel>
-                          <FormControl><Input placeholder="CA" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
+                          <FormControl><Input placeholder="CA" {...field} readOnly={isFormReadOnly} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -351,7 +341,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Postal / Zip Code</FormLabel>
-                          <FormControl><Input placeholder="90210" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
+                          <FormControl><Input placeholder="90210" {...field} readOnly={isFormReadOnly} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -362,14 +352,14 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Country</FormLabel>
-                          <FormControl><Input placeholder="United States" {...field} readOnly={useDefaultAddress && canUseDefaultAddress} /></FormControl>
+                          <FormControl><Input placeholder="United States" {...field} readOnly={isFormReadOnly} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
 
-                  {user && !useDefaultAddress && (
+                  {user && !useDefaultAddress && ( // Only show if manually entering address
                      <div className="flex items-center space-x-2 pt-4">
                         <Checkbox
                             id="saveNewAddress"
@@ -395,6 +385,7 @@ const CheckoutPage = () => {
                     </p>
                 </CardContent>
               </Card>
+              {/* Submit button moved to sticky summary card */}
             </form>
           </Form>
         </div>
@@ -415,7 +406,7 @@ const CheckoutPage = () => {
               <Button
                 size="lg"
                 className="w-full"
-                onClick={billingForm.handleSubmit(handleConfirmBooking)}
+                onClick={billingForm.handleSubmit(handleConfirmBooking)} // Trigger form submission here
                 disabled={submitButtonDisabled}
                 suppressHydrationWarning
               >
@@ -431,3 +422,4 @@ const CheckoutPage = () => {
 
 export default CheckoutPage;
 
+    
