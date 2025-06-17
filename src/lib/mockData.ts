@@ -1,6 +1,6 @@
 
 import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData } from './types';
-import { parse, isValid, format } from 'date-fns';
+import { parse, isValid, format, parseISO } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
