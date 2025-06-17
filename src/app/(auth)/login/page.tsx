@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2 } from 'lucide-react';
 
 const LoginFormContent = () => {
-  const { login } = useAuth();
+  const { login } = useAuth(); // auth context login function
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -24,13 +24,14 @@ const LoginFormContent = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const success = await login(email);
+    // Call login from AuthContext with email and password
+    const success = await login(email, password); 
     if (success) {
       toast({ title: "Login Successful", description: "Welcome back!" });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
     } else {
-      toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
+      toast({ title: "Login Failed", description: "Invalid email or password. (Note: Password check is a placeholder and not secure for production)", variant: "destructive" });
       setIsLoading(false);
     }
   };
