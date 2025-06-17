@@ -28,11 +28,6 @@ export const SignupFormSchema = z.object({
   email: z.string().email("Invalid email address."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
   confirmPassword: z.string(),
-  // Billing address fields are now part of the main schema, but grouped under an optional object
-  // This makes the whole billing address section optional for signup.
-  // If you want individual fields to be optional but the group mandatory if any field is filled,
-  // more complex Zod logic like .partial().optional() or .superRefine might be needed.
-  // For simplicity, making the whole address block optional for now.
   billing_street: z.string().optional().or(z.literal('')),
   billing_city: z.string().optional().or(z.literal('')),
   billing_state: z.string().optional().or(z.literal('')),
@@ -42,16 +37,11 @@ export const SignupFormSchema = z.object({
   message: "Passwords do not match",
   path: ["confirmPassword"],
 }).refine(data => {
-  // If any billing address field is filled, all should be (or at least the core ones)
-  // This is a basic check; can be made more granular
   const billingFields = [data.billing_street, data.billing_city, data.billing_state, data.billing_postal_code, data.billing_country];
   const filledFields = billingFields.filter(field => field && field.trim() !== "").length;
   if (filledFields > 0 && filledFields < 5) {
-      // This refine is illustrative. You might want specific per-field errors if making billing address mandatory IF one field is entered.
-      // For now, if some are filled, we assume the user intends to fill it. Zod's .min() on individual fields handles "required if entered".
-      // This example doesn't add a specific error here but illustrates a point for more complex logic.
   }
-  return true; // Or return false with a path and message for complex cross-field validation
+  return true;
 });
 
 export type SignupFormData = z.infer<typeof SignupFormSchema>;
@@ -75,11 +65,11 @@ export type OrganizerFormData = z.infer<typeof OrganizerFormSchema>;
 
 // --- Category Related ---
 export interface Category {
-  id: string | number; 
+  id: string | number;
   name: string;
-  svg_name?: string | null; 
-  createdAt?: string; 
-  updatedAt?: string; 
+  svg_name?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 export const CategoryFormSchema = z.object({
   name: z.string().min(2, "Category name must be at least 2 characters long.").max(50, "Category name must be 50 characters or less."),
@@ -90,7 +80,7 @@ export type CategoryFormData = z.infer<typeof CategoryFormSchema>;
 
 // --- TicketType Related ---
 export const TicketTypeFormSchema = z.object({
-  id: z.string().optional(), 
+  id: z.string().optional(),
   name: z.string().min(1, "Ticket type name is required"),
   price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
   availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative").describe("Default/template availability for new showtimes"),
@@ -100,10 +90,10 @@ export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 
 export interface TicketType {
   id: string;
-  eventId?: string; 
+  eventId?: string;
   name: string;
   price: number;
-  availability: number; 
+  availability: number;
   description?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -111,15 +101,15 @@ export interface TicketType {
 
 // --- ShowTime Related ---
 export const ShowTimeTicketAvailabilityFormSchema = z.object({
-  id: z.string().optional(), 
-  ticketTypeId: z.string().min(1, "Ticket Type ID is required"), 
-  ticketTypeName: z.string(), 
+  id: z.string().optional(),
+  ticketTypeId: z.string().min(1, "Ticket Type ID is required"),
+  ticketTypeName: z.string(),
   availableCount: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative"),
 });
 export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAvailabilityFormSchema>;
 
 export const ShowTimeFormSchema = z.object({
-  id: z.string().optional(), 
+  id: z.string().optional(),
   dateTime: z.date({ required_error: "Show date and time is required" }),
   ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema).min(1, "At least one ticket type's availability must be specified for the showtime."),
 });
@@ -127,16 +117,16 @@ export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
 
 export interface ShowTimeTicketAvailability {
   id: string;
-  showTimeId?: string; 
-  ticketTypeId?: string; 
-  ticketType: Pick<TicketType, 'id' | 'name' | 'price'>; 
+  showTimeId?: string;
+  ticketTypeId?: string;
+  ticketType: Pick<TicketType, 'id' | 'name' | 'price'>;
   availableCount: number;
   createdAt?: string;
   updatedAt?: string;
 }
 export interface ShowTime {
   id: string;
-  eventId?: string; 
+  eventId?: string;
   dateTime: string; // ISO string
   ticketAvailabilities: ShowTimeTicketAvailability[];
   createdAt?: string;
@@ -149,7 +139,7 @@ export interface Event {
   id: string;
   name: string;
   slug: string;
-  date: string; 
+  date: string;
   location: string;
   description: string;
   category: string;
@@ -160,7 +150,7 @@ export interface Event {
   organizer?: Organizer;
   ticketTypes?: TicketType[];
   showTimes?: ShowTime[];
-  mapLink?: string | null; 
+  mapLink?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -170,12 +160,12 @@ export const EventFormSchema = z.object({
   slug: z.string()
     .min(3, "Slug must be at least 3 characters")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen."),
-  date: z.date({ required_error: "Main event date is required" }), 
+  date: z.date({ required_error: "Main event date is required" }),
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(1, "Category is required"),
   imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
-  organizerId: z.string().min(1, "Organizer is required"), 
+  organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
   ticketTypes: z.array(TicketTypeFormSchema).min(1, "At least one ticket type definition is required."),
@@ -209,6 +199,9 @@ export interface Booking {
   qrCodeValue: string;
   totalPrice: number;
   billingAddress: BillingAddress;
+  bookedTickets: BookedTicket[]; // May be empty if summary view
+  showtime?: string; // From API, e.g., "14:00:00"
+  tickettype?: string; // From API, e.g., "Early Bird, Regular"
   createdAt?: string;
   updatedAt?: string;
 }
