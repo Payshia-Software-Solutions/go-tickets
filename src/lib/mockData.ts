@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData } from './types'; // Added SignupFormData
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData } from './types';
 import { parse, isValid } from 'date-fns';
 
 // API Base URL from environment variable
@@ -109,6 +109,17 @@ interface ApiEventFlat {
   createdAt?: string;
   updatedAt?: string;
 }
+
+// Interface for the direct response from /availability endpoint
+interface AvailabilityRecord {
+  id: string;
+  showTimeId: string;
+  ticketTypeId: string;
+  availableCount: string; // API returns string
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 
 const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
   return {
@@ -297,7 +308,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   }
 
   const populatedShowTimes: ShowTime[] = [];
-  if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE) {
+  if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE && AVAILABILITY_API_URL) {
     console.log(`[getEventBySlug] Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
     try {
       const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
@@ -318,7 +329,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
           };
 
           console.log(`[getEventBySlug] Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
-          let rawAvailabilities: ApiShowTimeTicketAvailabilityFlat[] = [];
+          let rawAvailabilities: AvailabilityRecord[] = [];
           try {
             const availabilityResponse = await fetch(`${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
             if (!availabilityResponse.ok) {
@@ -331,28 +342,21 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           
-          const availabilitiesMap = new Map<string, ApiShowTimeTicketAvailabilityFlat>();
-          rawAvailabilities.forEach(avail => {
-            if (avail.ticketTypeId) {
-              availabilitiesMap.set(String(avail.ticketTypeId), avail);
-            }
-          });
-          
-          detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
-            const specificAvailability = availabilitiesMap.get(masterTt.id);
-            const availableCount = specificAvailability ? (parseInt(String(specificAvailability.availableCount), 10) || 0) : 0;
-            const availabilityRecordId = specificAvailability ? specificAvailability.id : generateId('sta-mock');
-
-            return {
-              id: availabilityRecordId,
-              showTimeId: basicSt.id,
-              ticketTypeId: masterTt.id,
-              ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-              availableCount: availableCount,
-              createdAt: specificAvailability ? parseApiDateString(specificAvailability.createdAt) : undefined,
-              updatedAt: specificAvailability ? parseApiDateString(specificAvailability.updatedAt) : undefined,
-            };
-          });
+          // Map rawAvailabilities (which are AvailabilityRecord) to ShowTimeTicketAvailability
+          detailedShowTime.ticketAvailabilities = rawAvailabilities
+            .filter(avail => masterTicketTypes.some(masterTt => masterTt.id === avail.ticketTypeId)) // Ensure master TT exists
+            .map(avail => {
+                const masterTt = masterTicketTypes.find(m => m.id === avail.ticketTypeId)!; // We filtered above
+                return {
+                    id: avail.id, // This is the ID of the availability record itself
+                    showTimeId: avail.showTimeId,
+                    ticketTypeId: avail.ticketTypeId,
+                    ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+                    availableCount: parseInt(avail.availableCount, 10) || 0,
+                    createdAt: parseApiDateString(avail.createdAt),
+                    updatedAt: parseApiDateString(avail.updatedAt),
+                };
+            });
           
           populatedShowTimes.push(detailedShowTime);
         }
@@ -363,14 +367,12 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   }
   eventBase.showTimes = populatedShowTimes;
 
-  if (eventBase.showTimes.length === 0 && masterTicketTypes.length > 0) { // Check if masterTicketTypes has items
+  if (eventBase.showTimes.length === 0 && masterTicketTypes.length > 0) {
       console.warn(`[getEventBySlug] No showtimes were successfully fetched or populated for event ${slug}, but master ticket types exist. Event page may not show showtimes.`);
   } else if (eventBase.showTimes.length > 0) {
       eventBase.showTimes.forEach(st => {
           if (st.ticketAvailabilities.length === 0 && masterTicketTypes.length > 0) {
               console.warn(`[getEventBySlug] Showtime ${st.id} for event ${slug} has no ticket availabilities after fetch, even though master ticket types exist. This means no availability records were found for this showtime, or all are sold out (count 0).`);
-          } else if (st.ticketAvailabilities.length !== (masterTicketTypes.length || 0)) {
-              console.warn(`[getEventBySlug] Mismatch in ticket availability count for showtime ${st.id} (Event ${slug}). Expected ${masterTicketTypes.length}, got ${st.ticketAvailabilities.length}. This means not all master ticket types had corresponding availability records or were defaulted to 0.`);
           }
       });
   }
@@ -390,8 +392,8 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 
 // In-memory data stores for entities NOT yet migrated to API or for specific mock scenarios
 const mockUsers: User[] = [
-  { id: 'user-1', email: 'admin@example.com', name: 'Admin User', isAdmin: true, password: "password123", billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'user-2', email: 'customer@example.com', name: 'Regular Customer', isAdmin: false, password: "password123", billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'user-1', email: 'admin@example.com', password: "password123", name: 'Admin User', isAdmin: true, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'user-2', email: 'customer@example.com', password: "password123", name: 'Regular Customer', isAdmin: false, billingAddress: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ];
 let mockEventsStore: Event[] = []; 
 
@@ -510,7 +512,7 @@ export const deleteCategory = async (categoryId: string | number): Promise<boole
 interface RawApiUser {
   id: string | number;
   email: string;
-  password?: string; // Added password
+  password?: string;
   name?: string | null;
   isAdmin: string | number;
   createdAt?: string;
@@ -543,7 +545,7 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   return {
     id: String(apiUser.id),
     email: apiUser.email,
-    password: apiUser.password, // Map password
+    password: apiUser.password,
     name: apiUser.name || null,
     isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1,
     billingAddress: billingAddress,
@@ -610,13 +612,11 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
 export const createUser = async (data: SignupFormData): Promise<User> => {
   if (API_BASE_URL && USERS_API_URL) {
     console.log(`[createUser] Attempting to create user via API: ${USERS_API_URL} for email: ${data.email}`);
-    // Construct payload based on RawApiUser structure expected by the backend
     const payload: Partial<RawApiUser> = {
       email: data.email.toLowerCase(),
       name: data.name,
-      password: data.password, // Send password
-      isAdmin: '0', // Default to not admin on signup
-      // Add individual billing address fields if provided
+      password: data.password, // Sending password
+      isAdmin: '0', // Default to not admin
       billing_street: data.billing_street || undefined,
       billing_city: data.billing_city || undefined,
       billing_state: data.billing_state || undefined,
@@ -624,7 +624,7 @@ export const createUser = async (data: SignupFormData): Promise<User> => {
       billing_country: data.billing_country || undefined,
     };
     
-    // Remove undefined billing fields to keep payload clean if they are empty strings
+    // Remove undefined fields from payload to avoid sending them as null if not intended
     Object.keys(payload).forEach(key => {
       const K = key as keyof typeof payload;
       if (payload[K] === undefined || payload[K] === '') {
@@ -660,9 +660,9 @@ export const createUser = async (data: SignupFormData): Promise<User> => {
       id: generateId('user'),
       email: data.email.toLowerCase(),
       name: data.name,
-      password: data.password,
+      password: data.password, // Storing password in mock (not secure for real apps)
       isAdmin: false,
-      billingAddress: (data.billing_street || data.billing_city) ? { // Basic check if any billing info provided
+      billingAddress: (data.billing_street || data.billing_city) ? { // Check if any billing info is present
           street: data.billing_street || "",
           city: data.billing_city || "",
           state: data.billing_state || "",
@@ -683,7 +683,8 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
 
     if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
-    if (dataToUpdate.password !== undefined) apiPayload.password = dataToUpdate.password;
+    // Password update should ideally be a separate, more secure flow, not part of general update
+    // if (dataToUpdate.password !== undefined) apiPayload.password = dataToUpdate.password; 
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
     
     if (dataToUpdate.billingAddress === null) {
@@ -699,6 +700,7 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
         apiPayload.billing_postal_code = dataToUpdate.billingAddress.postalCode;
         apiPayload.billing_country = dataToUpdate.billingAddress.country;
     }
+
 
     try {
       const response = await fetch(`${USERS_API_URL}/${userId}`, {
@@ -1272,6 +1274,9 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`, 
     totalPrice: parsedPrice,
     billingAddress: parsedBillingAddress,
+    // Booked tickets are not part of the main booking table, so this array would be empty
+    // unless your API's GET /bookings/{id} endpoint specifically joins and returns them.
+    // For now, assuming it does based on previous structure, but this might need adjustment.
     bookedTickets: (apiBooking.booked_tickets || apiBooking.bookedTickets || []).map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
       bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id), 
@@ -1289,13 +1294,91 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
   };
 };
 
+
+// --- Ticket Availability Update Functions ---
+async function patchAvailabilityRecord(availabilityRecordId: string, newCount: number): Promise<boolean> {
+  if (!AVAILABILITY_API_URL) {
+    console.error("AVAILABILITY_API_URL is not defined. Cannot update availability.");
+    return false;
+  }
+  const url = `${AVAILABILITY_API_URL}/${availabilityRecordId}`;
+  // The API for availability seems to expect `availableCount` as a string from sample data.
+  const payload = { availableCount: String(newCount) }; 
+  console.log(`[patchAvailabilityRecord] Updating availability ID ${availabilityRecordId} to count ${newCount}. URL: ${url}, Payload:`, payload);
+
+  try {
+    const response = await fetch(url, {
+      method: 'PUT', // Or PATCH, depending on API design for partial updates
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: `API error ${response.status} updating availability.` }));
+      console.error(`[patchAvailabilityRecord] Failed to update availability for record ${availabilityRecordId}. Status: ${response.status}`, errorBody);
+      return false;
+    }
+    console.log(`[patchAvailabilityRecord] Successfully updated availability for record ${availabilityRecordId}.`);
+    return true;
+  } catch (error) {
+    console.error(`[patchAvailabilityRecord] Network or other error updating availability for record ${availabilityRecordId}:`, error);
+    return false;
+  }
+}
+
+async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId: string, quantityBooked: number): Promise<void> {
+  if (!AVAILABILITY_API_URL) {
+    console.error("[updateAvailabilityForBookedItem] AVAILABILITY_API_URL is not defined.");
+    return;
+  }
+  // Fetch all availability records for the showTimeId
+  const fetchUrl = `${AVAILABILITY_API_URL}?showTimeId=${showTimeId}`;
+  console.log(`[updateAvailabilityForBookedItem] Fetching availability records for showTimeId: ${showTimeId}, ticketTypeId: ${ticketTypeId} from ${fetchUrl}`);
+
+  try {
+    const response = await fetch(fetchUrl);
+    if (!response.ok) {
+      console.error(`[updateAvailabilityForBookedItem] Failed to fetch availability records for showTimeId ${showTimeId}. Status: ${response.status}`, await response.text());
+      return;
+    }
+    const availabilityRecords: AvailabilityRecord[] = await response.json();
+    if (!Array.isArray(availabilityRecords)) {
+        console.error(`[updateAvailabilityForBookedItem] Expected array of availability records for showTimeId ${showTimeId}, got:`, availabilityRecords);
+        return;
+    }
+
+    // Find the specific record for the ticketTypeId
+    const specificRecord = availabilityRecords.find(ar => ar.ticketTypeId === ticketTypeId);
+
+    if (specificRecord) {
+      const currentCount = parseInt(specificRecord.availableCount, 10);
+      if (isNaN(currentCount)) {
+        console.error(`[updateAvailabilityForBookedItem] Invalid currentAvailableCount '${specificRecord.availableCount}' for record ${specificRecord.id}.`);
+        return;
+      }
+      const newCount = currentCount - quantityBooked;
+      // Do not let count go below 0 client-side; API might also enforce this
+      const countToSet = Math.max(0, newCount); 
+      
+      if (newCount < 0) {
+        console.warn(`[updateAvailabilityForBookedItem] Calculated new count ${newCount} is less than 0 for record ${specificRecord.id}. Setting to 0. This indicates an oversell or data sync issue.`);
+      }
+      await patchAvailabilityRecord(specificRecord.id, countToSet);
+    } else {
+      console.warn(`[updateAvailabilityForBookedItem] No availability record found for showTimeId ${showTimeId} and ticketTypeId ${ticketTypeId}. Cannot update count.`);
+    }
+  } catch (error) {
+    console.error(`[updateAvailabilityForBookedItem] Error processing availability for showTimeId ${showTimeId}, ticketTypeId ${ticketTypeId}:`, error);
+  }
+}
+
 export const createBooking = async (
   bookingData: {
     eventId: string; 
     userId: string;
     tickets: BookedTicketItem[]; 
     totalPrice: number;
-    billingAddress: BillingAddress; // This is now part of the input from checkout
+    billingAddress: BillingAddress; // This field will NOT be sent to /bookings based on schema
   }
 ): Promise<Booking> => {
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
@@ -1310,19 +1393,21 @@ export const createBooking = async (
   const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
-  // Payload aligns with the database schema (camelCase, correct data types)
+  // Prepare payload according to the bookings table schema
   const apiPayload = {
-    userId: parseInt(bookingData.userId, 10), // Ensure it's an int if DB expects int
-    eventId: parseInt(bookingData.eventId, 10), // Ensure it's an int
-    totalPrice: bookingData.totalPrice, // Send as number, DB will handle decimal
-    eventName: event.name,
-    eventDate: showTimeToUse.dateTime, // This should be an ISO string
-    eventLocation: event.location,
-    qrCodeValue: `QR_BOOKING_${generateId()}`, // API might generate this or it might be set later
-    // billingAddress and bookedTickets are NOT sent to this /bookings endpoint as per current understanding
+    userId: parseInt(bookingData.userId, 10), // int
+    eventId: parseInt(bookingData.eventId, 10), // int
+    totalPrice: bookingData.totalPrice, // decimal(10,2) - send as number
+    eventName: event.name, // varchar(255)
+    eventDate: showTimeToUse.dateTime, // datetime - ensure this is in a format API accepts (ISO string is usually fine)
+    eventLocation: event.location, // varchar(255)
+    qrCodeValue: `QR_BOOKING_${generateId()}`, // text
+    // bookingDate, createdAt, updatedAt are auto-managed by DB
+    // billingAddress and bookedTickets are NOT part of this table
   };
-  console.log("[createBooking] Sending payload to API:", JSON.stringify(apiPayload, null, 2));
+  console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
+  let createdApiBooking: RawApiBooking;
   try {
     const response = await fetch(BOOKINGS_API_URL, {
       method: 'POST',
@@ -1335,18 +1420,30 @@ export const createBooking = async (
       console.error("API Error creating booking:", response.status, errorBody);
       throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
     }
-    const createdApiBooking: RawApiBooking = await response.json();
-    // Manually attach billingAddress to the returned App Booking object
-    // as the API doesn't store/return it directly from /bookings.
-    // This is for client-side consistency if needed immediately after creation.
-    const appBooking = transformApiBookingToAppBooking(createdApiBooking);
-    appBooking.billingAddress = bookingData.billingAddress; 
-
-    return appBooking;
+    createdApiBooking = await response.json();
   } catch (error) {
     console.error("Network or other error creating booking:", error);
     throw error;
   }
+
+  // After successful booking creation, update ticket availabilities for each booked item
+  if (createdApiBooking && createdApiBooking.id) {
+    console.log(`[createBooking] Booking ${createdApiBooking.id} created. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
+    for (const ticketItem of bookingData.tickets) {
+      try {
+        await updateAvailabilityForBookedItem(ticketItem.ticketTypeId, ticketItem.showTimeId, ticketItem.quantity);
+      } catch (availError) {
+        console.error(`[createBooking] Failed to update availability for ticketType ${ticketItem.ticketTypeId} on showTime ${ticketItem.showTimeId} for booking ${createdApiBooking.id}. Error:`, availError);
+        // Decide if this should be a critical failure or just logged. For now, logging.
+      }
+    }
+  }
+
+  // Return the booking object (transformed)
+  // Manually attach billingAddress to the app-level Booking object for client-side use if needed, as it's not stored on main booking record in DB
+  const appBooking = transformApiBookingToAppBooking(createdApiBooking);
+  appBooking.billingAddress = bookingData.billingAddress; 
+  return appBooking;
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
@@ -1369,6 +1466,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
     }
     const apiBooking: RawApiBooking = await response.json();
     const mappedBooking = transformApiBookingToAppBooking(apiBooking);
+    // If bookedTickets are stored separately, you might need another API call here to fetch and attach them
     return mappedBooking;
   } catch (error) {
     console.error(`Network or other error fetching booking ${id}:`, error);
@@ -1489,4 +1587,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
-
