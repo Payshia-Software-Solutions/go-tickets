@@ -22,37 +22,44 @@ import Link from 'next/link';
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
-  const { user, loading: authLoading, updateUser } = useAuth(); // Added updateUser from useAuth
+  const { user, loading: authLoading, updateUser } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const defaultBillingValues: BillingAddress = {
+    street: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
+  };
+
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
-    defaultValues: {
-      street: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "",
-    },
+    defaultValues: defaultBillingValues,
   });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Checkout | Event Horizon Tickets';
+      document.title = 'Checkout | GoTickets.lk';
     }
   }, []);
 
   useEffect(() => {
     // Pre-fill form if user has a billing address
-    if (user?.billingAddress) {
-      billingForm.reset(user.billingAddress);
+    if (user?.billingAddress && typeof user.billingAddress === 'object') {
+      billingForm.reset({
+        street: user.billingAddress.street || "",
+        city: user.billingAddress.city || "",
+        state: user.billingAddress.state || "",
+        postalCode: user.billingAddress.postalCode || "",
+        country: user.billingAddress.country || "",
+      });
     } else {
-      // If user has no billing address, ensure form is reset to empty (or defaultValues)
-      billingForm.reset(billingForm.formState.defaultValues);
+      billingForm.reset(defaultBillingValues);
     }
-  }, [user, billingForm]); // billingForm.reset and billingForm.formState.defaultValues are stable
+  }, [user, billingForm]); // billingForm is stable
 
   const handleConfirmBooking = async (billingData: BillingAddress) => {
     if (!user) {
@@ -82,7 +89,6 @@ const CheckoutPage = () => {
     const finalTotal = totalPrice + taxes;
 
     try {
-      // Simulate payment
       const paymentResult = await processMockPayment({
         amount: finalTotal,
         billingAddress: billingData,
@@ -97,24 +103,24 @@ const CheckoutPage = () => {
       toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
 
       // Update user's billing address on their profile
-      if (user) {
+      if (user && updateUser) {
         try {
           await updateUser(user.id, { billingAddress: billingData });
-          toast({ title: "Billing Address Updated", description: "Your billing address has been updated on your profile." });
+          toast({ title: "Billing Address Saved", description: "Your billing address has been saved to your profile." });
         } catch (updateError) {
           console.error("Failed to update user billing address:", updateError);
           toast({
             title: "Address Profile Update Failed",
             description: "Could not save the billing address to your profile, but booking will proceed. You can update your address in account settings.",
-            variant: "default" // Not destructive, as booking itself might still succeed
+            variant: "default"
           });
         }
       }
 
       const bookingPayloadForCreateBooking = {
         userId: user.id,
-        eventId: primaryEventId, // This should be the actual ID for the event
-        tickets: cart.map(item => ({ // Ensure this matches BookedTicketItem structure
+        eventId: primaryEventId,
+        tickets: cart.map(item => ({
             eventNsid: item.eventNsid,
             eventId: item.eventId,
             ticketTypeId: item.ticketTypeId,
@@ -123,8 +129,8 @@ const CheckoutPage = () => {
             pricePerTicket: item.pricePerTicket,
             showTimeId: item.showTimeId,
         })),
-        totalPrice: finalTotal, // This is the total with taxes for the booking record
-        // Billing address is NOT sent here; it's updated on the user's profile
+        totalPrice: finalTotal,
+        // Billing address is now saved to user profile, not directly on booking record
       };
 
       const newBooking = await createBooking(bookingPayloadForCreateBooking);
@@ -169,7 +175,7 @@ const CheckoutPage = () => {
     );
   }
 
-  const taxes = totalPrice * 0.1; // Mock 10% tax
+  const taxes = totalPrice * 0.1;
   const finalTotal = totalPrice + taxes;
 
   return (
@@ -234,7 +240,7 @@ const CheckoutPage = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Billing Address</CardTitle>
-                  <CardDescription>Enter your billing information for this booking. This will update your profile.</CardDescription>
+                  <CardDescription>Enter your billing information. This will be saved to your profile.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <FormField
@@ -331,7 +337,7 @@ const CheckoutPage = () => {
                 size="lg"
                 className="w-full"
                 onClick={billingForm.handleSubmit(handleConfirmBooking)}
-                disabled={!user || isProcessing || cart.length === 0 || !billingForm.formState.isValid && billingForm.formState.isSubmitted}
+                disabled={!user || isProcessing || cart.length === 0 || (!billingForm.formState.isValid && billingForm.formState.isSubmitted) }
                 suppressHydrationWarning
               >
                 {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><ShieldCheck className="mr-2 h-4 w-4"/>Confirm & Proceed to Payment</>}

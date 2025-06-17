@@ -1,15 +1,16 @@
 
 "use client";
 
-import type { User, SignupFormData } from '@/lib/types';
-import { getUserByEmail, createUser as apiCreateUser } from '@/lib/mockData';
+import type { User, SignupFormData, BillingAddress } from '@/lib/types'; // Added BillingAddress
+import { getUserByEmail, createUser as apiCreateUser, updateUser as apiUpdateUser } from '@/lib/mockData'; // Added updateUser as apiUpdateUser
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, passwordFromForm: string) => Promise<boolean>; // Updated signature
+  login: (email: string, passwordFromForm: string) => Promise<boolean>;
   logout: () => void;
   signup: (data: SignupFormData) => Promise<void>;
+  updateUser: (userId: string, dataToUpdate: Partial<Pick<User, 'name' | 'email' | 'billingAddress'>>) => Promise<User | null>; // More specific type
   loading: boolean;
 }
 
@@ -23,32 +24,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const storedUser = localStorage.getItem(localStorageKey);
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        // Ensure the stored user has a billingAddress structure if individual fields exist.
+        // This helps bridge older stored user objects.
+        if (parsedUser && !parsedUser.billingAddress && (parsedUser.billing_street || parsedUser.billing_city)) {
+            parsedUser.billingAddress = {
+                street: parsedUser.billing_street || "",
+                city: parsedUser.billing_city || "",
+                state: parsedUser.billing_state || "",
+                postalCode: parsedUser.billing_postal_code || "",
+                country: parsedUser.billing_country || "",
+            };
+        }
+        setUser(parsedUser);
+      } catch (error) {
+        console.error("Failed to parse user from localStorage:", error);
+        localStorage.removeItem(localStorageKey); // Clear corrupted data
+      }
     }
     setLoading(false);
   }, []);
 
-  const login = async (email: string, passwordFromForm: string) => { // Updated signature
+  const login = async (email: string, passwordFromForm: string) => {
     setLoading(true);
     const normalizedEmail = email.toLowerCase();
     const foundUser = await getUserByEmail(normalizedEmail);
 
     if (foundUser) {
-      // IMPORTANT: This is a placeholder for actual password verification
-      // In a real application, the passwordFromForm should be sent to a backend endpoint
-      // which would then compare it securely against the stored hash.
-      // The client should NEVER directly compare a plaintext password with a stored hash.
-      
       let loginSuccess = false;
-
       if (!foundUser.password || foundUser.password === "") {
-        // If user record has no password or empty password, allow login (e.g. legacy users)
         loginSuccess = true;
         console.warn(`User ${foundUser.email} logged in without password check (empty password in DB).`);
       } else {
-        // If user has a password (hash) in DB, simulate check against a known test password
-        // THIS IS NOT SECURE FOR PRODUCTION. Replace with backend validation.
-        if (passwordFromForm === "password123") { // Placeholder for actual password check
+        if (passwordFromForm === "password123") {
           loginSuccess = true;
           console.warn(`User ${foundUser.email} logged in using placeholder password "password123". THIS IS NOT SECURE.`);
         } else {
@@ -89,8 +98,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUser = async (userId: string, dataToUpdate: Partial<Pick<User, 'name' | 'email' | 'billingAddress'>>) => {
+    if (!user || user.id !== userId) {
+      console.error("AuthContext: updateUser called for non-matching or non-logged-in user.");
+      return null;
+    }
+    setLoading(true);
+    try {
+      const updatedUserFromApi = await apiUpdateUser(userId, dataToUpdate);
+      if (updatedUserFromApi) {
+        setUser(updatedUserFromApi);
+        localStorage.setItem(localStorageKey, JSON.stringify(updatedUserFromApi));
+        return updatedUserFromApi;
+      }
+      return null;
+    } catch (error) {
+      console.error("AuthContext: Error calling apiUpdateUser", error);
+      throw error; // Re-throw to be caught by the caller
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -103,4 +134,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
