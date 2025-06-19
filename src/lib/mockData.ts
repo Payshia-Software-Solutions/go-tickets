@@ -1565,26 +1565,24 @@ export const createBooking = async (
   const showTimeDateTime = parseISO(showTimeToUse.dateTime);
 
   const apiPayload = {
-    userId: parseInt(bookingData.userId, 10),
-    eventId: parseInt(bookingData.eventId, 10),
+    userId: bookingData.userId, // Already a string
+    eventId: bookingData.eventId, // Already a string
     totalPrice: bookingData.totalPrice,
     eventName: event.name,
-    eventDate: showTimeToUse.dateTime, 
+    eventDate: format(showTimeDateTime, "yyyy-MM-dd HH:mm:ss"), 
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
     tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), 
     eventLocation: event.location,
     qrCodeValue: `QR_BOOKING_${generateId()}`,
-    booked_tickets: bookingData.tickets.map(t => ({ // Detailed ticket items
+    booked_tickets: bookingData.tickets.map(t => ({ 
       ticketTypeId: t.ticketTypeId,
       showTimeId: t.showTimeId,
       quantity: t.quantity,
       pricePerTicket: t.pricePerTicket,
-      ticketTypeName: t.ticketTypeName, // For API reference/logging
-      eventNsid: t.eventNsid,           // For API reference/logging
-      eventId: t.eventId                // For API reference/logging
+      ticketTypeName: t.ticketTypeName, 
+      eventNsid: t.eventNsid,           
+      eventId: t.eventId               
     })),
-    // billing_address field could be added here if API supports it directly on booking creation
-    // For now, billingAddress from bookingData is primarily for user profile update path
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1606,7 +1604,7 @@ export const createBooking = async (
 
     // Crucial check for ID
     if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
-        console.error("[createBooking] API did not return a valid booking ID. Parsed Response was:", createdApiBooking);
+        console.error("[createBooking] API did not return a valid booking ID. Response:", createdApiBooking);
         throw new Error("Booking created, but API did not return a valid booking ID.");
     }
 
@@ -1814,6 +1812,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
