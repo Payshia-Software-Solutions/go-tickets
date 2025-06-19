@@ -64,15 +64,7 @@ const parseApiDateString = (dateString?: string): string | undefined => {
 };
 
 // Define interfaces for flat API responses to avoid 'any'
-interface ApiShowTimeTicketAvailabilityFlat {
-  id: string;
-  showTimeId?: string;
-  ticketTypeId?: string;
-  ticketType?: { id: string; name: string; price: number };
-  availableCount: string | number;
-  createdAt?: string;
-  updatedAt?: string;
-}
+// Removed ApiShowTimeTicketAvailabilityFlat as it was unused.
 
 interface ApiShowTimeFlat {
   id: string;
@@ -605,7 +597,6 @@ export const loginUserWithApi = async (email: string, password_from_form: string
         errorMessage = `Login failed: ${response.status}. Please try again.`;
       }
       
-      // Refined console logging: only log responseData if it's not an empty object when message is generic for 401
       if (errorMessage === "Invalid email or password." && responseData && Object.keys(responseData).length === 0) {
         console.error(`[loginUserWithApi] API Error: ${errorMessage}`);
       } else {
@@ -1346,18 +1337,18 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
   } else {
-    // @ts-ignore
+    // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
     if (apiBooking.billing_street || apiBooking.billing_city) {
         parsedBillingAddress = {
-            // @ts-ignore
+            // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
             street: apiBooking.billing_street || "",
-            // @ts-ignore
+            // @ts-expect-error Property 'billing_city' does not exist on type 'RawApiBooking'.
             city: apiBooking.billing_city || "",
-            // @ts-ignore
+            // @ts-expect-error Property 'billing_state' does not exist on type 'RawApiBooking'.
             state: apiBooking.billing_state || "",
-            // @ts-ignore
+            // @ts-expect-error Property 'billing_postal_code' does not exist on type 'RawApiBooking'.
             postalCode: apiBooking.billing_postal_code || "",
-            // @ts-ignore
+            // @ts-expect-error Property 'billing_country' does not exist on type 'RawApiBooking'.
             country: apiBooking.billing_country || "",
         };
     } else {
@@ -1802,4 +1793,5 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
