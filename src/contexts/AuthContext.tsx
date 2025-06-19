@@ -1,16 +1,16 @@
 
 "use client";
 
-import type { User, SignupFormData, BillingAddress } from '@/lib/types'; // Added BillingAddress
-import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser, getUserByEmail } from '@/lib/mockData'; // Updated import
+import type { User, SignupFormData, type BillingAddress } from '@/lib/types'; // Used 'import type' for BillingAddress
+import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser, getUserByEmail } from '@/lib/mockData';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, passwordFromForm: string) => Promise<void>; // Updated return type
+  login: (email: string, passwordFromForm: string) => Promise<void>;
   logout: () => void;
   signup: (data: SignupFormData) => Promise<void>;
-  updateUser: (userId: string, dataToUpdate: Partial<Pick<User, 'name' | 'email' | 'billingAddress'>>) => Promise<User | null>; // More specific type
+  updateUser: (userId: string, dataToUpdate: Partial<Pick<User, 'name' | 'email' | 'billingAddress'>>) => Promise<User | null>;
   loading: boolean;
 }
 
@@ -50,18 +50,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     const normalizedEmail = email.toLowerCase();
     try {
-      // Call the new API login function
       const loggedInUser = await loginUserWithApi(normalizedEmail, passwordFromForm);
-
-      // No need to check if loggedInUser is null, as loginUserWithApi throws on failure.
-      // If it completes without error, loggedInUser is guaranteed to be a User object.
       setUser(loggedInUser);
       localStorage.setItem(localStorageKey, JSON.stringify(loggedInUser));
-      // Success, no need to return true, just complete.
     } catch (error) {
-      // Re-throw the error to be caught by the calling component (LoginFormContent)
-      // The calling component will be responsible for user-facing error messages.
-      console.error("Login attempt failed in AuthContext:", error); // Log for debugging
+      console.error("Login attempt failed in AuthContext:", error);
       if (error instanceof Error) {
         throw error;
       }
@@ -108,7 +101,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return null;
     } catch (error) {
       console.error("AuthContext: Error calling apiUpdateUser", error);
-      throw error; // Re-throw to be caught by the caller
+      throw error;
     } finally {
       setLoading(false);
     }
