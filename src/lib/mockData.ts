@@ -349,7 +349,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
                 availCreatedAt = parseApiDateString(matchingAvailRecord.createdAt) || availCreatedAt;
                 availUpdatedAt = parseApiDateString(matchingAvailRecord.updatedAt) || availUpdatedAt;
             } else {
-                console.warn(`[getEventBySlug] No specific availability record found for master ticket type ID ${masterTt.id} ('${masterTt.name}') for showtime ${basicSt.id}. Defaulting count to 0.`);
+                // console.warn(`[getEventBySlug] No specific availability record found for master ticket type ID ${masterTt.id} ('${masterTt.name}') for showtime ${basicSt.id}. Defaulting count to 0.`);
             }
             
             return {
@@ -436,8 +436,8 @@ export const getCategoryById = async (id: string | number): Promise<Category | n
     return {
         ...category,
         id: String(category.id),
-        createdAt: parseApiDateString(cat.createdAt),
-        updatedAt: parseApiDateString(cat.updatedAt)
+        createdAt: parseApiDateString(category.createdAt),
+        updatedAt: parseApiDateString(category.updatedAt)
     };
   } catch (error) {
     console.error("Error in getCategoryById:", error);
@@ -1571,6 +1571,7 @@ export const createBooking = async (
   if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
 
   const showTimeDateTime = parseISO(showTimeToUse.dateTime);
+  const firstTicketTypeName = bookingData.tickets.length > 0 ? bookingData.tickets[0].ticketTypeName : "N/A";
 
   const apiPayloadForBooking = {
     userId: bookingData.userId,
@@ -1580,10 +1581,9 @@ export const createBooking = async (
     eventName: event.name,
     eventDate: format(showTimeDateTime, "yyyy-MM-dd HH:mm:ss"), 
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
-    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), 
+    tickettype: firstTicketTypeName, 
     eventLocation: event.location,
     qrCodeValue: `QR_BOOKING_${generateId()}`,
-    // booked_tickets array is removed from here
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayloadForBooking, null, 2));
 
@@ -1603,7 +1603,8 @@ export const createBooking = async (
     createdApiBooking = await response.json();
     console.log("[createBooking] Parsed API response from POST /bookings (createdApiBooking):", JSON.stringify(createdApiBooking, null, 2)); 
 
-    if (!createdApiBooking || createdApiBooking.id == null) {
+    // Crucial check for ID
+    if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
         console.error("[createBooking] API did not return a valid booking ID for main booking. Response:", createdApiBooking);
         throw new Error("Main booking created, but API did not return a valid booking ID.");
     }
@@ -1620,13 +1621,13 @@ export const createBooking = async (
     console.log(`[createBooking] Main booking ${mainBookingId} created. Now creating ${bookingData.tickets.length} booked_ticket line item(s)...`);
     for (const ticketItem of bookingData.tickets) {
       const apiPayloadForBookedTicket = {
-        bookingId: mainBookingId,
+        bookingId: mainBookingId, // Link to the main booking
         eventId: ticketItem.eventId,
         ticketTypeId: ticketItem.ticketTypeId,
         ticketTypeName: ticketItem.ticketTypeName,
-        quantity: String(ticketItem.quantity), // String
-        pricePerTicket: ticketItem.pricePerTicket.toFixed(2), // String
-        showTimeId: ticketItem.showTimeId, // Include showTimeId for the line item
+        quantity: String(ticketItem.quantity),
+        pricePerTicket: ticketItem.pricePerTicket.toFixed(2),
+        showTimeId: ticketItem.showTimeId,
       };
       try {
         const lineItemResponse = await fetch(BOOKED_TICKETS_API_URL, {
@@ -1637,7 +1638,7 @@ export const createBooking = async (
         if (!lineItemResponse.ok) {
           const errorBody = await lineItemResponse.json().catch(() => ({ message: `Failed to create line item for ticket type ${ticketItem.ticketTypeId}` }));
           console.error(`API Error creating booked_ticket line item for TTypeID ${ticketItem.ticketTypeId}:`, lineItemResponse.status, errorBody);
-          // Decide on error handling: throw, or collect errors? For now, log and continue.
+          // Optionally throw an error here or collect errors to decide if the whole booking should fail
         } else {
           const createdLineItem: RawApiBookedTicket = await lineItemResponse.json();
            createdBookedTicketLineItems.push({
@@ -1892,6 +1893,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
