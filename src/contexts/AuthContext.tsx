@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User, SignupFormData, type BillingAddress } from '@/lib/types'; // Used 'import type' for BillingAddress
+import type { User, SignupFormData } from '@/lib/types'; // Removed direct import of BillingAddress
 import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser, getUserByEmail } from '@/lib/mockData';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
