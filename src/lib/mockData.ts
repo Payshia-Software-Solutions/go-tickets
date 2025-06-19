@@ -84,10 +84,10 @@ interface ApiShowTimeFlat {
 
 interface ApiTicketTypeFromEndpoint {
     id: string;
-    eventId?: string;
+    eventId?: string; // API might send this as number, ensure mapping handles it if string is needed
     name: string;
-    price: string;
-    availability: string;
+    price: string; // API sends string
+    availability: string; // API sends string
     description?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -572,23 +572,26 @@ export const loginUserWithApi = async (email: string, password_from_form: string
       responseData = await response.json();
     } catch (jsonError) {
       console.warn(`[loginUserWithApi] Could not parse JSON response. Status: ${response.status}. Error:`, jsonError);
-      if (response.status === 401) {
+      if (response.status === 401) { // Unauthorized
         throw new Error("Invalid email or password.");
       }
       if (!response.ok) {
          const errorText = await response.text().catch(() => "Could not read error response body.");
          throw new Error(`Login failed: ${response.status}. Server response: ${errorText.substring(0,150)}`);
       }
+      // If parsing failed but response was somehow OK (unlikely for JSON API)
+      throw new Error("Login response was not valid JSON.");
     }
 
     if (!response.ok) {
       let errorMessage = responseData.message;
-      if (response.status === 401 && !errorMessage) {
+      if (response.status === 401 && !errorMessage) { // Unauthorized, but API didn't provide a message
         errorMessage = "Invalid email or password.";
-      } else if (!errorMessage) {
+      } else if (!errorMessage) { // Other errors, but API didn't provide a message
         errorMessage = `Login failed: ${response.status}. Please try again.`;
       }
-      // Refined console logging
+      
+      // Refined console logging: only log responseData if it's not an empty object when message is generic for 401
       if (errorMessage === "Invalid email or password." && responseData && Object.keys(responseData).length === 0) {
         console.error(`[loginUserWithApi] API Error: ${errorMessage}`);
       } else {
@@ -608,9 +611,10 @@ export const loginUserWithApi = async (email: string, password_from_form: string
     }
   } catch (error) {
     console.error("[loginUserWithApi] Network or other error during login:", error);
-    if (error instanceof Error) {
+    if (error instanceof Error) { // Re-throw if already an Error object
       throw error;
     }
+    // Wrap other error types (e.g., strings from non-JSON responses)
     throw new Error("An unexpected error occurred during login. Please check your connection and try again.");
   }
 };
@@ -1458,6 +1462,83 @@ async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId:
   }
 }
 
+async function _updateMasterTicketTypeTemplateAvailability(ticketTypeId: string, quantityBooked: number, eventId: string): Promise<void> {
+  if (!TICKET_TYPES_API_URL) {
+    console.error("[_updateMasterTicketTypeTemplateAvailability] TICKET_TYPES_API_URL is not defined.");
+    return;
+  }
+
+  let ticketTypeToUpdate: ApiTicketTypeFromEndpoint | undefined;
+  try {
+    const getResponse = await fetch(`${TICKET_TYPES_API_URL}/${ticketTypeId}`);
+    if (getResponse.ok) {
+      ticketTypeToUpdate = await getResponse.json();
+      if (String(ticketTypeToUpdate?.eventId) !== String(eventId)) {
+        // Safety check: if the fetched ticket type doesn't belong to the event, something is wrong.
+        console.warn(`Fetched master TicketType ID ${ticketTypeId} belongs to event ${ticketTypeToUpdate?.eventId}, expected ${eventId}. Ignoring update.`);
+        return;
+      }
+    } else if (getResponse.status === 404) {
+      console.warn(`Master TicketType ID ${ticketTypeId} not found via direct GET /ticket-types/${ticketTypeId}.`);
+      // If not found by direct ID (perhaps API doesn't support GET by ID), then fallback cannot be used easily here without more context.
+      // The original fallback to fetchTicketTypesForEvent(eventId) might be too broad if eventId is not readily available or reliable.
+      // For now, if direct GET fails with 404, we assume the ticket type doesn't exist or can't be fetched this way.
+      return;
+    } else {
+      console.error(`Failed to GET master TicketType ID ${ticketTypeId}: ${getResponse.status} - ${await getResponse.text()}`);
+      return; // Don't proceed if GET failed for other reasons
+    }
+  } catch (e) {
+    console.error(`Error during GET master TicketType ID ${ticketTypeId}: ${e}.`);
+    return; // Don't proceed on network error
+  }
+
+  if (!ticketTypeToUpdate) {
+    console.error(`Master TicketType ID ${ticketTypeId} could not be fetched or found. Cannot update template availability.`);
+    return;
+  }
+
+  const currentTemplateAvailability = parseInt(ticketTypeToUpdate.availability, 10);
+  if (isNaN(currentTemplateAvailability)) {
+    console.error(`Invalid template availability "${ticketTypeToUpdate.availability}" for master TicketType ID ${ticketTypeId}.`);
+    return;
+  }
+
+  const newTemplateAvailability = Math.max(0, currentTemplateAvailability - quantityBooked);
+
+  const putPayload: ApiTicketTypeFromEndpoint = {
+    ...ticketTypeToUpdate, // Spread all existing fields
+    availability: String(newTemplateAvailability), // Update availability
+    updatedAt: new Date().toISOString(), // Update timestamp
+  };
+
+  // Ensure eventId is a string if it exists in the payload from GET
+  if (putPayload.eventId !== undefined) {
+    putPayload.eventId = String(putPayload.eventId);
+  }
+
+
+  console.log(`[_updateMasterTicketTypeTemplateAvailability] Updating master TicketType ID ${ticketTypeId} template availability to ${newTemplateAvailability}. PUT payload:`, JSON.stringify(putPayload));
+
+  try {
+    const putResponse = await fetch(`${TICKET_TYPES_API_URL}/${ticketTypeId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(putPayload),
+    });
+
+    if (!putResponse.ok) {
+      const errorBody = await putResponse.json().catch(() => ({ message: `API error ${putResponse.status}` }));
+      console.error(`Failed to update master TicketType ID ${ticketTypeId} template availability. Status: ${putResponse.status}`, errorBody);
+    } else {
+      console.log(`Successfully updated master TicketType ID ${ticketTypeId} template availability.`);
+    }
+  } catch (error) {
+    console.error(`Network error updating master TicketType ID ${ticketTypeId} template availability:`, error);
+  }
+}
+
+
 export const createBooking = async (
   bookingData: {
     eventId: string;
@@ -1486,11 +1567,11 @@ export const createBooking = async (
     eventId: parseInt(bookingData.eventId, 10),
     totalPrice: bookingData.totalPrice,
     eventName: event.name,
-    eventDate: showTimeToUse.dateTime, // Full ISO string for eventDate
+    eventDate: showTimeToUse.dateTime, 
     eventLocation: event.location,
     qrCodeValue: `QR_BOOKING_${generateId()}`,
-    showtime: format(showTimeDateTime, "HH:mm:ss"), // Only time part for showtime
-    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), // Comma-separated ticket type names
+    showtime: format(showTimeDateTime, "HH:mm:ss"), 
+    tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), 
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1517,7 +1598,12 @@ export const createBooking = async (
     console.log(`[createBooking] Booking ${createdApiBooking.id} created. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
     for (const ticketItem of bookingData.tickets) {
       try {
+        // Updates showtime-specific availability (AvailabilityRecord)
         await updateAvailabilityForBookedItem(ticketItem.ticketTypeId, ticketItem.showTimeId, ticketItem.quantity);
+        
+        // Updates master TicketType template availability
+        await _updateMasterTicketTypeTemplateAvailability(ticketItem.ticketTypeId, ticketItem.quantity, bookingData.eventId);
+
       } catch (availError) {
         console.error(`[createBooking] Failed to update availability for ticketType ${ticketItem.ticketTypeId} on showTime ${ticketItem.showTimeId} for booking ${createdApiBooking.id}. Error:`, availError);
       }
@@ -1525,7 +1611,7 @@ export const createBooking = async (
   }
 
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
-  appBooking.billingAddress = bookingData.billingAddress; // Manually add billing address to app-level booking object
+  appBooking.billingAddress = bookingData.billingAddress; 
   return appBooking;
 };
 
