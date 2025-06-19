@@ -75,7 +75,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
     if (newQuantity > maxAvailability) {
         toast({
             title: "Limit Reached",
-            description: `Only ${maxAvailability} tickets available for ${ticketTypeForAvailability.name}.`,
+            description: `Only ${maxAvailability} tickets available for ${ticketTypeForAvailability.name} for this showtime.`,
             variant: "destructive",
         });
         newQuantity = maxAvailability;
@@ -101,7 +101,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
         } else {
             // For addToCart, we need the full TicketType object, not just the Pick.
             // Find it from the event's master list.
-            const fullTicketType = event.ticketTypes.find(tt => tt.id === ticketTypeId);
+            const fullTicketType = event.ticketTypes?.find(tt => tt.id === ticketTypeId);
             if (fullTicketType) {
                 addToCart(event, fullTicketType, newQuantity, selectedShowTime.id);
                  toast({
@@ -157,8 +157,8 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
                 <h4 className="font-semibold text-lg">{availability.ticketType.name}</h4>
                 <p className="text-sm text-muted-foreground">LKR {availability.ticketType.price.toFixed(2)} each</p>
                 {/* Find full description from event.ticketTypes if needed */}
-                {/* <p className="text-xs text-muted-foreground mt-1">{event.ticketTypes.find(tt => tt.id === availability.ticketType.id)?.description}</p> */}
-                <p className="text-xs text-primary mt-1">{availability.availableCount} available</p>
+                {/* <p className="text-xs text-muted-foreground mt-1">{event.ticketTypes?.find(tt => tt.id === availability.ticketType.id)?.description}</p> */}
+                <p className="text-xs text-primary mt-1">{availability.availableCount} available for this showtime</p>
               </div>
               <div className="flex items-center space-x-2">
                 <Button
