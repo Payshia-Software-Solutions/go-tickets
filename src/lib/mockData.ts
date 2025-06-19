@@ -566,58 +566,51 @@ export const loginUserWithApi = async (email: string, password_from_form: string
       body: JSON.stringify({ email, password: password_from_form }),
     });
 
-    // Try to parse JSON regardless of response.ok, as error responses might also be JSON
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let responseData: any = {}; // Initialize to empty object
+    let responseData: any = {};
     try {
       responseData = await response.json();
     } catch (jsonError) {
-      // If parsing JSON fails (e.g., empty body or non-JSON), log it but proceed
-      // We'll rely on response.ok and status code primarily for flow control
       console.warn(`[loginUserWithApi] Could not parse JSON response. Status: ${response.status}. Error:`, jsonError);
-      // For a 401, even if the body isn't JSON, we want a standard message
       if (response.status === 401) {
         throw new Error("Invalid email or password.");
       }
-      // For other errors where JSON parsing failed, construct a generic message
       if (!response.ok) {
          const errorText = await response.text().catch(() => "Could not read error response body.");
          throw new Error(`Login failed: ${response.status}. Server response: ${errorText.substring(0,150)}`);
       }
-      // If response was ok but JSON failed (unlikely for this endpoint), something is very wrong
     }
 
     if (!response.ok) {
       let errorMessage = responseData.message;
       if (response.status === 401 && !errorMessage) {
-        // If it's 401 and server didn't provide a specific message, use a standard one.
         errorMessage = "Invalid email or password.";
       } else if (!errorMessage) {
-        // For other errors without a specific message from server.
         errorMessage = `Login failed: ${response.status}. Please try again.`;
       }
-      console.error(`[loginUserWithApi] API Error: ${errorMessage}`, responseData);
+      // Refined console logging
+      if (errorMessage === "Invalid email or password." && responseData && Object.keys(responseData).length === 0) {
+        console.error(`[loginUserWithApi] API Error: ${errorMessage}`);
+      } else {
+        console.error(`[loginUserWithApi] API Error: ${errorMessage}`, responseData);
+      }
       throw new Error(errorMessage);
     }
 
-    // If response.ok is true, we expect responseData.user to exist
     if (responseData.user) {
       console.log("[loginUserWithApi] Login successful. Raw user data:", responseData.user);
       const appUser = mapApiUserToAppUser(responseData.user as RawApiUser);
       console.log("[loginUserWithApi] Mapped app user:", appUser);
       return appUser;
     } else {
-      // This case should ideally not be reached if response.ok is true and API contract is followed
       console.error("[loginUserWithApi] Login response OK, but no user object in responseData.user. Response:", responseData);
       throw new Error("Login successful, but user data was not returned correctly by the API.");
     }
   } catch (error) {
     console.error("[loginUserWithApi] Network or other error during login:", error);
     if (error instanceof Error) {
-      // If it's already one of our specific errors (like "Invalid email or password"), rethrow it
       throw error;
     }
-    // For truly unexpected errors (e.g., network failure before request even sent)
     throw new Error("An unexpected error occurred during login. Please check your connection and try again.");
   }
 };
@@ -1532,7 +1525,7 @@ export const createBooking = async (
   }
 
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
-  appBooking.billingAddress = bookingData.billingAddress;
+  appBooking.billingAddress = bookingData.billingAddress; // Manually add billing address to app-level booking object
   return appBooking;
 };
 
@@ -1707,3 +1700,5 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
+
+    
