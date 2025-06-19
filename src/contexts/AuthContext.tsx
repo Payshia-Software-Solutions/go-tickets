@@ -2,7 +2,7 @@
 "use client";
 
 import type { User, SignupFormData, BillingAddress } from '@/lib/types'; // Added BillingAddress
-import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser } from '@/lib/mockData'; // Updated import
+import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser, getUserByEmail } from '@/lib/mockData'; // Updated import
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface AuthContextType {
