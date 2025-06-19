@@ -1565,9 +1565,9 @@ export const createBooking = async (
   const showTimeDateTime = parseISO(showTimeToUse.dateTime);
 
   const apiPayload = {
-    userId: bookingData.userId, // Already a string
-    eventId: bookingData.eventId, // Already a string
-    totalPrice: bookingData.totalPrice,
+    userId: bookingData.userId,
+    eventId: bookingData.eventId,
+    totalPrice: bookingData.totalPrice.toFixed(2), // Send as string with 2 decimal places
     eventName: event.name,
     eventDate: format(showTimeDateTime, "yyyy-MM-dd HH:mm:ss"), 
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
@@ -1577,11 +1577,9 @@ export const createBooking = async (
     booked_tickets: bookingData.tickets.map(t => ({ 
       ticketTypeId: t.ticketTypeId,
       showTimeId: t.showTimeId,
-      quantity: t.quantity,
-      pricePerTicket: t.pricePerTicket,
-      ticketTypeName: t.ticketTypeName, 
-      eventNsid: t.eventNsid,           
-      eventId: t.eventId               
+      quantity: t.quantity
+      // pricePerTicket, ticketTypeName, eventNsid, eventId are removed for simplicity
+      // Backend should derive price and name from ticketTypeId
     })),
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
@@ -1812,6 +1810,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
