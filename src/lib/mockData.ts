@@ -9,6 +9,7 @@ const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
 const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
 const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
 const USERS_API_URL = "https://gotickets-server.payshia.com/users";
+const USER_LOGIN_API_URL = "https://gotickets-server.payshia.com/users/login"; // New login URL
 
 const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/showtimes/event";
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
@@ -545,13 +546,50 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   return {
     id: String(apiUser.id),
     email: apiUser.email,
-    password: apiUser.password,
+    password: apiUser.password, // This field is usually not sent to the client
     name: apiUser.name || null,
     isAdmin: String(apiUser.isAdmin) === "1" || Number(apiUser.isAdmin) === 1, // Handle string '0'/'1' or number 0/1
     billingAddress: billingAddress,
     createdAt: parseApiDateString(apiUser.createdAt),
     updatedAt: parseApiDateString(apiUser.updatedAt),
   };
+};
+
+export const loginUserWithApi = async (email: string, password_from_form: string): Promise<User> => {
+  console.log(`[loginUserWithApi] Attempting login for email: ${email}`);
+  try {
+    const response = await fetch(USER_LOGIN_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password: password_from_form }),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      const errorMessage = responseData.message || `Login failed: ${response.status}`;
+      console.error(`[loginUserWithApi] API Error: ${errorMessage}`, responseData);
+      throw new Error(errorMessage);
+    }
+
+    if (responseData.user) {
+      console.log("[loginUserWithApi] Login successful. Raw user data:", responseData.user);
+      const appUser = mapApiUserToAppUser(responseData.user as RawApiUser);
+      console.log("[loginUserWithApi] Mapped app user:", appUser);
+      return appUser;
+    } else {
+      console.error("[loginUserWithApi] Login response OK, but no user object in responseData.user. Response:", responseData);
+      throw new Error("Login successful, but user data was not returned by the API.");
+    }
+  } catch (error) {
+    console.error("[loginUserWithApi] Network or other error during login:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("An unexpected error occurred during login.");
+  }
 };
 
 export const getUserByEmail = async (email: string): Promise<User | null> => {

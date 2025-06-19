@@ -24,14 +24,18 @@ const LoginFormContent = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Call login from AuthContext with email and password
-    const success = await login(email, password); 
-    if (success) {
+    try {
+      await login(email, password); // login now returns void or throws
       toast({ title: "Login Successful", description: "Welcome back!" });
       const redirectUrl = searchParams.get('redirect') || '/account_dashboard';
       router.push(redirectUrl);
-    } else {
-      toast({ title: "Login Failed", description: "Invalid email or password. (Note: Password check is a placeholder and not secure for production)", variant: "destructive" });
+    } catch (error) {
+      let errorMessage = "Login failed. Please check your credentials and try again.";
+      if (error instanceof Error) {
+        errorMessage = error.message; // Use the specific message from the API/AuthContext
+      }
+      toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -120,4 +124,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-

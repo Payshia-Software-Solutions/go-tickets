@@ -2,12 +2,12 @@
 "use client";
 
 import type { User, SignupFormData, BillingAddress } from '@/lib/types'; // Added BillingAddress
-import { getUserByEmail, createUser as apiCreateUser, updateUser as apiUpdateUser } from '@/lib/mockData'; // Added updateUser as apiUpdateUser
+import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser } from '@/lib/mockData'; // Updated import
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, passwordFromForm: string) => Promise<boolean>;
+  login: (email: string, passwordFromForm: string) => Promise<void>; // Updated return type
   logout: () => void;
   signup: (data: SignupFormData) => Promise<void>;
   updateUser: (userId: string, dataToUpdate: Partial<Pick<User, 'name' | 'email' | 'billingAddress'>>) => Promise<User | null>; // More specific type
@@ -46,35 +46,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(false);
   }, []);
 
-  const login = async (email: string, passwordFromForm: string) => {
+  const login = async (email: string, passwordFromForm: string): Promise<void> => {
     setLoading(true);
     const normalizedEmail = email.toLowerCase();
-    const foundUser = await getUserByEmail(normalizedEmail);
+    try {
+      // Call the new API login function
+      const loggedInUser = await loginUserWithApi(normalizedEmail, passwordFromForm);
 
-    if (foundUser) {
-      let loginSuccess = false;
-      if (!foundUser.password || foundUser.password === "") {
-        loginSuccess = true;
-        console.warn(`User ${foundUser.email} logged in without password check (empty password in DB).`);
-      } else {
-        if (passwordFromForm === "password123") {
-          loginSuccess = true;
-          console.warn(`User ${foundUser.email} logged in using placeholder password "password123". THIS IS NOT SECURE.`);
-        } else {
-          console.log(`Login failed for ${foundUser.email}: Incorrect placeholder password provided. Expected "password123" for users with a stored password hash in this mock setup.`);
-        }
+      // No need to check if loggedInUser is null, as loginUserWithApi throws on failure.
+      // If it completes without error, loggedInUser is guaranteed to be a User object.
+      setUser(loggedInUser);
+      localStorage.setItem(localStorageKey, JSON.stringify(loggedInUser));
+      // Success, no need to return true, just complete.
+    } catch (error) {
+      // Re-throw the error to be caught by the calling component (LoginFormContent)
+      // The calling component will be responsible for user-facing error messages.
+      console.error("Login attempt failed in AuthContext:", error); // Log for debugging
+      if (error instanceof Error) {
+        throw error;
       }
-
-      if (loginSuccess) {
-        setUser(foundUser);
-        localStorage.setItem(localStorageKey, JSON.stringify(foundUser));
-        setLoading(false);
-        return true;
-      }
+      throw new Error("An unexpected error occurred during login.");
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
-    return false;
   };
 
   const logout = () => {
