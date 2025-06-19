@@ -64,7 +64,6 @@ const parseApiDateString = (dateString?: string): string | undefined => {
 };
 
 // Define interfaces for flat API responses to avoid 'any'
-// Removed ApiShowTimeTicketAvailabilityFlat as it was unused.
 
 interface ApiShowTimeFlat {
   id: string;
@@ -335,21 +334,19 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           
-          // Iterate over masterTicketTypes and find matching availability
           detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
-            const matchingAvailRecord = rawAvailabilities.find(ar => ar.ticketTypeId === masterTt.id);
+            const matchingAvailRecord = rawAvailabilities.find(ar => ar.ticketTypeId === masterTt.id && ar.showTimeId === basicSt.id);
             
             let availableCountForThisShowtime = 0;
-            let availabilityRecordId = generateId('sta-client'); // Default client ID if no server record
+            let availabilityRecordId = generateId('sta-client');
             let availCreatedAt = new Date().toISOString();
             let availUpdatedAt = new Date().toISOString();
 
             if (matchingAvailRecord) {
                 availableCountForThisShowtime = parseInt(matchingAvailRecord.availableCount, 10) || 0;
-                availabilityRecordId = matchingAvailRecord.id; // Use actual ID from availability record
+                availabilityRecordId = matchingAvailRecord.id;
                 availCreatedAt = parseApiDateString(matchingAvailRecord.createdAt) || availCreatedAt;
                 availUpdatedAt = parseApiDateString(matchingAvailRecord.updatedAt) || availUpdatedAt;
-
             } else {
                 console.warn(`[getEventBySlug] No specific availability record found for master ticket type ID ${masterTt.id} ('${masterTt.name}') for showtime ${basicSt.id}. Defaulting count to 0.`);
             }
@@ -1594,6 +1591,14 @@ export const createBooking = async (
       throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
     }
     createdApiBooking = await response.json();
+    console.log("[createBooking] Raw API response from POST /bookings:", JSON.stringify(createdApiBooking, null, 2)); // Log raw response
+
+    // Crucial check for ID
+    if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
+        console.error("[createBooking] API did not return a valid booking ID. Response:", createdApiBooking);
+        throw new Error("Booking created, but API did not return a valid booking ID.");
+    }
+
   } catch (error) {
     console.error("Network or other error creating booking:", error);
     throw error;
@@ -1621,6 +1626,10 @@ export const createBooking = async (
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
+  if (!id || id === "undefined" || id === "null") {
+    console.warn(`[getBookingById] Attempt to fetch booking with invalid ID: "${id}". Aborting fetch.`);
+    return undefined;
+  }
   console.log(`Attempting to fetch booking by ID: ${id} from: ${BOOKINGS_API_URL}/${id}`);
   try {
     const response = await fetch(`${BOOKINGS_API_URL}/${id}`);
@@ -1793,5 +1802,6 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
