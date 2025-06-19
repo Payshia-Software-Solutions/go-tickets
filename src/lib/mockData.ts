@@ -1547,7 +1547,7 @@ export const createBooking = async (
     userId: string;
     tickets: BookedTicketItem[];
     totalPrice: number;
-    billingAddress: BillingAddress;
+    billingAddress: BillingAddress; // Kept for potential future use or logging, but not sent to /bookings
   }
 ): Promise<Booking> => {
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
@@ -1574,6 +1574,17 @@ export const createBooking = async (
     tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), 
     eventLocation: event.location,
     qrCodeValue: `QR_BOOKING_${generateId()}`,
+    booked_tickets: bookingData.tickets.map(t => ({ // Detailed ticket items
+      ticketTypeId: t.ticketTypeId,
+      showTimeId: t.showTimeId,
+      quantity: t.quantity,
+      pricePerTicket: t.pricePerTicket,
+      ticketTypeName: t.ticketTypeName, // For API reference/logging
+      eventNsid: t.eventNsid,           // For API reference/logging
+      eventId: t.eventId                // For API reference/logging
+    })),
+    // billing_address field could be added here if API supports it directly on booking creation
+    // For now, billingAddress from bookingData is primarily for user profile update path
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1591,11 +1602,11 @@ export const createBooking = async (
       throw new Error(errorBody.message || `Failed to create booking: ${response.status}`);
     }
     createdApiBooking = await response.json();
-    console.log("[createBooking] Raw API response from POST /bookings:", JSON.stringify(createdApiBooking, null, 2)); // Log raw response
+    console.log("[createBooking] Parsed API response from POST /bookings (createdApiBooking):", JSON.stringify(createdApiBooking, null, 2)); 
 
     // Crucial check for ID
     if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
-        console.error("[createBooking] API did not return a valid booking ID. Response:", createdApiBooking);
+        console.error("[createBooking] API did not return a valid booking ID. Parsed Response was:", createdApiBooking);
         throw new Error("Booking created, but API did not return a valid booking ID.");
     }
 
@@ -1604,6 +1615,7 @@ export const createBooking = async (
     throw error;
   }
 
+  // The following operations depend on a valid createdApiBooking.id
   if (createdApiBooking && createdApiBooking.id) {
     console.log(`[createBooking] Booking ${createdApiBooking.id} created. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
     for (const ticketItem of bookingData.tickets) {
@@ -1621,12 +1633,12 @@ export const createBooking = async (
   }
 
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
-  appBooking.billingAddress = bookingData.billingAddress; 
+  appBooking.billingAddress = bookingData.billingAddress; // Add billing address from original form data to app-side object
   return appBooking;
 };
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
-  if (!id || id === "undefined" || id === "null") {
+  if (!id || id === "undefined" || id === "null" || typeof id !== 'string' || id.trim() === '') {
     console.warn(`[getBookingById] Attempt to fetch booking with invalid ID: "${id}". Aborting fetch.`);
     return undefined;
   }
@@ -1802,6 +1814,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
