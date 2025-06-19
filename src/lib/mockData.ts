@@ -343,21 +343,35 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           
-          // Map rawAvailabilities (which are AvailabilityRecord) to ShowTimeTicketAvailability
-          detailedShowTime.ticketAvailabilities = rawAvailabilities
-            .filter(avail => masterTicketTypes.some(masterTt => masterTt.id === avail.ticketTypeId)) // Ensure master TT exists
-            .map(avail => {
-                const masterTt = masterTicketTypes.find(m => m.id === avail.ticketTypeId)!; // We filtered above
-                return {
-                    id: avail.id, // This is the ID of the availability record itself
-                    showTimeId: avail.showTimeId,
-                    ticketTypeId: avail.ticketTypeId,
-                    ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                    availableCount: parseInt(avail.availableCount, 10) || 0,
-                    createdAt: parseApiDateString(avail.createdAt),
-                    updatedAt: parseApiDateString(avail.updatedAt),
-                };
-            });
+          // Iterate over masterTicketTypes and find matching availability
+          detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
+            const matchingAvailRecord = rawAvailabilities.find(ar => ar.ticketTypeId === masterTt.id);
+            
+            let availableCountForThisShowtime = 0;
+            let availabilityRecordId = generateId('sta-client'); // Default client ID if no server record
+            let availCreatedAt = new Date().toISOString();
+            let availUpdatedAt = new Date().toISOString();
+
+            if (matchingAvailRecord) {
+                availableCountForThisShowtime = parseInt(matchingAvailRecord.availableCount, 10) || 0;
+                availabilityRecordId = matchingAvailRecord.id; // Use actual ID from availability record
+                availCreatedAt = parseApiDateString(matchingAvailRecord.createdAt) || availCreatedAt;
+                availUpdatedAt = parseApiDateString(matchingAvailRecord.updatedAt) || availUpdatedAt;
+
+            } else {
+                console.warn(`[getEventBySlug] No specific availability record found for master ticket type ID ${masterTt.id} ('${masterTt.name}') for showtime ${basicSt.id}. Defaulting count to 0.`);
+            }
+            
+            return {
+                id: availabilityRecordId,
+                showTimeId: basicSt.id,
+                ticketTypeId: masterTt.id,
+                ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+                availableCount: availableCountForThisShowtime,
+                createdAt: availCreatedAt,
+                updatedAt: availUpdatedAt,
+            };
+          });
           
           populatedShowTimes.push(detailedShowTime);
         }
@@ -1568,10 +1582,10 @@ export const createBooking = async (
     totalPrice: bookingData.totalPrice,
     eventName: event.name,
     eventDate: showTimeToUse.dateTime, 
-    eventLocation: event.location,
-    qrCodeValue: `QR_BOOKING_${generateId()}`,
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
     tickettype: bookingData.tickets.map(t => t.ticketTypeName).join(', '), 
+    eventLocation: event.location,
+    qrCodeValue: `QR_BOOKING_${generateId()}`,
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayload, null, 2));
 
@@ -1788,3 +1802,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
