@@ -1559,30 +1559,41 @@ export const createBooking = async (
   }
 ): Promise<Booking> => {
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
-  if (!eventNsidForLookup) throw new Error("Event NSID (slug) missing from cart items for booking context.");
+  if (!eventNsidForLookup) {
+    console.error("[createBooking] Event NSID (slug) missing from cart items for booking context.");
+    throw new Error("Event NSID (slug) missing from cart items for booking context.");
+  }
 
   const event = await getEventBySlug(eventNsidForLookup);
-  if (!event || !event.showTimes) throw new Error("Event or its showtimes not found for booking context.");
+  if (!event || !event.showTimes) {
+    console.error(`[createBooking] Event with slug "${eventNsidForLookup}" or its showtimes not found for booking context.`);
+    throw new Error("Event or its showtimes not found for booking context.");
+  }
   
   const showTimeId = bookingData.tickets[0]?.showTimeId;
-  if (!showTimeId) throw new Error("ShowTime ID is missing in booking data.");
+  if (!showTimeId) {
+    console.error("[createBooking] ShowTime ID is missing in booking data.");
+    throw new Error("ShowTime ID is missing in booking data.");
+  }
   
   const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
-  if (!showTimeToUse) throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
-
+  if (!showTimeToUse) {
+    console.error(`[createBooking] ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
+    throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
+  }
   const showTimeDateTime = parseISO(showTimeToUse.dateTime);
   const firstTicketTypeName = bookingData.tickets.length > 0 ? bookingData.tickets[0].ticketTypeName : "N/A";
 
   const apiPayloadForBooking = {
     userId: bookingData.userId,
     eventId: bookingData.eventId,
-    totalPrice: bookingData.totalPrice.toFixed(2), // String
-    bookingDate: format(new Date(), "yyyy-MM-dd HH:mm:ss"), // Current date for booking_date
-    eventName: event.name,
+    totalPrice: bookingData.totalPrice.toFixed(2),
+    bookingDate: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
+    eventName: event.name || "N/A", // Fallback added
     eventDate: format(showTimeDateTime, "yyyy-MM-dd HH:mm:ss"), 
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
-    tickettype: firstTicketTypeName, 
-    eventLocation: event.location,
+    tickettype: firstTicketTypeName,
+    eventLocation: event.location || "N/A", // Fallback added
     qrCodeValue: `QR_BOOKING_${generateId()}`,
   };
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayloadForBooking, null, 2));
@@ -1595,13 +1606,31 @@ export const createBooking = async (
       body: JSON.stringify(apiPayloadForBooking),
     });
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: 'Failed to create main booking record and parse error response.' }));
-      console.error("API Error creating main booking record:", response.status, errorBody);
-      throw new Error(errorBody.message || `Failed to create main booking record: ${response.status}`);
+    // Attempt to parse JSON regardless of status, but handle errors.
+    try {
+      createdApiBooking = await response.json();
+    } catch (jsonError) {
+      const responseText = await response.text().catch(() => "Could not read response body.");
+      console.error(`[createBooking] Failed to parse JSON response from POST /bookings. Status: ${response.status}. Response text: ${responseText}`, jsonError);
+      // If response was not ok AND json parsing failed, throw a more generic error based on status.
+      if (!response.ok) {
+          throw new Error(`Booking creation attempt failed with status ${response.status}. API response: ${responseText.substring(0, 200)}`);
+      }
+      // If response was ok but JSON parsing failed (e.g. empty but valid response like "OK" string instead of JSON)
+      // This case is tricky, but we expect JSON. Let's assume API contract is JSON for success.
+      throw new Error(`Booking creation API responded with non-JSON. Status: ${response.status}.`);
     }
-    createdApiBooking = await response.json();
+    
     console.log("[createBooking] Parsed API response from POST /bookings (createdApiBooking):", JSON.stringify(createdApiBooking, null, 2)); 
+
+    if (!response.ok) {
+      // If here, JSON parsing succeeded but status was not ok (e.g. 400 with JSON error body)
+      const errorMsg = (createdApiBooking && typeof (createdApiBooking as any).message === 'string') 
+                       ? (createdApiBooking as any).message 
+                       : `API error ${response.status} during booking creation.`;
+      console.error("API Error creating main booking record:", response.status, createdApiBooking);
+      throw new Error(errorMsg);
+    }
 
     // Crucial check for ID
     if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
@@ -1609,9 +1638,9 @@ export const createBooking = async (
         throw new Error("Main booking created, but API did not return a valid booking ID.");
     }
 
-  } catch (error) {
+  } catch (error) { // Catches errors from fetch itself, or re-thrown errors from above
     console.error("Network or other error creating main booking record:", error);
-    throw error;
+    throw error; // Re-throw to be caught by handleConfirmBooking
   }
 
   const mainBookingId = String(createdApiBooking.id);
@@ -1621,15 +1650,16 @@ export const createBooking = async (
     console.log(`[createBooking] Main booking ${mainBookingId} created. Now creating ${bookingData.tickets.length} booked_ticket line item(s)...`);
     for (const ticketItem of bookingData.tickets) {
       const apiPayloadForBookedTicket = {
-        bookingId: mainBookingId, // Link to the main booking
+        bookingId: mainBookingId,
         eventId: ticketItem.eventId,
         ticketTypeId: ticketItem.ticketTypeId,
-        ticketTypeName: ticketItem.ticketTypeName,
+        ticketTypeName: ticketItem.ticketTypeName, // Keep for booked_tickets if API uses it
         quantity: String(ticketItem.quantity),
         pricePerTicket: ticketItem.pricePerTicket.toFixed(2),
         showTimeId: ticketItem.showTimeId,
       };
       try {
+        console.log("[createBooking] Sending payload to API /booked-tickets:", JSON.stringify(apiPayloadForBookedTicket, null, 2));
         const lineItemResponse = await fetch(BOOKED_TICKETS_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1638,7 +1668,6 @@ export const createBooking = async (
         if (!lineItemResponse.ok) {
           const errorBody = await lineItemResponse.json().catch(() => ({ message: `Failed to create line item for ticket type ${ticketItem.ticketTypeId}` }));
           console.error(`API Error creating booked_ticket line item for TTypeID ${ticketItem.ticketTypeId}:`, lineItemResponse.status, errorBody);
-          // Optionally throw an error here or collect errors to decide if the whole booking should fail
         } else {
           const createdLineItem: RawApiBookedTicket = await lineItemResponse.json();
            createdBookedTicketLineItems.push({
@@ -1675,7 +1704,7 @@ export const createBooking = async (
   }
 
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
-  appBooking.bookedTickets = createdBookedTicketLineItems; // Populate with successfully created line items
+  appBooking.bookedTickets = createdBookedTicketLineItems;
   appBooking.billingAddress = bookingData.billingAddress; 
   return appBooking;
 };
@@ -1893,6 +1922,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
