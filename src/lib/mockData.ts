@@ -1011,11 +1011,12 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to create event and parse error' }));
     throw new Error(errorBody.message || `API error creating event: ${eventResponse.status}`);
   }
-  const createdEvent: ApiEventFlat = await eventResponse.json();
-  const newEventId = createdEvent.id;
+  
+  const createEventResponse: { message: string; newEventId: string } = await eventResponse.json();
+  const newEventId = createEventResponse.newEventId;
 
   if (!newEventId) {
-    throw new Error("API did not return an ID for the newly created event.");
+    throw new Error("API did not return a newEventId for the newly created event.");
   }
 
   // Step 2: Create Ticket Types
@@ -1093,7 +1094,7 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   }
 
   // Step 5: Fetch the fully populated event to return it
-  const finalEvent = await getEventBySlug(createdEvent.slug);
+  const finalEvent = await getEventBySlug(data.slug);
   if (!finalEvent) {
     throw new Error("Failed to re-fetch the event after creation.");
   }
@@ -1916,6 +1917,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
