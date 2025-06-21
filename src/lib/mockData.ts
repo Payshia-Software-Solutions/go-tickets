@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, ShowTimeFormData, TicketTypeFormData } from './types';
 import { parse, isValid, format, parseISO } from 'date-fns';
 
 // API Base URL from environment variable
@@ -12,6 +12,7 @@ const ORGANIZERS_API_URL = "https://gotickets-server.payshia.com/organizers";
 const USERS_API_URL = "https://gotickets-server.payshia.com/users";
 const USER_LOGIN_API_URL = "https://gotickets-server.payshia.com/users/login";
 
+const SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/showtimes";
 const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/showtimes/event";
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
@@ -348,8 +349,6 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
                 availabilityRecordId = matchingAvailRecord.id;
                 availCreatedAt = parseApiDateString(matchingAvailRecord.createdAt) || availCreatedAt;
                 availUpdatedAt = parseApiDateString(matchingAvailRecord.updatedAt) || availUpdatedAt;
-            } else {
-                // console.warn(`[getEventBySlug] No specific availability record found for master ticket type ID ${masterTt.id} ('${masterTt.name}') for showtime ${basicSt.id}. Defaulting count to 0.`);
             }
             
             return {
@@ -943,7 +942,7 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
 };
 
 
-// --- Event Management (Mock - for admin operations if API_BASE_URL is not set for events) ---
+// --- Event Management ---
 export const adminGetAllEvents = async (): Promise<Event[]> => {
   if (!API_BASE_URL) {
     console.warn("API_BASE_URL not set, adminGetAllEvents using local mockEventsStore.");
@@ -983,244 +982,247 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
   }
 };
 
-
 export const createEvent = async (data: EventFormData): Promise<Event> => {
-  const organizer = await getOrganizerById(data.organizerId);
-  if (!organizer) throw new Error("Organizer not found");
+  if (!API_BASE_URL) {
+    throw new Error("API_BASE_URL is not defined. Cannot create event.");
+  }
 
-  const categoryName = data.category.trim();
-  let baseSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
-  if (!baseSlug) baseSlug = `event-${Date.now()}`;
-  const finalSlug = baseSlug;
-
-  const newEventId = generateId('evt');
-
-  const ticketTypes: TicketType[] = data.ticketTypes.map(ttData => ({
-    id: ttData.id && !ttData.id.startsWith('client-') ? ttData.id : generateId('tt'),
-    eventId: newEventId,
-    name: ttData.name,
-    price: ttData.price,
-    availability: ttData.availability,
-    description: ttData.description || null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
-
-  const showTimes: ShowTime[] = data.showTimes.map(stData => {
-    const showTimeId = stData.id && !stData.id.startsWith('client-') ? stData.id : generateId('st');
-    return {
-      id: showTimeId,
-      eventId: newEventId,
-      dateTime: stData.dateTime.toISOString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      ticketAvailabilities: stData.ticketAvailabilities.map(staData => {
-        const parentTicketType = ticketTypes.find(tt => tt.id === staData.ticketTypeId || tt.name === staData.ticketTypeName);
-        if (!parentTicketType) {
-          console.error(`Ticket type template for "${staData.ticketTypeName}" (ID: ${staData.ticketTypeId}) not found.`);
-          throw new Error(`Ticket type template for "${staData.ticketTypeName}" not found for showtime.`);
-        }
-        return {
-          id: staData.id && !staData.id.startsWith('client-') ? staData.id : generateId('sta'),
-          showTimeId: showTimeId,
-          ticketTypeId: parentTicketType.id,
-          ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
-          availableCount: staData.availableCount,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }),
-    };
-  });
-
+  // Step 1: Create the main event
   const eventPayloadForApi = {
     name: data.name,
-    slug: finalSlug,
+    slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
     date: data.date.toISOString(),
     location: data.location,
     description: data.description,
-    category: categoryName,
+    category: data.category,
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
-    ticketTypes: data.ticketTypes.map(tt => ({name: tt.name, price: tt.price, availability: tt.availability, description: tt.description})),
-    showTimes: data.showTimes.map(st => ({
-      dateTime: st.dateTime.toISOString(),
-      ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-        ticketTypeName: sta.ticketTypeName,
-        availableCount: sta.availableCount
-      }))
-    }))
   };
 
-  if (API_BASE_URL) {
-    const response = await fetch(`${API_BASE_URL}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventPayloadForApi),
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: 'Failed to create event via API and parse error' }));
-      throw new Error(errorBody.message || `API error creating event: ${response.status}`);
-    }
-    const createdApiEvent: ApiEventFlat = await response.json();
-    if (createdApiEvent.slug) {
-      const fullyPopulatedEvent = await getEventBySlug(createdApiEvent.slug);
-      if (fullyPopulatedEvent) return fullyPopulatedEvent;
-      console.warn("Failed to re-fetch fully populated event after creation, returning API response as is.");
-    }
-    return mapApiEventToAppEvent(createdApiEvent);
-  } else {
-    console.warn("API_BASE_URL not set, createEvent using local mockEventsStore.");
-    const newEvent: Event = {
-      id: newEventId,
-      name: data.name,
-      slug: finalSlug,
-      date: data.date.toISOString(),
-      location: data.location,
-      description: data.description,
-      category: categoryName,
-      imageUrl: data.imageUrl,
-      organizerId: data.organizerId,
-      organizer: organizer,
-      venueName: data.venueName,
-      venueAddress: data.venueAddress || null,
-      ticketTypes,
-      showTimes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    mockEventsStore.push(newEvent);
-    return newEvent;
+  const eventResponse = await fetch(`${API_BASE_URL}/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventPayloadForApi),
+  });
+
+  if (!eventResponse.ok) {
+    const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to create event and parse error' }));
+    throw new Error(errorBody.message || `API error creating event: ${eventResponse.status}`);
   }
+  const createdEvent: ApiEventFlat = await eventResponse.json();
+  const newEventId = createdEvent.id;
+
+  if (!newEventId) {
+    throw new Error("API did not return an ID for the newly created event.");
+  }
+
+  // Step 2: Create Ticket Types
+  const createdTicketTypes: TicketType[] = [];
+  for (const ttData of data.ticketTypes) {
+    const ticketTypePayload = {
+      ...ttData,
+      price: String(ttData.price),
+      availability: String(ttData.availability),
+      eventId: newEventId,
+    };
+    const ttResponse = await fetch(TICKET_TYPES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticketTypePayload)
+    });
+
+    if (!ttResponse.ok) {
+        console.error(`Failed to create ticket type "${ttData.name}" for event ${newEventId}. Status: ${ttResponse.status}`, await ttResponse.text());
+        continue;
+    }
+    const newTicketType: ApiTicketTypeFromEndpoint = await ttResponse.json();
+    createdTicketTypes.push({
+      id: String(newTicketType.id),
+      eventId: String(newTicketType.eventId),
+      name: newTicketType.name,
+      price: parseFloat(newTicketType.price),
+      availability: parseInt(newTicketType.availability, 10),
+      description: newTicketType.description || null
+    });
+  }
+
+  // Step 3 & 4: Create Showtimes and their Availabilities
+  for (const stData of data.showTimes) {
+    const showtimePayload = {
+      eventId: newEventId,
+      dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss"),
+    };
+    const stResponse = await fetch(SHOWTIMES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(showtimePayload)
+    });
+
+    if (!stResponse.ok) {
+        console.error(`Failed to create showtime for event ${newEventId}. Status: ${stResponse.status}`, await stResponse.text());
+        continue;
+    }
+    const newShowtime: ApiShowTimeFlat = await stResponse.json();
+    const newShowtimeId = newShowtime.id;
+
+    // Create availability records for this showtime
+    for (const staData of stData.ticketAvailabilities) {
+        const correspondingTicketType = createdTicketTypes.find(ctt => ctt.name === staData.ticketTypeName);
+        if (!correspondingTicketType) {
+            console.error(`Could not find a created ticket type matching name "${staData.ticketTypeName}" to create availability record.`);
+            continue;
+        }
+
+        const availabilityPayload = {
+            showTimeId: newShowtimeId,
+            ticketTypeId: correspondingTicketType.id,
+            availableCount: String(staData.availableCount)
+        };
+        const availResponse = await fetch(AVAILABILITY_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(availabilityPayload)
+        });
+
+        if (!availResponse.ok) {
+            console.error(`Failed to create availability for showtime ${newShowtimeId} and ticket type ${correspondingTicketType.id}. Status: ${availResponse.status}`, await availResponse.text());
+        }
+    }
+  }
+
+  // Step 5: Fetch the fully populated event to return it
+  const finalEvent = await getEventBySlug(createdEvent.slug);
+  if (!finalEvent) {
+    throw new Error("Failed to re-fetch the event after creation.");
+  }
+  return finalEvent;
 };
 
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
-  const organizer = await getOrganizerById(data.organizerId);
-  if (!organizer) throw new Error("Organizer not found");
-
-  const categoryName = data.category.trim();
-  const finalNewSlug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
-
-   const eventPayloadForApi = {
+  if (!API_BASE_URL) {
+    throw new Error("API_BASE_URL is not defined. Cannot update event.");
+  }
+  // Step 1: Update the main event details
+  const eventPayloadForApi = {
     name: data.name,
-    slug: finalNewSlug,
+    slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
     date: data.date.toISOString(),
     location: data.location,
     description: data.description,
-    category: categoryName,
+    category: data.category,
     imageUrl: data.imageUrl,
     organizerId: data.organizerId,
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
-    ticketTypes: data.ticketTypes.map(tt => ({
-      id: tt.id?.startsWith('client-') ? undefined : tt.id,
-      name: tt.name,
-      price: tt.price,
-      availability: tt.availability,
-      description: tt.description
-    })),
-    showTimes: data.showTimes.map(st => ({
-      id: st.id?.startsWith('client-') ? undefined : st.id,
-      dateTime: st.dateTime.toISOString(),
-      ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
-        id: sta.id?.startsWith('client-') ? undefined : sta.id,
-        ticketTypeId: sta.ticketTypeId,
-        ticketTypeName: sta.ticketTypeName,
-        availableCount: sta.availableCount,
-      }))
-    }))
   };
-
-  if (API_BASE_URL) {
-     const response = await fetch(`${API_BASE_URL}/events/${eventId}`, {
+  const eventResponse = await fetch(`${API_BASE_URL}/events/${eventId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(eventPayloadForApi),
-    });
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: 'Failed to update event via API and parse error' }));
-      throw new Error(errorBody.message || `API error updating event ${eventId}: ${response.status}`);
-    }
-    const updatedApiEvent: ApiEventFlat = await response.json();
-    if (updatedApiEvent.slug) {
-      const fullyPopulatedEvent = await getEventBySlug(updatedApiEvent.slug);
-      if (fullyPopulatedEvent) return fullyPopulatedEvent;
-      console.warn("Failed to re-fetch fully populated event after update, returning API response as is.");
-    }
-    return mapApiEventToAppEvent(updatedApiEvent);
-  } else {
-    console.warn(`API_BASE_URL not set, updateEvent using local mockEventsStore for event ID: ${eventId}.`);
-    const eventIndex = mockEventsStore.findIndex(e => e.id === eventId);
-    if (eventIndex === -1) return undefined;
-
-    const originalEvent = mockEventsStore[eventIndex];
-
-    if (finalNewSlug !== originalEvent.slug && mockEventsStore.some(e => e.slug === finalNewSlug && e.id !== eventId)) {
-      throw new Error("Slug already exists in mock store");
-    }
-
-    const updatedTicketTypes: TicketType[] = data.ticketTypes.map(ttData => {
-      const existingTt = originalEvent.ticketTypes?.find(ett => ett.id === ttData.id);
-      return {
-        id: existingTt?.id || ttData.id || generateId('tt'),
-        eventId,
-        name: ttData.name,
-        price: ttData.price,
-        availability: ttData.availability,
-        description: ttData.description || null,
-        createdAt: existingTt?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    const updatedShowTimes: ShowTime[] = data.showTimes.map(stData => {
-      const existingSt = originalEvent.showTimes?.find(est => est.id === stData.id);
-      const showTimeId = existingSt?.id || stData.id || generateId('st');
-      return {
-        id: showTimeId,
-        eventId,
-        dateTime: stData.dateTime.toISOString(),
-        ticketAvailabilities: stData.ticketAvailabilities.map(staData => {
-          const parentTicketType = updatedTicketTypes.find(tt => tt.id === staData.ticketTypeId || (tt.name === staData.ticketTypeName && !staData.ticketTypeId));
-          if (!parentTicketType) throw new Error(`Ticket type template ${staData.ticketTypeName} (ID: ${staData.ticketTypeId}) not found in updated list.`);
-          
-          const existingStaInOriginalShowTime = existingSt?.ticketAvailabilities.find(esta => esta.ticketType.id === parentTicketType.id);
-          return {
-            id: existingStaInOriginalShowTime?.id || staData.id || generateId('sta'),
-            showTimeId,
-            ticketTypeId: parentTicketType.id,
-            ticketType: { id: parentTicketType.id, name: parentTicketType.name, price: parentTicketType.price },
-            availableCount: staData.availableCount,
-            createdAt: existingStaInOriginalShowTime?.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-        }),
-        createdAt: existingSt?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    mockEventsStore[eventIndex] = {
-      ...originalEvent,
-      name: data.name,
-      slug: finalNewSlug,
-      date: data.date.toISOString(),
-      location: data.location,
-      description: data.description,
-      category: categoryName,
-      imageUrl: data.imageUrl,
-      organizerId: data.organizerId,
-      organizer: organizer,
-      venueName: data.venueName,
-      venueAddress: data.venueAddress || null,
-      ticketTypes: updatedTicketTypes,
-      showTimes: updatedShowTimes,
-      updatedAt: new Date().toISOString(),
-    };
-    return mockEventsStore[eventIndex];
+  });
+  if (!eventResponse.ok) {
+      const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
+      throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
   }
+  const updatedEvent: ApiEventFlat = await eventResponse.json();
+
+  // Step 2: Sync Ticket Types (Create/Update)
+  const updatedTicketTypes: TicketType[] = [];
+  for (const ttData of data.ticketTypes) {
+    const ticketTypePayload = {
+      name: ttData.name,
+      price: String(ttData.price),
+      availability: String(ttData.availability),
+      description: ttData.description || "",
+      eventId: eventId,
+    };
+    
+    let ttResponse;
+    if (ttData.id && !ttData.id.startsWith('client-')) {
+        // Update existing
+        ttResponse = await fetch(`${TICKET_TYPES_API_URL}/${ttData.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticketTypePayload)
+        });
+    } else {
+        // Create new
+        ttResponse = await fetch(TICKET_TYPES_API_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticketTypePayload)
+        });
+    }
+
+    if (!ttResponse.ok) {
+        console.error(`Failed to sync ticket type "${ttData.name}". Status: ${ttResponse.status}`, await ttResponse.text());
+        continue;
+    }
+    const syncedTicketType: ApiTicketTypeFromEndpoint = await ttResponse.json();
+    updatedTicketTypes.push({
+        id: String(syncedTicketType.id),
+        eventId: String(syncedTicketType.eventId),
+        name: syncedTicketType.name,
+        price: parseFloat(syncedTicketType.price),
+        availability: parseInt(syncedTicketType.availability, 10),
+        description: syncedTicketType.description || null
+    });
+  }
+  // Note: Deletion of ticket types/showtimes via form is not handled in this simplified flow.
+
+  // Step 3 & 4: Sync Showtimes and their Availabilities (Create/Update)
+  for (const stData of data.showTimes) {
+      const showtimePayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
+      let stResponse;
+      let showtimeId = stData.id;
+
+      if (showtimeId && !showtimeId.startsWith('client-')) {
+          stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(showtimePayload)
+          });
+      } else {
+          stResponse = await fetch(SHOWTIMES_API_URL, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(showtimePayload)
+          });
+      }
+
+      if (!stResponse.ok) {
+          console.error(`Failed to sync showtime. Status: ${stResponse.status}`, await stResponse.text());
+          continue;
+      }
+      const syncedShowtime: ApiShowTimeFlat = await stResponse.json();
+      showtimeId = syncedShowtime.id;
+
+      // Sync availabilities
+      for (const staData of stData.ticketAvailabilities) {
+          const correspondingTicketType = updatedTicketTypes.find(ctt => ctt.id === staData.ticketTypeId || ctt.name === staData.ticketTypeName);
+          if (!correspondingTicketType) continue;
+
+          const availabilityPayload = {
+              showTimeId: showtimeId,
+              ticketTypeId: correspondingTicketType.id,
+              availableCount: String(staData.availableCount)
+          };
+          let availResponse;
+          if (staData.id && !staData.id.startsWith('client-')) {
+              availResponse = await fetch(`${AVAILABILITY_API_URL}/${staData.id}`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(availabilityPayload)
+              });
+          } else {
+              availResponse = await fetch(AVAILABILITY_API_URL, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(availabilityPayload)
+              });
+          }
+          if (!availResponse.ok) {
+              console.error(`Failed to sync availability for showtime ${showtimeId}. Status: ${availResponse.status}`, await availResponse.text());
+          }
+      }
+  }
+
+  // Step 5: Fetch the fully populated event to return it
+  const finalEvent = await getEventBySlug(updatedEvent.slug);
+  if (!finalEvent) {
+      throw new Error("Failed to re-fetch the event after update.");
+  }
+  return finalEvent;
 };
 
 
@@ -1517,8 +1519,6 @@ async function _updateMasterTicketTypeTemplateAvailability(ticketTypeId: string,
     price: ticketTypeToUpdate.price,
     availability: String(newTemplateAvailability), 
     description: ticketTypeToUpdate.description,
-    // eventId: ticketTypeToUpdate.eventId ? String(ticketTypeToUpdate.eventId) : undefined, // Ensure eventId is string
-    // createdAt and updatedAt are typically handled by the backend on update
   };
   // Remove undefined fields to avoid sending them as null if not intended,
   // especially if the backend expects only changed fields for PUT/PATCH.
@@ -1560,42 +1560,40 @@ export const createBooking = async (
 ): Promise<Booking> => {
   const eventNsidForLookup = bookingData.tickets[0]?.eventNsid;
   if (!eventNsidForLookup) {
-    console.error("[createBooking] Event NSID (slug) missing from cart items for booking context.");
     throw new Error("Event NSID (slug) missing from cart items for booking context.");
   }
 
   const event = await getEventBySlug(eventNsidForLookup);
   if (!event || !event.showTimes) {
-    console.error(`[createBooking] Event with slug "${eventNsidForLookup}" or its showtimes not found for booking context.`);
     throw new Error("Event or its showtimes not found for booking context.");
   }
   
   const showTimeId = bookingData.tickets[0]?.showTimeId;
   if (!showTimeId) {
-    console.error("[createBooking] ShowTime ID is missing in booking data.");
     throw new Error("ShowTime ID is missing in booking data.");
   }
   
   const showTimeToUse = event.showTimes.find(st => st.id === showTimeId);
   if (!showTimeToUse) {
-    console.error(`[createBooking] ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
     throw new Error(`ShowTime with ID ${showTimeId} not found on event ${event.id}.`);
   }
   const showTimeDateTime = parseISO(showTimeToUse.dateTime);
   const firstTicketTypeName = bookingData.tickets.length > 0 ? bookingData.tickets[0].ticketTypeName : "N/A";
 
+  // Step 1: Create main booking record
   const apiPayloadForBooking = {
     userId: bookingData.userId,
     eventId: bookingData.eventId,
-    totalPrice: bookingData.totalPrice.toFixed(2),
+    totalPrice: String(bookingData.totalPrice.toFixed(2)),
     bookingDate: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
-    eventName: event.name || "N/A", // Fallback added
+    eventName: event.name || "N/A",
     eventDate: format(showTimeDateTime, "yyyy-MM-dd HH:mm:ss"), 
     showtime: format(showTimeDateTime, "HH:mm:ss"), 
     tickettype: firstTicketTypeName,
-    eventLocation: event.location || "N/A", // Fallback added
+    eventLocation: event.location || "N/A",
     qrCodeValue: `QR_BOOKING_${generateId()}`,
   };
+
   console.log("[createBooking] Sending payload to API /bookings:", JSON.stringify(apiPayloadForBooking, null, 2));
 
   let createdApiBooking: RawApiBooking;
@@ -1606,25 +1604,20 @@ export const createBooking = async (
       body: JSON.stringify(apiPayloadForBooking),
     });
 
-    // Attempt to parse JSON regardless of status, but handle errors.
     try {
       createdApiBooking = await response.json();
     } catch (jsonError) {
       const responseText = await response.text().catch(() => "Could not read response body.");
       console.error(`[createBooking] Failed to parse JSON response from POST /bookings. Status: ${response.status}. Response text: ${responseText}`, jsonError);
-      // If response was not ok AND json parsing failed, throw a more generic error based on status.
       if (!response.ok) {
           throw new Error(`Booking creation attempt failed with status ${response.status}. API response: ${responseText.substring(0, 200)}`);
       }
-      // If response was ok but JSON parsing failed (e.g. empty but valid response like "OK" string instead of JSON)
-      // This case is tricky, but we expect JSON. Let's assume API contract is JSON for success.
       throw new Error(`Booking creation API responded with non-JSON. Status: ${response.status}.`);
     }
     
     console.log("[createBooking] Parsed API response from POST /bookings (createdApiBooking):", JSON.stringify(createdApiBooking, null, 2)); 
 
     if (!response.ok) {
-      // If here, JSON parsing succeeded but status was not ok (e.g. 400 with JSON error body)
       const errorMsg = (createdApiBooking && typeof (createdApiBooking as any).message === 'string') 
                        ? (createdApiBooking as any).message 
                        : `API error ${response.status} during booking creation.`;
@@ -1632,20 +1625,20 @@ export const createBooking = async (
       throw new Error(errorMsg);
     }
 
-    // Crucial check for ID
-    if (!createdApiBooking || createdApiBooking.id == null) { // Checks for null or undefined
+    if (!createdApiBooking || createdApiBooking.id == null) {
         console.error("[createBooking] API did not return a valid booking ID for main booking. Response:", createdApiBooking);
         throw new Error("Main booking created, but API did not return a valid booking ID.");
     }
 
-  } catch (error) { // Catches errors from fetch itself, or re-thrown errors from above
+  } catch (error) {
     console.error("Network or other error creating main booking record:", error);
-    throw error; // Re-throw to be caught by handleConfirmBooking
+    throw error;
   }
 
   const mainBookingId = String(createdApiBooking.id);
   const createdBookedTicketLineItems: BookedTicket[] = [];
 
+  // Step 2: Create booked_ticket line items
   if (mainBookingId && BOOKED_TICKETS_API_URL) {
     console.log(`[createBooking] Main booking ${mainBookingId} created. Now creating ${bookingData.tickets.length} booked_ticket line item(s)...`);
     for (const ticketItem of bookingData.tickets) {
@@ -1653,9 +1646,9 @@ export const createBooking = async (
         bookingId: mainBookingId,
         eventId: ticketItem.eventId,
         ticketTypeId: ticketItem.ticketTypeId,
-        ticketTypeName: ticketItem.ticketTypeName, // Keep for booked_tickets if API uses it
+        ticketTypeName: ticketItem.ticketTypeName,
         quantity: String(ticketItem.quantity),
-        pricePerTicket: ticketItem.pricePerTicket.toFixed(2),
+        pricePerTicket: String(ticketItem.pricePerTicket.toFixed(2)),
         showTimeId: ticketItem.showTimeId,
       };
       try {
@@ -1690,7 +1683,7 @@ export const createBooking = async (
     }
   }
 
-
+  // Step 3: Update availabilities
   if (createdApiBooking && createdApiBooking.id) {
     console.log(`[createBooking] Booking ${mainBookingId} and line items processed. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
     for (const ticketItem of bookingData.tickets) {
@@ -1703,6 +1696,7 @@ export const createBooking = async (
     }
   }
 
+  // Step 4: Construct and return final booking object
   const appBooking = transformApiBookingToAppBooking(createdApiBooking);
   appBooking.bookedTickets = createdBookedTicketLineItems;
   appBooking.billingAddress = bookingData.billingAddress; 
@@ -1922,6 +1916,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 

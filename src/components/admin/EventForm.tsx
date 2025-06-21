@@ -182,7 +182,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         const catData = await getEventCategories(); // Now fetches Category[] from API
         setCategories(catData);
 
-        const orgResponse = await fetch(`${API_BASE_URL}/admin/organizers`); // Assuming this stays for now
+        const orgResponse = await fetch(`${API_BASE_URL}/organizers`); // Assuming this stays for now
         if (!orgResponse.ok) throw new Error('Failed to fetch organizers');
         const orgData = await orgResponse.json();
         setOrganizers(orgData);
