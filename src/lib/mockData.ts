@@ -17,6 +17,7 @@ const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/sh
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const TICKET_TYPES_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/availability";
+const TICKET_TYPES_UPDATE_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/update/availability";
 
 
 // Helper to parse various date strings to ISO string
@@ -1377,11 +1378,12 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
 
 // --- Ticket Availability Update Functions ---
 async function updateAvailabilityForBookedItem(eventId: string, showTimeId: string, ticketTypeId: string, quantityBooked: number): Promise<void> {
-  if (!TICKET_TYPES_AVAILABILITY_API_URL) {
-    console.error("[updateAvailabilityForBookedItem] TICKET_TYPES_AVAILABILITY_API_URL is not defined.");
+  if (!TICKET_TYPES_AVAILABILITY_API_URL || !TICKET_TYPES_UPDATE_AVAILABILITY_API_URL) {
+    console.error("[updateAvailabilityForBookedItem] An availability API URL is not defined.");
     return;
   }
-  // URL for getting all availabilities for a showtime
+  
+  // URL for getting current availability
   const getUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
   
   try {
@@ -1412,25 +1414,25 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
 
     const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
-    // 3. PATCH the new availability to a URL that identifies the specific ticket type.
-    const patchUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
-    const patchPayload = { 
+    // 3. PUT the new availability to the specified update URL.
+    const putUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
+    const putPayload = { 
       availability: newAvailability 
     };
     
-    console.log(`[updateAvailability] PATCHing to ${patchUrl} with payload:`, patchPayload);
+    console.log(`[updateAvailability] PUTTING to ${putUrl} with payload:`, putPayload);
 
-    const patchResponse = await fetch(patchUrl, {
-      method: 'PATCH',
+    const putResponse = await fetch(putUrl, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patchPayload),
+      body: JSON.stringify(putPayload),
     });
 
-    if (!patchResponse.ok) {
-      const errorBody = await patchResponse.text();
-      console.error(`Failed to PATCH new availability for ticket ${ticketTypeId} to ${patchUrl}. Status: ${patchResponse.status}`, errorBody);
+    if (!putResponse.ok) {
+      const errorBody = await putResponse.text();
+      console.error(`Failed to PUT new availability for ticket ${ticketTypeId} to ${putUrl}. Status: ${putResponse.status}`, errorBody);
     } else {
-      const successResponse = await patchResponse.json();
+      const successResponse = await putResponse.json();
       console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}. Response:`, successResponse);
     }
 
@@ -1802,6 +1804,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
