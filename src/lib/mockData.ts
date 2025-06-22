@@ -1411,9 +1411,12 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
 
     const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
-    // 3. PATCH the new availability, identifying the ticket type in the query params.
-    const patchUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&ticketTypeId=${ticketTypeId}`;
-    const patchPayload = { availability: newAvailability };
+    // 3. PATCH the new availability, identifying the ticket type in the body.
+    const patchUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
+    const patchPayload = { 
+      ticketTypeId: ticketTypeId,
+      availability: newAvailability 
+    };
     
     const patchResponse = await fetch(patchUrl, {
       method: 'PATCH',
@@ -1504,7 +1507,9 @@ export const createBooking = async (
     console.log("[createBooking] Parsed API response from POST /bookings (bookingApiResponse):", JSON.stringify(bookingApiResponse, null, 2)); 
 
     if (!response.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const errorMsg = (bookingApiResponse && typeof (bookingApiResponse as any).message === 'string') 
+                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                        ? (bookingApiResponse as any).message 
                        : `API error ${response.status} during booking creation.`;
       console.error("API Error creating main booking record:", response.status, bookingApiResponse);
@@ -1790,6 +1795,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
