@@ -204,7 +204,7 @@ export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> =
 };
 
 
-const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> => {
+export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> => {
   if (!TICKET_TYPES_API_URL) {
     console.warn("TICKET_TYPES_API_URL is not defined. Cannot fetch ticket types.");
     return [];
@@ -1873,15 +1873,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
-
-
-
-
-
-
-
-
-
-
-
 
