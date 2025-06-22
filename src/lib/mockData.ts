@@ -1381,11 +1381,11 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     console.error("[updateAvailabilityForBookedItem] TICKET_TYPES_AVAILABILITY_API_URL is not defined.");
     return;
   }
-  const availabilityGetUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
+  const apiUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
   
   try {
     // 1. GET current availability
-    const getResponse = await fetch(availabilityGetUrl);
+    const getResponse = await fetch(apiUrl);
     if (!getResponse.ok) {
       console.error(`Failed to GET current availability for event ${eventId}, showtime ${showTimeId}. Status: ${getResponse.status}`);
       return;
@@ -1412,13 +1412,12 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
     // 3. PATCH the new availability, identifying the ticket type in the body.
-    const patchUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
     const patchPayload = { 
-      ticketTypeId: ticketTypeId,
+      ticketTypeId: ticketTypeId, // Identify which ticket to update
       availability: newAvailability 
     };
     
-    const patchResponse = await fetch(patchUrl, {
+    const patchResponse = await fetch(apiUrl, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patchPayload),
@@ -1428,7 +1427,8 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
       const errorBody = await patchResponse.text();
       console.error(`Failed to PATCH new availability for ticket ${ticketTypeId}. Status: ${patchResponse.status}`, errorBody);
     } else {
-      console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}.`);
+      const successResponse = await patchResponse.json();
+      console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}. Response:`, successResponse);
     }
 
   } catch (error) {
@@ -1795,6 +1795,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
