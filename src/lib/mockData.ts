@@ -1381,11 +1381,11 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     console.error("[updateAvailabilityForBookedItem] TICKET_TYPES_AVAILABILITY_API_URL is not defined.");
     return;
   }
-  const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
+  const availabilityGetUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
   
   try {
     // 1. GET current availability
-    const getResponse = await fetch(availabilityUrl);
+    const getResponse = await fetch(availabilityGetUrl);
     if (!getResponse.ok) {
       console.error(`Failed to GET current availability for event ${eventId}, showtime ${showTimeId}. Status: ${getResponse.status}`);
       return;
@@ -1790,6 +1790,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
