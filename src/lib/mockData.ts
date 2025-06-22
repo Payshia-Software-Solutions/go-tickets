@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, ShowTimeFormData, TicketTypeFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, ShowTimeFormData, TicketTypeFormData, CoreEventFormData, AddShowTimeFormData } from './types';
 import { parse, isValid, format, parseISO } from 'date-fns';
 
 // API Base URL from environment variable
@@ -982,12 +982,10 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
   }
 };
 
-export const createEvent = async (data: EventFormData): Promise<Event> => {
+export const createEvent = async (data: CoreEventFormData): Promise<string> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot create event.");
   }
-
-  // Step 1: Create the main event
   const eventPayloadForApi = {
     name: data.name,
     slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
@@ -1000,7 +998,6 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
   };
-
   const eventResponse = await fetch(`${API_BASE_URL}/events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1014,92 +1011,64 @@ export const createEvent = async (data: EventFormData): Promise<Event> => {
   
   const createEventResponse: { message: string; newEventId: string } = await eventResponse.json();
   const newEventId = createEventResponse.newEventId;
-
   if (!newEventId) {
     throw new Error("API did not return a newEventId for the newly created event.");
   }
-
-  // Step 2: Create Ticket Types
-  const createdTicketTypes: TicketType[] = [];
-  for (const ttData of data.ticketTypes) {
-    const ticketTypePayload = {
-      ...ttData,
-      price: String(ttData.price),
-      availability: String(ttData.availability),
-      eventId: newEventId,
-    };
-    const ttResponse = await fetch(TICKET_TYPES_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ticketTypePayload)
-    });
-
-    if (!ttResponse.ok) {
-        console.error(`Failed to create ticket type "${ttData.name}" for event ${newEventId}. Status: ${ttResponse.status}`, await ttResponse.text());
-        continue;
-    }
-    const newTicketType: ApiTicketTypeFromEndpoint = await ttResponse.json();
-    createdTicketTypes.push({
-      id: String(newTicketType.id),
-      eventId: String(newTicketType.eventId),
-      name: newTicketType.name,
-      price: parseFloat(newTicketType.price),
-      availability: parseInt(newTicketType.availability, 10),
-      description: newTicketType.description || null
-    });
-  }
-
-  // Step 3 & 4: Create Showtimes and their Availabilities
-  for (const stData of data.showTimes) {
-    const showtimePayload = {
-      eventId: newEventId,
-      dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss"),
-    };
-    const stResponse = await fetch(SHOWTIMES_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(showtimePayload)
-    });
-
-    if (!stResponse.ok) {
-        console.error(`Failed to create showtime for event ${newEventId}. Status: ${stResponse.status}`, await stResponse.text());
-        continue;
-    }
-    const newShowtime: ApiShowTimeFlat = await stResponse.json();
-    const newShowtimeId = newShowtime.id;
-
-    // Create availability records for this showtime
-    for (const staData of stData.ticketAvailabilities) {
-        const correspondingTicketType = createdTicketTypes.find(ctt => ctt.name === staData.ticketTypeName);
-        if (!correspondingTicketType) {
-            console.error(`Could not find a created ticket type matching name "${staData.ticketTypeName}" to create availability record.`);
-            continue;
-        }
-
-        const availabilityPayload = {
-            showTimeId: newShowtimeId,
-            ticketTypeId: correspondingTicketType.id,
-            availableCount: String(staData.availableCount)
-        };
-        const availResponse = await fetch(AVAILABILITY_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(availabilityPayload)
-        });
-
-        if (!availResponse.ok) {
-            console.error(`Failed to create availability for showtime ${newShowtimeId} and ticket type ${correspondingTicketType.id}. Status: ${availResponse.status}`, await availResponse.text());
-        }
-    }
-  }
-
-  // Step 5: Fetch the fully populated event to return it
-  const finalEvent = await getEventBySlug(data.slug);
-  if (!finalEvent) {
-    throw new Error("Failed to re-fetch the event after creation.");
-  }
-  return finalEvent;
+  return newEventId;
 };
+
+export const createTicketType = async (eventId: string, data: TicketTypeFormData): Promise<TicketType> => {
+    const payload = {
+      name: data.name,
+      price: data.price,
+      availability: data.availability,
+      description: data.description || "",
+      eventId: eventId,
+    };
+    const response = await fetch(TICKET_TYPES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to create ticket type.' }));
+        throw new Error(errorBody.message || `API error: ${response.status}`);
+    }
+    const newTicketTypeApi: ApiTicketTypeFromEndpoint = await response.json();
+    return {
+        id: String(newTicketTypeApi.id),
+        eventId: String(newTicketTypeApi.eventId),
+        name: newTicketTypeApi.name,
+        price: parseFloat(newTicketTypeApi.price),
+        availability: parseInt(newTicketTypeApi.availability, 10),
+        description: newTicketTypeApi.description || null
+    };
+};
+
+export const createShowTime = async (eventId: string, data: AddShowTimeFormData): Promise<ShowTime> => {
+    const payload = {
+      eventId: eventId,
+      dateTime: format(data.dateTime, "yyyy-MM-dd HH:mm:ss"),
+    };
+    const response = await fetch(SHOWTIMES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to create show time.' }));
+        throw new Error(errorBody.message || `API error: ${response.status}`);
+    }
+    const newShowTimeApi: ApiShowTimeFlat = await response.json();
+    // Return a shell showtime object; availabilities will be managed separately.
+    return {
+        id: newShowTimeApi.id,
+        eventId: newShowTimeApi.eventId,
+        dateTime: parseApiDateString(newShowTimeApi.dateTime) || new Date().toISOString(),
+        ticketAvailabilities: [],
+    };
+};
+
 
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
   if (!API_BASE_URL) {
@@ -1873,7 +1842,7 @@ const initAdminMockData = async () => {
     const org1 = allOrganizers[0];
 
 
-    const defaultEventDataList: EventFormData[] = [
+    const defaultEventDataList: CoreEventFormData[] = [
         {
             name: "Admin Mock Music Fest 2025",
             slug: "admin-summer-music-fest-2025",
@@ -1885,25 +1854,12 @@ const initAdminMockData = async () => {
             organizerId: org1.id,
             venueName: "Grand Park Main Stage",
             venueAddress: "123 Park Ave, Downtown",
-            ticketTypes: [
-                { id: generateId('tt'), name: "General Admission", price: 75, availability: 500, description: "Access to all stages." },
-                { id: generateId('tt'), name: "VIP Pass", price: 250, availability: 100, description: "VIP lounge, front stage access, free merch." }
-            ],
-            showTimes: [
-                { id: generateId('st'), dateTime: new Date(new Date().getFullYear() + 1, 5, 15, 18, 0),
-                  ticketAvailabilities: [
-                    { id: generateId('sta'), ticketTypeId: "NEEDS_REPLACEMENT_GA_ADMIN", ticketTypeName: "General Admission", availableCount: 200 },
-                    { id: generateId('sta'), ticketTypeId: "NEEDS_REPLACEMENT_VIP_ADMIN", ticketTypeName: "VIP Pass", availableCount: 50 }
-                  ]
-                }
-            ]
         }
     ];
 
     for (const eventData of defaultEventDataList) {
         try {
-          const createdEvent = await createEvent(eventData);
-          if(createdEvent && eventData.name.includes("Admin Mock Music Fest")) createdEvent.id = 'evt-predefined-1-admin';
+          const newEventId = await createEvent(eventData);
         } catch (error) {
           console.error("Failed to create mock admin event:", eventData.name, error);
         }
@@ -1917,6 +1873,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 

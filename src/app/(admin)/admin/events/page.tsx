@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import type { Event, EventFormData } from '@/lib/types';
-// Removed direct imports: adminGetAllEvents, deleteEvent, createEvent, updateEvent
+import type { Event, CoreEventFormData } from '@/lib/types';
+import { createEvent } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import EventForm from '@/components/admin/EventForm';
+import EventDetailsManager from '@/components/admin/EventDetailsManager';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
@@ -32,7 +33,11 @@ export default function AdminEventsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
+  // State for the two-step creation flow
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creationStep, setCreationStep] = useState<'create' | 'addDetails'>('create');
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null);
+
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentEventForEdit, setCurrentEventForEdit] = useState<Event | null>(null);
 
@@ -73,7 +78,7 @@ export default function AdminEventsPage() {
 
   const handleConfirmDelete = async () => {
     if (!eventToDelete) return;
-    setIsLoading(true); // Or a specific delete loading state
+    setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/events/${eventToDelete.id}`, {
         method: 'DELETE',
@@ -86,7 +91,7 @@ export default function AdminEventsPage() {
         title: "Event Deleted",
         description: `"${eventToDelete.name}" has been successfully deleted.`,
       });
-      fetchEvents(); // Re-fetch events
+      fetchEvents();
     } catch (error: unknown) {
       toast({
         title: "Error Deleting Event",
@@ -99,13 +104,45 @@ export default function AdminEventsPage() {
     setEventToDelete(null);
   };
 
+  const resetCreationFlow = () => {
+    setCreationStep('create');
+    setCreatedEventId(null);
+    setShowCreateModal(false);
+  };
+
   const handleOpenCreateModal = () => {
-    setCurrentEventForEdit(null);
+    resetCreationFlow(); // Ensure flow is reset when opening
     setShowCreateModal(true);
   };
 
+  const handleCreateEventSubmit = async (data: CoreEventFormData) => {
+    setIsSubmitting(true);
+    try {
+      const newEventId = await createEvent(data); // This now returns just the ID
+      toast({
+        title: "Step 1 Complete: Event Created!",
+        description: `Event "${data.name}" has been created. Now add ticket types and showtimes.`,
+      });
+      setCreatedEventId(newEventId);
+      setCreationStep('addDetails');
+    } catch (error: unknown) {
+      console.error("Failed to create event:", error);
+      toast({
+        title: "Error Creating Event",
+        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleFinishCreation = () => {
+    resetCreationFlow();
+    fetchEvents(); // Refresh the list of events
+  };
+
   const handleOpenEditModal = async (event: Event) => {
-    // Fetch the full event data in case list view is partial
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/events/${event.id}`);
@@ -118,37 +155,6 @@ export default function AdminEventsPage() {
       toast({ title: "Error", description: "Could not load event details for editing.", variant: "destructive" });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleCreateEventSubmit = async (data: EventFormData) => {
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to create event and parse error' }));
-        throw new Error(errorData.message || 'Failed to create event');
-      }
-      const newEvent = await response.json();
-      toast({
-        title: "Event Created",
-        description: `"${newEvent.name}" has been successfully created.`,
-      });
-      setShowCreateModal(false);
-      fetchEvents();
-    } catch (error: unknown) {
-      console.error("Failed to create event:", error);
-      toast({
-        title: "Error Creating Event",
-        description: (error instanceof Error ? error.message : "An unexpected error occurred. Please try again."),
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -255,24 +261,34 @@ export default function AdminEventsPage() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+      
+      {/* Create Event Dialog (Two-Step Flow) */}
+      <Dialog open={showCreateModal} onOpenChange={(isOpen) => { if (!isOpen) resetCreationFlow(); else setShowCreateModal(true); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create New Event</DialogTitle>
-            <DialogDescription>Fill in the details for the new event.</DialogDescription>
+            <DialogTitle>{creationStep === 'create' ? 'Create New Event (Step 1 of 2)' : 'Add Details (Step 2 of 2)'}</DialogTitle>
+            <DialogDescription>{creationStep === 'create' ? 'Fill in the core details for the new event.' : 'Now, add ticket types and showtimes for the event.'}</DialogDescription>
           </DialogHeader>
           <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
-            <EventForm
-              onSubmit={handleCreateEventSubmit}
-              isSubmitting={isSubmitting}
-              submitButtonText="Create Event"
-              onCancel={() => setShowCreateModal(false)}
-            />
+            {creationStep === 'create' && (
+              <EventForm
+                onSubmit={handleCreateEventSubmit}
+                isSubmitting={isSubmitting}
+                submitButtonText="Save & Continue to Step 2"
+                onCancel={resetCreationFlow}
+              />
+            )}
+            {creationStep === 'addDetails' && createdEventId && (
+              <EventDetailsManager
+                eventId={createdEventId}
+                onFinished={handleFinishCreation}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
-
+      
+      {/* Edit Event Dialog (Old single-step flow) */}
       {currentEventForEdit && (
         <Dialog open={showEditModal} onOpenChange={(isOpen) => {
             setShowEditModal(isOpen);

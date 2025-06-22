@@ -108,12 +108,19 @@ export const ShowTimeTicketAvailabilityFormSchema = z.object({
 });
 export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAvailabilityFormSchema>;
 
+// This schema is used for editing an event where everything is nested
 export const ShowTimeFormSchema = z.object({
   id: z.string().optional(),
   dateTime: z.date({ required_error: "Show date and time is required" }),
   ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema).min(1, "At least one ticket type's availability must be specified for the showtime."),
 });
 export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
+
+// This schema is used for the simple "Add Showtime" form in the new two-step flow
+export const AddShowTimeFormSchema = z.object({
+  dateTime: z.date({ required_error: "Show date and time is required" }),
+});
+export type AddShowTimeFormData = z.infer<typeof AddShowTimeFormSchema>;
 
 export interface ShowTimeTicketAvailability {
   id: string;
@@ -155,6 +162,24 @@ export interface Event {
   updatedAt?: string;
 }
 
+// Schema for Step 1 of event creation (core details only)
+export const CoreEventFormSchema = z.object({
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  slug: z.string()
+    .min(3, "Slug must be at least 3 characters")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen."),
+  date: z.date({ required_error: "Main event date is required" }),
+  location: z.string().min(5, "Location must be at least 5 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
+  category: z.string().min(1, "Category is required"),
+  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
+  organizerId: z.string().min(1, "Organizer is required"),
+  venueName: z.string().min(3, "Venue name is required"),
+  venueAddress: z.string().optional(),
+});
+export type CoreEventFormData = z.infer<typeof CoreEventFormSchema>;
+
+// Zod schema for validating the full event form data, typically used for editing existing events.
 export const EventFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   slug: z.string()
