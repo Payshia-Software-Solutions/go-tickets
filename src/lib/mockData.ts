@@ -1376,150 +1376,60 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
 
 
 // --- Ticket Availability Update Functions ---
-async function patchAvailabilityRecord(availabilityRecordId: string, newCount: number): Promise<boolean> {
-  if (!AVAILABILITY_API_URL) {
-    console.error("AVAILABILITY_API_URL is not defined. Cannot update availability.");
-    return false;
-  }
-  const url = `${AVAILABILITY_API_URL}/${availabilityRecordId}`;
-  const payload = { availableCount: String(newCount) };
-  console.log(`[patchAvailabilityRecord] Updating availability ID ${availabilityRecordId} to count ${newCount}. URL: ${url}, Payload:`, payload);
-
-  try {
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({ message: `API error ${response.status} updating availability.` }));
-      console.error(`[patchAvailabilityRecord] Failed to update availability for record ${availabilityRecordId}. Status: ${response.status}`, errorBody);
-      return false;
-    }
-    console.log(`[patchAvailabilityRecord] Successfully updated availability for record ${availabilityRecordId}.`);
-    return true;
-  } catch (error) {
-    console.error(`[patchAvailabilityRecord] Network or other error updating availability for record ${availabilityRecordId}:`, error);
-    return false;
-  }
-}
-
-async function updateAvailabilityForBookedItem(ticketTypeId: string, showTimeId: string, quantityBooked: number): Promise<void> {
-  if (!AVAILABILITY_API_URL) {
-    console.error("[updateAvailabilityForBookedItem] AVAILABILITY_API_URL is not defined.");
+async function updateAvailabilityForBookedItem(eventId: string, showTimeId: string, ticketTypeId: string, quantityBooked: number): Promise<void> {
+  if (!TICKET_TYPES_AVAILABILITY_API_URL) {
+    console.error("[updateAvailabilityForBookedItem] TICKET_TYPES_AVAILABILITY_API_URL is not defined.");
     return;
   }
-  const fetchUrl = `${AVAILABILITY_API_URL}?showTimeId=${showTimeId}`;
-  console.log(`[updateAvailabilityForBookedItem] Fetching availability records for showTimeId: ${showTimeId}, ticketTypeId: ${ticketTypeId} from ${fetchUrl}`);
-
+  const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
+  
   try {
-    const response = await fetch(fetchUrl);
-    if (!response.ok) {
-      console.error(`[updateAvailabilityForBookedItem] Failed to fetch availability records for showTimeId ${showTimeId}. Status: ${response.status}`, await response.text());
+    // 1. GET current availability
+    const getResponse = await fetch(availabilityUrl);
+    if (!getResponse.ok) {
+      console.error(`Failed to GET current availability for event ${eventId}, showtime ${showTimeId}. Status: ${getResponse.status}`);
       return;
     }
-    const availabilityRecords: AvailabilityRecord[] = await response.json();
-    if (!Array.isArray(availabilityRecords)) {
-        console.error(`[updateAvailabilityForBookedItem] Expected array of availability records for showTimeId ${showTimeId}, got:`, availabilityRecords);
-        return;
-    }
-
-    const specificRecord = availabilityRecords.find(ar => ar.ticketTypeId === ticketTypeId);
-
-    if (specificRecord) {
-      const currentCount = parseInt(specificRecord.availableCount, 10);
-      if (isNaN(currentCount)) {
-        console.error(`[updateAvailabilityForBookedItem] Invalid currentAvailableCount '${specificRecord.availableCount}' for record ${specificRecord.id}.`);
-        return;
-      }
-      const newCount = currentCount - quantityBooked;
-      const countToSet = Math.max(0, newCount);
-      
-      if (newCount < 0) {
-        console.warn(`[updateAvailabilityForBookedItem] Calculated new count ${newCount} is less than 0 for record ${specificRecord.id}. Setting to 0. This indicates an oversell or data sync issue.`);
-      }
-      await patchAvailabilityRecord(specificRecord.id, countToSet);
-    } else {
-      console.warn(`[updateAvailabilityForBookedItem] No availability record found for showTimeId ${showTimeId} and ticketTypeId ${ticketTypeId}. Cannot update count.`);
-    }
-  } catch (error) {
-    console.error(`[updateAvailabilityForBookedItem] Error processing availability for showTimeId ${showTimeId}, ticketTypeId ${ticketTypeId}:`, error);
-  }
-}
-
-async function _updateMasterTicketTypeTemplateAvailability(ticketTypeId: string, quantityBooked: number, eventId: string): Promise<void> {
-  if (!TICKET_TYPES_API_URL) {
-    console.error("[_updateMasterTicketTypeTemplateAvailability] TICKET_TYPES_API_URL is not defined.");
-    return;
-  }
-
-  let ticketTypeToUpdate: ApiTicketTypeFromEndpoint | undefined;
-  try {
-    const getResponse = await fetch(`${TICKET_TYPES_API_URL}/${ticketTypeId}`);
-    if (getResponse.ok) {
-      ticketTypeToUpdate = await getResponse.json();
-      if (String(ticketTypeToUpdate?.eventId) !== String(eventId)) {
-        console.warn(`Fetched master TicketType ID ${ticketTypeId} belongs to event ${ticketTypeToUpdate?.eventId}, expected ${eventId}. Ignoring update.`);
-        return;
-      }
-    } else if (getResponse.status === 404) {
-      console.warn(`Master TicketType ID ${ticketTypeId} not found via direct GET /ticket-types/${ticketTypeId}.`);
+    const availabilityData = await getResponse.json();
+    if (!availabilityData.success || !Array.isArray(availabilityData.data)) {
+      console.error('Invalid availability data structure received:', availabilityData);
       return;
-    } else {
-      console.error(`Failed to GET master TicketType ID ${ticketTypeId}: ${getResponse.status} - ${await getResponse.text()}`);
-      return; 
     }
-  } catch (e) {
-    console.error(`Error during GET master TicketType ID ${ticketTypeId}: ${e}.`);
-    return;
-  }
 
-  if (!ticketTypeToUpdate) {
-    console.error(`Master TicketType ID ${ticketTypeId} could not be fetched or found. Cannot update template availability.`);
-    return;
-  }
+    // 2. Find the specific ticket type and calculate new availability
+    const ticketInfo = availabilityData.data.find((t: { id: string }) => String(t.id) === String(ticketTypeId));
+    if (!ticketInfo) {
+      console.error(`Ticket type ${ticketTypeId} not found in availability response for showtime ${showTimeId}.`);
+      return;
+    }
+    
+    const currentAvailability = parseInt(ticketInfo.availability, 10);
+    if (isNaN(currentAvailability)) {
+        console.error(`Invalid current availability value for ticket ${ticketTypeId}:`, ticketInfo.availability);
+        return;
+    }
 
-  const currentTemplateAvailability = parseInt(ticketTypeToUpdate.availability, 10);
-  if (isNaN(currentTemplateAvailability)) {
-    console.error(`Invalid template availability "${ticketTypeToUpdate.availability}" for master TicketType ID ${ticketTypeId}.`);
-    return;
-  }
+    const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
-  const newTemplateAvailability = Math.max(0, currentTemplateAvailability - quantityBooked);
-
-  const putPayload: Partial<ApiTicketTypeFromEndpoint> = {
-    // Only include fields that should be updated or are required by PUT
-    name: ticketTypeToUpdate.name,
-    price: ticketTypeToUpdate.price,
-    availability: String(newTemplateAvailability), 
-    description: ticketTypeToUpdate.description,
-  };
-  // Remove undefined fields to avoid sending them as null if not intended,
-  // especially if the backend expects only changed fields for PUT/PATCH.
-  Object.keys(putPayload).forEach(key => {
-      const K = key as keyof typeof putPayload;
-      if (putPayload[K] === undefined) delete putPayload[K];
-  });
-
-
-  console.log(`[_updateMasterTicketTypeTemplateAvailability] Updating master TicketType ID ${ticketTypeId} template availability to ${newTemplateAvailability}. PUT payload:`, JSON.stringify(putPayload));
-
-  try {
-    const putResponse = await fetch(`${TICKET_TYPES_API_URL}/${ticketTypeId}`, {
-      method: 'PUT',
+    // 3. PATCH the new availability, identifying the ticket type in the query params.
+    const patchUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&ticketTypeId=${ticketTypeId}`;
+    const patchPayload = { availability: newAvailability };
+    
+    const patchResponse = await fetch(patchUrl, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putPayload),
+      body: JSON.stringify(patchPayload),
     });
 
-    if (!putResponse.ok) {
-      const errorBody = await putResponse.json().catch(() => ({ message: `API error ${putResponse.status}` }));
-      console.error(`Failed to update master TicketType ID ${ticketTypeId} template availability. Status: ${putResponse.status}`, errorBody);
+    if (!patchResponse.ok) {
+      const errorBody = await patchResponse.text();
+      console.error(`Failed to PATCH new availability for ticket ${ticketTypeId}. Status: ${patchResponse.status}`, errorBody);
     } else {
-      console.log(`Successfully updated master TicketType ID ${ticketTypeId} template availability.`);
+      console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}.`);
     }
+
   } catch (error) {
-    console.error(`Network error updating master TicketType ID ${ticketTypeId} template availability:`, error);
+    console.error(`Error during availability update for ticket ${ticketTypeId}:`, error);
   }
 }
 
@@ -1663,8 +1573,7 @@ export const createBooking = async (
     console.log(`[createBooking] Booking ${mainBookingId} and line items processed. Now updating availabilities for ${bookingData.tickets.length} ticket item(s)...`);
     for (const ticketItem of bookingData.tickets) {
       try {
-        await updateAvailabilityForBookedItem(ticketItem.ticketTypeId, ticketItem.showTimeId, ticketItem.quantity);
-        await _updateMasterTicketTypeTemplateAvailability(ticketItem.ticketTypeId, ticketItem.quantity, bookingData.eventId);
+        await updateAvailabilityForBookedItem(ticketItem.eventId, ticketItem.showTimeId, ticketItem.ticketTypeId, ticketItem.quantity);
       } catch (availError) {
         console.error(`[createBooking] Failed to update availability for ticketType ${ticketItem.ticketTypeId} on showTime ${ticketItem.showTimeId} for booking ${mainBookingId}. Error:`, availError);
       }
@@ -1878,6 +1787,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
