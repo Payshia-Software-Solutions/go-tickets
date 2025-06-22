@@ -16,6 +16,7 @@ const SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/showtimes";
 const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/showtimes/event";
 const AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/availability";
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
+const TICKET_TYPES_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/availability";
 
 
 // Helper to parse various date strings to ISO string
@@ -77,7 +78,8 @@ interface ApiShowTimeFlat {
 
 interface ApiTicketTypeFromEndpoint {
     id: string;
-    eventId?: string | number; 
+    eventId?: string | number;
+    showtimeId?: string | null; // Added showtimeId
     name: string;
     price: string; 
     availability: string; 
@@ -232,6 +234,7 @@ export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketT
     return filteredApiTicketTypes.map(tt => ({
       id: String(tt.id),
       eventId: String(tt.eventId),
+      showtimeId: tt.showtimeId ? String(tt.showtimeId) : null,
       name: tt.name,
       price: parseFloat(tt.price) || 0,
       availability: parseInt(tt.availability, 10) || 0,
@@ -306,7 +309,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   }
 
   const populatedShowTimes: ShowTime[] = [];
-  if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE && AVAILABILITY_API_URL) {
+  if (eventBase.id && SHOWTIMES_BY_EVENT_API_URL_BASE && TICKET_TYPES_AVAILABILITY_API_URL) {
     console.log(`[getEventBySlug] Fetching showtimes for event ID: ${eventBase.id} (slug: ${slug}) from ${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
     try {
       const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
@@ -325,44 +328,40 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             updatedAt: parseApiDateString(basicSt.updatedAt),
             ticketAvailabilities: [],
           };
-
-          console.log(`[getEventBySlug] Fetching availabilities for showTime ID: ${basicSt.id} (event: ${slug}) from ${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
-          let rawAvailabilities: AvailabilityRecord[] = [];
+          
+          let availabilityData: { id: string; name: string; availability: string }[] = [];
           try {
-            const availabilityResponse = await fetch(`${AVAILABILITY_API_URL}?showTimeId=${basicSt.id}`);
+            const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventBase.id}&showtimeid=${basicSt.id}`;
+            console.log(`[getEventBySlug] Fetching availabilities from new endpoint: ${availabilityUrl}`);
+            const availabilityResponse = await fetch(availabilityUrl);
             if (!availabilityResponse.ok) {
               console.warn(`[getEventBySlug] Failed to fetch availabilities for showTime ${basicSt.id} (event ${slug}): ${availabilityResponse.status} - ${await availabilityResponse.text()}`);
             } else {
-              rawAvailabilities = await availabilityResponse.json();
-              console.log(`[getEventBySlug] Fetched ${rawAvailabilities.length} availability records for showTime ${basicSt.id} (event ${slug}).`);
+                const responseJson = await availabilityResponse.json();
+                if (responseJson.success && Array.isArray(responseJson.data)) {
+                    availabilityData = responseJson.data;
+                    console.log(`[getEventBySlug] Fetched ${availabilityData.length} availability records for showTime ${basicSt.id}.`);
+                } else {
+                    console.warn(`[getEventBySlug] Availability response for showtime ${basicSt.id} was not in expected format:`, responseJson);
+                }
             }
           } catch (error) {
             console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           
           detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
-            const matchingAvailRecord = rawAvailabilities.find(ar => ar.ticketTypeId === masterTt.id && ar.showTimeId === basicSt.id);
-            
-            let availableCountForThisShowtime = 0;
-            let availabilityRecordId = generateId('sta-client');
-            let availCreatedAt = new Date().toISOString();
-            let availUpdatedAt = new Date().toISOString();
+            const matchingAvailRecord = availabilityData.find(avail => avail.id === masterTt.id);
+            const availableCountForThisShowtime = matchingAvailRecord ? parseInt(matchingAvailRecord.availability, 10) || 0 : 0;
+            const availabilityRecordId = generateId('sta-client');
 
-            if (matchingAvailRecord) {
-                availableCountForThisShowtime = parseInt(matchingAvailRecord.availableCount, 10) || 0;
-                availabilityRecordId = matchingAvailRecord.id;
-                availCreatedAt = parseApiDateString(matchingAvailRecord.createdAt) || availCreatedAt;
-                availUpdatedAt = parseApiDateString(matchingAvailRecord.updatedAt) || availUpdatedAt;
-            }
-            
             return {
-                id: availabilityRecordId,
-                showTimeId: basicSt.id,
-                ticketTypeId: masterTt.id,
-                ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                availableCount: availableCountForThisShowtime,
-                createdAt: availCreatedAt,
-                updatedAt: availUpdatedAt,
+              id: availabilityRecordId,
+              showTimeId: basicSt.id,
+              ticketTypeId: masterTt.id,
+              ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+              availableCount: availableCountForThisShowtime,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             };
           }).filter(Boolean) as ShowTimeTicketAvailability[];
           
@@ -1028,6 +1027,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       availability: data.availability,
       description: data.description || "",
       eventId: eventId,
+      showtimeId: data.showtimeId || null,
     };
     const response = await fetch(TICKET_TYPES_API_URL, {
         method: 'POST',
@@ -1042,6 +1042,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
     return {
         id: String(newTicketTypeApi.id),
         eventId: String(newTicketTypeApi.eventId),
+        showtimeId: newTicketTypeApi.showtimeId ? String(newTicketTypeApi.showtimeId) : null,
         name: newTicketTypeApi.name,
         price: parseFloat(newTicketTypeApi.price),
         availability: parseInt(newTicketTypeApi.availability, 10),
@@ -1877,5 +1878,6 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
