@@ -11,7 +11,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, CalendarClock, Loader2, AlertTriangle } from 'lucide-react';
 import type { Event } from '@/lib/types';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { format, parseISO } from 'date-fns';
 
 interface BookEventPageProps {
@@ -39,7 +39,7 @@ const safeParseDate = (dateStr: string | undefined): Date | null => {
 
 
 export default function BookEventPage({ params }: BookEventPageProps) {
-  const { slug } = params;
+  const { slug } = use(params);
 
   const [event, setEvent] = useState<Event | null | undefined>(undefined);
   const [selectedShowTimeId, setSelectedShowTimeId] = useState<string | null>(null);
@@ -209,4 +209,3 @@ export default function BookEventPage({ params }: BookEventPageProps) {
     </div>
   );
 }
-
