@@ -11,11 +11,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, CalendarClock, Loader2, AlertTriangle } from 'lucide-react';
 import type { Event } from '@/lib/types';
-import { useEffect, useState, use } from 'react'; // Added use
+import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 
 interface BookEventPageProps {
-  params: Promise<Readonly<{ slug: string }>>; // Updated params type
+  params: { slug: string };
 }
 
 // Helper to safely parse date strings from API
@@ -38,8 +38,8 @@ const safeParseDate = (dateStr: string | undefined): Date | null => {
 };
 
 
-export default function BookEventPage({ params: paramsPromise }: BookEventPageProps) {
-  const { slug } = use(paramsPromise); // Unwrap params using React.use()
+export default function BookEventPage({ params }: BookEventPageProps) {
+  const { slug } = params;
 
   const [event, setEvent] = useState<Event | null | undefined>(undefined);
   const [selectedShowTimeId, setSelectedShowTimeId] = useState<string | null>(null);
