@@ -214,6 +214,10 @@ export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketT
     console.log(`Fetching ticket types for event ${eventId} from URL: ${url}`);
     const response = await fetch(url);
     if (!response.ok) {
+      if (response.status === 404) {
+        // This is an expected case for a new event with no ticket types yet.
+        return [];
+      }
       console.error(`API Error fetching ticket types for event ${eventId}:`, response.status, await response.text());
       return [];
     }
@@ -1873,4 +1877,5 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
