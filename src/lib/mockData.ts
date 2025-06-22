@@ -1489,8 +1489,9 @@ export const createBooking = async (
       body: JSON.stringify(apiPayloadForBooking),
     });
 
+    let bookingApiResponse: { message: string, booking: RawApiBooking };
     try {
-      createdApiBooking = await response.json();
+      bookingApiResponse = await response.json();
     } catch (jsonError) {
       const responseText = await response.text().catch(() => "Could not read response body.");
       console.error(`[createBooking] Failed to parse JSON response from POST /bookings. Status: ${response.status}. Response text: ${responseText}`, jsonError);
@@ -1500,15 +1501,17 @@ export const createBooking = async (
       throw new Error(`Booking creation API responded with non-JSON. Status: ${response.status}.`);
     }
     
-    console.log("[createBooking] Parsed API response from POST /bookings (createdApiBooking):", JSON.stringify(createdApiBooking, null, 2)); 
+    console.log("[createBooking] Parsed API response from POST /bookings (bookingApiResponse):", JSON.stringify(bookingApiResponse, null, 2)); 
 
     if (!response.ok) {
-      const errorMsg = (createdApiBooking && typeof (createdApiBooking as any).message === 'string') 
-                       ? (createdApiBooking as any).message 
+      const errorMsg = (bookingApiResponse && typeof (bookingApiResponse as any).message === 'string') 
+                       ? (bookingApiResponse as any).message 
                        : `API error ${response.status} during booking creation.`;
-      console.error("API Error creating main booking record:", response.status, createdApiBooking);
+      console.error("API Error creating main booking record:", response.status, bookingApiResponse);
       throw new Error(errorMsg);
     }
+    
+    createdApiBooking = bookingApiResponse.booking;
 
     if (!createdApiBooking || createdApiBooking.id == null) {
         console.error("[createBooking] API did not return a valid booking ID for main booking. Response:", createdApiBooking);
@@ -1787,6 +1790,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
