@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getEventById, updateEvent, deleteEvent } from '@/lib/mockData';
+import { getAdminEventById, updateEvent, deleteEvent } from '@/lib/mockData';
 import { EventFormSchema } from '@/lib/types';
 
 interface Context {
@@ -24,7 +24,7 @@ interface RawShowTimeInput {
 
 export async function GET(request: Request, { params }: Context) {
   try {
-    const event = await getEventById(params.eventId);
+    const event = await getAdminEventById(params.eventId);
     if (!event) {
       return NextResponse.json({ message: 'Event not found' }, { status: 404 });
     }
@@ -83,4 +83,3 @@ export async function DELETE(request: Request, { params }: Context) {
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
-

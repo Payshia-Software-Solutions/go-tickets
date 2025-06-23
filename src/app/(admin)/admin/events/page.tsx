@@ -79,7 +79,7 @@ export default function AdminEventsPage() {
 
   const handleConfirmDelete = async () => {
     if (!eventToDelete) return;
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       const response = await fetch(`${API_PROXY_URL}/${eventToDelete.id}`, {
         method: 'DELETE',
@@ -100,7 +100,7 @@ export default function AdminEventsPage() {
         variant: "destructive",
       });
     } finally {
-        setIsLoading(false);
+        setIsSubmitting(false);
         setShowDeleteDialog(false);
         setEventToDelete(null);
     }
@@ -360,8 +360,10 @@ export default function AdminEventsPage() {
             <AlertDialogCancel onClick={() => setEventToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
+              disabled={isSubmitting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete Event
             </AlertDialogAction>
           </AlertDialogFooter>
