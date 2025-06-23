@@ -1,5 +1,5 @@
 
-import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, ShowTimeFormData, TicketTypeFormData, CoreEventFormData, AddShowTimeFormData } from './types';
+import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, TicketTypeFormData, CoreEventFormData, AddShowTimeFormData } from './types';
 import { parse, isValid, format, parseISO } from 'date-fns';
 
 // API Base URL from environment variable
@@ -106,17 +106,6 @@ interface ApiEventFlat {
   createdAt?: string;
   updatedAt?: string;
 }
-
-// Interface for the direct response from /availability endpoint
-interface AvailabilityRecord {
-  id: string;
-  showTimeId: string;
-  ticketTypeId: string;
-  availableCount: string; // API returns string
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 
 const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
   return {
@@ -1481,22 +1470,22 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
     // 3. PUT the new availability to the specified update URL.
-    const patchUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
-    const patchPayload = { availability: newAvailability };
+    const putUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
+    const putPayload = { availability: newAvailability };
     
-    console.log(`[updateAvailability] PUTting to ${patchUrl} with payload:`, patchPayload);
+    console.log(`[updateAvailability] PUTting to ${putUrl} with payload:`, putPayload);
 
-    const patchResponse = await fetch(patchUrl, {
+    const putResponse = await fetch(putUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patchPayload),
+      body: JSON.stringify(putPayload),
     });
 
-    if (!patchResponse.ok) {
-      const errorBody = await patchResponse.text();
-      console.error(`Failed to PUT new availability for ticket ${ticketTypeId} to ${patchUrl}. Status: ${patchResponse.status}`, errorBody);
+    if (!putResponse.ok) {
+      const errorBody = await putResponse.text();
+      console.error(`Failed to PUT new availability for ticket ${ticketTypeId} to ${putUrl}. Status: ${putResponse.status}`, errorBody);
     } else {
-      const successResponse = await patchResponse.json();
+      const successResponse = await putResponse.json();
       console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}. Response:`, successResponse);
     }
 
@@ -1885,7 +1874,7 @@ const initAdminMockData = async () => {
 
     for (const eventData of defaultEventDataList) {
         try {
-          const newEventId = await createEvent(eventData);
+          await createEvent(eventData);
         } catch (error) {
           console.error("Failed to create mock admin event:", eventData.name, error);
         }
@@ -1899,6 +1888,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
