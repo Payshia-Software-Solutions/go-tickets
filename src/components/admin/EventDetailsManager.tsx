@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Ticket, Clock, Loader2 } from 'lucide-react';
 import type { TicketType, ShowTime, TicketTypeFormData, AddShowTimeFormData } from '@/lib/types';
-import { createTicketType, createShowTime, fetchTicketTypesForEvent } from '@/lib/mockData';
+import { createTicketType, createShowTime, fetchTicketTypesForEvent, getShowTimesForEvent } from '@/lib/mockData';
 import TicketTypeForm from './TicketTypeForm';
 import ShowTimeForm from './ShowTimeForm';
 
@@ -27,13 +27,17 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
   const [showAddTicketTypeDialog, setShowAddTicketTypeDialog] = useState(false);
   const [showAddShowTimeDialog, setShowAddShowTimeDialog] = useState(false);
 
+  // New state to track which showtime to add a ticket type to
+  const [currentTargetShowtimeId, setCurrentTargetShowtimeId] = useState<string | null>(null);
+
   const fetchDetails = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Fetch all ticket types for the event. We'll filter them by showtime on the client.
       const fetchedTicketTypes = await fetchTicketTypesForEvent(eventId);
-      // const fetchedShowTimes = await getShowTimesForEvent(eventId); // We need this function
+      const fetchedShowTimes = await getShowTimesForEvent(eventId);
       setTicketTypes(fetchedTicketTypes);
-      // setShowTimes(fetchedShowTimes);
+      setShowTimes(fetchedShowTimes);
     } catch (error) {
       console.error("Error fetching event details:", error);
       toast({ title: "Error", description: "Could not load ticket types or showtimes.", variant: "destructive" });
@@ -47,9 +51,14 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
   }, [fetchDetails]);
 
   const handleAddTicketType = async (data: TicketTypeFormData) => {
+    if (!currentTargetShowtimeId) {
+      toast({ title: "Error", description: "Cannot add ticket: No showtime selected.", variant: "destructive" });
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await createTicketType(eventId, data);
+      const payloadWithShowtime = { ...data, showtimeId: currentTargetShowtimeId };
+      await createTicketType(eventId, payloadWithShowtime);
       toast({ title: "Success", description: "Ticket type created successfully." });
       setShowAddTicketTypeDialog(false);
       fetchDetails(); // Refresh list
@@ -58,6 +67,7 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
       toast({ title: "Error", description: error instanceof Error ? error.message : "Could not create ticket type.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+      setCurrentTargetShowtimeId(null); // Reset after closing
     }
   };
 
@@ -67,7 +77,7 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
       await createShowTime(eventId, data);
       toast({ title: "Success", description: "Showtime created successfully." });
       setShowAddShowTimeDialog(false);
-      // fetchDetails(); // Refresh list - need getShowTimesForEvent
+      fetchDetails(); // Refresh list of showtimes
     } catch (error) {
       console.error("Failed to create showtime:", error);
       toast({ title: "Error", description: error instanceof Error ? error.message : "Could not create showtime.", variant: "destructive" });
@@ -75,51 +85,55 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
       setIsSubmitting(false);
     }
   };
+  
+  const openAddTicketTypeDialog = (showtimeId: string) => {
+    setCurrentTargetShowtimeId(showtimeId);
+    setShowAddTicketTypeDialog(true);
+  };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="flex items-center"><Ticket className="mr-2" /> Ticket Types</CardTitle>
-            <CardDescription>Define the types of tickets for this event.</CardDescription>
-          </div>
-          <Button onClick={() => setShowAddTicketTypeDialog(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin mr-2" /> Loading...</div>
-          ) : ticketTypes.length === 0 ? (
-            <p className="text-muted-foreground text-center p-4">No ticket types created yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {ticketTypes.map(tt => (
-                <li key={tt.id} className="p-3 border rounded-md bg-muted/50 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{tt.name}</p>
-                    <p className="text-sm text-muted-foreground">Price: LKR {tt.price.toFixed(2)} | Availability: {tt.availability}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
             <CardTitle className="flex items-center"><Clock className="mr-2" /> Showtimes</CardTitle>
-            <CardDescription>Add specific dates and times for the event.</CardDescription>
+            <CardDescription>Add showtimes for the event. Then add ticket types to each showtime.</CardDescription>
           </div>
           <Button onClick={() => setShowAddShowTimeDialog(true)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
           </Button>
         </CardHeader>
         <CardContent>
-           <p className="text-muted-foreground text-center p-4">Showtime management coming soon.</p>
+          {isLoading ? (
+            <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin mr-2" /> Loading details...</div>
+          ) : showTimes.length === 0 ? (
+            <p className="text-muted-foreground text-center p-4">No showtimes created yet. Add one to begin.</p>
+          ) : (
+            <div className="space-y-4">
+              {showTimes.map(st => (
+                <div key={st.id} className="p-4 border rounded-md bg-muted/30">
+                  <div className="flex justify-between items-center mb-3">
+                    <p className="font-semibold">{new Date(st.dateTime).toLocaleString()}</p>
+                    <Button variant="outline" size="sm" onClick={() => openAddTicketTypeDialog(st.id)}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
+                    </Button>
+                  </div>
+                  <ul className="space-y-1 pl-2">
+                    {ticketTypes.filter(tt => tt.showtimeId === st.id).length > 0 ? (
+                      ticketTypes.filter(tt => tt.showtimeId === st.id).map(tt => (
+                        <li key={tt.id} className="text-sm text-muted-foreground flex justify-between items-center">
+                          <span><Ticket className="inline h-4 w-4 mr-2" />{tt.name}</span>
+                          <span className="font-mono text-xs">LKR {tt.price.toFixed(2)}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-xs text-muted-foreground italic">No ticket types added for this showtime yet.</li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -128,16 +142,24 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
       </div>
 
       {/* Add Ticket Type Dialog */}
-      <Dialog open={showAddTicketTypeDialog} onOpenChange={setShowAddTicketTypeDialog}>
+      <Dialog open={showAddTicketTypeDialog} onOpenChange={(isOpen) => {
+          setShowAddTicketTypeDialog(isOpen);
+          if (!isOpen) {
+              setCurrentTargetShowtimeId(null);
+          }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Ticket Type</DialogTitle>
-            <DialogDescription>Enter the details for the new ticket type.</DialogDescription>
+            <DialogDescription>Enter details for a ticket type for the selected showtime.</DialogDescription>
           </DialogHeader>
           <TicketTypeForm 
             onSubmit={handleAddTicketType}
             isSubmitting={isSubmitting}
-            onCancel={() => setShowAddTicketTypeDialog(false)}
+            onCancel={() => {
+              setShowAddTicketTypeDialog(false);
+              setCurrentTargetShowtimeId(null);
+            }}
           />
         </DialogContent>
       </Dialog>

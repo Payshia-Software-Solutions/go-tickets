@@ -1051,6 +1051,34 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
     };
 };
 
+export const getShowTimesForEvent = async (eventId: string): Promise<ShowTime[]> => {
+  if (!SHOWTIMES_BY_EVENT_API_URL_BASE) {
+    console.warn("SHOWTIMES_BY_EVENT_API_URL_BASE is not defined, cannot fetch showtimes.");
+    return [];
+  }
+  const url = `${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventId}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 404) return [];
+      console.error(`API Error fetching showtimes for event ${eventId} from ${url}:`, response.status, await response.text());
+      return [];
+    }
+    const apiShowTimes: ApiShowTimeFlat[] = await response.json();
+    return apiShowTimes.map(st => ({
+      id: st.id,
+      eventId: st.eventId || eventId,
+      dateTime: parseApiDateString(st.dateTime) || new Date().toISOString(),
+      ticketAvailabilities: [], // This is a simplified view for listing
+      createdAt: parseApiDateString(st.createdAt),
+      updatedAt: parseApiDateString(st.updatedAt),
+    }));
+  } catch (error) {
+    console.error(`Network error fetching showtimes for event ${eventId} from ${url}:`, error);
+    return [];
+  }
+};
+
 export const createShowTime = async (eventId: string, data: AddShowTimeFormData): Promise<ShowTime> => {
     const payload = {
       eventId: eventId,
@@ -1804,6 +1832,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
