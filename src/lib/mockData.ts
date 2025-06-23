@@ -197,6 +197,7 @@ export const fetchPublicEventCategoriesFromApi = async (): Promise<Category[]> =
     return categories.map(cat => ({
         ...cat,
         id: String(cat.id),
+        name: cat.name.trim(),
         createdAt: parseApiDateString(cat.createdAt),
         updatedAt: parseApiDateString(cat.updatedAt)
     }));
@@ -397,7 +398,7 @@ export const searchEvents = async (query?: string, category?: string, date?: str
 
   const params = new URLSearchParams();
   if (query) params.set('name', query); // Assuming 'name' for text search
-  if (category) params.set('category', category);
+  if (category) params.set('category', category.trim());
   if (date) params.set('date', date);
   if (location) params.set('location', location);
 
@@ -455,6 +456,7 @@ export const adminGetAllCategories = async (): Promise<Category[]> => {
     return categories.map(cat => ({
         ...cat,
         id: String(cat.id),
+        name: cat.name.trim(),
         createdAt: parseApiDateString(cat.createdAt),
         updatedAt: parseApiDateString(cat.updatedAt)
     })).sort((a, b) => a.name.localeCompare(b.name));
@@ -1868,6 +1870,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
