@@ -389,12 +389,48 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
 };
 
 export const searchEvents = async (query?: string, category?: string, date?: string, location?: string): Promise<Event[]> => {
+  if (!API_BASE_URL) {
+    // Fallback for when API is not configured
+    console.warn("API_BASE_URL is not defined. searchEvents is disabled and will return no results.");
+    return [];
+  }
+
   const params = new URLSearchParams();
-  if (query) params.set('name_like', query);
+  if (query) params.set('name', query); // Assuming 'name' for text search
   if (category) params.set('category', category);
-  if (date) params.set('date_gte', date);
-  if (location) params.set('location_like', location);
-  return fetchEventsFromApi(params);
+  if (date) params.set('date', date);
+  if (location) params.set('location', location);
+
+  // If no filters are provided, it's better to fetch all events than to call a filter endpoint with no params.
+  if (params.toString() === '') {
+    return fetchEventsFromApi();
+  }
+  
+  const filterUrl = new URL(`${API_BASE_URL}/events/filter/`);
+  filterUrl.search = params.toString();
+
+  try {
+    const response = await fetch(filterUrl.toString());
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`API Error on filtering events: ${filterUrl.toString()}`, response.status, errorBody);
+      return []; // Return empty on error
+    }
+
+    const responseData = await response.json();
+
+    // Based on the user's provided sample response format
+    if (responseData.success && Array.isArray(responseData.data)) {
+      return responseData.data.map(mapApiEventToAppEvent);
+    } else {
+      console.error("Filtering API response did not match expected format {success: boolean, data: [...]}.", responseData);
+      return [];
+    }
+  } catch (error) {
+    console.error(`Network error during event filtering: ${filterUrl.toString()}`, error);
+    return [];
+  }
 };
 
 
@@ -1832,6 +1868,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
