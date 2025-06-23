@@ -1484,7 +1484,7 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     const patchUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
     const patchPayload = { availability: newAvailability };
     
-    console.log(`[updateAvailability] PATCHing to ${patchUrl} with payload:`, patchPayload);
+    console.log(`[updateAvailability] PUTting to ${patchUrl} with payload:`, patchPayload);
 
     const patchResponse = await fetch(patchUrl, {
       method: 'PUT',
@@ -1494,7 +1494,7 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
 
     if (!patchResponse.ok) {
       const errorBody = await patchResponse.text();
-      console.error(`Failed to PATCH new availability for ticket ${ticketTypeId} to ${patchUrl}. Status: ${patchResponse.status}`, errorBody);
+      console.error(`Failed to PUT new availability for ticket ${ticketTypeId} to ${patchUrl}. Status: ${patchResponse.status}`, errorBody);
     } else {
       const successResponse = await patchResponse.json();
       console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}. Response:`, successResponse);
@@ -1899,6 +1899,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
