@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import type { Event, CoreEventFormData } from '@/lib/types';
-import { createEvent } from '@/lib/mockData';
+// Removed: import { createEvent } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -118,7 +118,19 @@ export default function AdminEventsPage() {
   const handleCreateEventSubmit = async (data: CoreEventFormData) => {
     setIsSubmitting(true);
     try {
-      const newEventId = await createEvent(data); // This now returns just the ID
+      const response = await fetch('/api/admin/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to create event and parse error' }));
+          throw new Error(errorData.message || 'Failed to create event');
+      }
+      
+      const { newEventId } = await response.json();
+      
       toast({
         title: "Step 1 Complete: Event Created!",
         description: `Event "${data.name}" has been created. Now add ticket types and showtimes.`,
