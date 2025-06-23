@@ -1444,21 +1444,21 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
 
 // --- Ticket Availability Update Functions ---
 async function updateAvailabilityForBookedItem(eventId: string, showTimeId: string, ticketTypeId: string, quantityBooked: number): Promise<void> {
-  if (!TICKET_TYPES_AVAILABILITY_API_URL || !TICKET_TYPES_UPDATE_AVAILABILITY_API_URL) {
-    console.error("[updateAvailabilityForBookedItem] An availability API URL is not defined.");
+  if (!API_BASE_URL || !TICKET_TYPES_AVAILABILITY_API_URL || !TICKET_TYPES_UPDATE_AVAILABILITY_API_URL) {
+    console.error("[updateAvailability] An availability API URL is not defined.");
     return;
   }
-  
-  // URL for getting current availability
+
+  // 1. GET current availability
   const getUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
-  
+
   try {
-    // 1. GET current availability
     const getResponse = await fetch(getUrl);
     if (!getResponse.ok) {
       console.error(`Failed to GET current availability from ${getUrl}. Status: ${getResponse.status}`);
       return;
     }
+
     const availabilityData = await getResponse.json();
     if (!availabilityData.success || !Array.isArray(availabilityData.data)) {
       console.error('Invalid availability data structure received:', availabilityData);
@@ -1471,34 +1471,32 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
       console.error(`Ticket type ${ticketTypeId} not found in availability response for showtime ${showTimeId}.`);
       return;
     }
-    
+
     const currentAvailability = parseInt(ticketInfo.availability, 10);
     if (isNaN(currentAvailability)) {
-        console.error(`Invalid current availability value for ticket ${ticketTypeId}:`, ticketInfo.availability);
-        return;
+      console.error(`Invalid current availability value for ticket ${ticketTypeId}:`, ticketInfo.availability);
+      return;
     }
 
     const newAvailability = Math.max(0, currentAvailability - quantityBooked);
 
     // 3. PUT the new availability to the specified update URL.
-    const putUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
-    const putPayload = { 
-      availability: newAvailability 
-    };
+    const patchUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
+    const patchPayload = { availability: newAvailability };
     
-    console.log(`[updateAvailability] PUTTING to ${putUrl} with payload:`, putPayload);
+    console.log(`[updateAvailability] PATCHing to ${patchUrl} with payload:`, patchPayload);
 
-    const putResponse = await fetch(putUrl, {
+    const patchResponse = await fetch(patchUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putPayload),
+      body: JSON.stringify(patchPayload),
     });
 
-    if (!putResponse.ok) {
-      const errorBody = await putResponse.text();
-      console.error(`Failed to PUT new availability for ticket ${ticketTypeId} to ${putUrl}. Status: ${putResponse.status}`, errorBody);
+    if (!patchResponse.ok) {
+      const errorBody = await patchResponse.text();
+      console.error(`Failed to PATCH new availability for ticket ${ticketTypeId} to ${patchUrl}. Status: ${patchResponse.status}`, errorBody);
     } else {
-      const successResponse = await putResponse.json();
+      const successResponse = await patchResponse.json();
       console.log(`Successfully updated availability for ticket ${ticketTypeId} to ${newAvailability}. Response:`, successResponse);
     }
 
@@ -1818,6 +1816,37 @@ export const getUserBookings = async (userId: string): Promise<Booking[]> => {
   }
 };
 
+export const getEventSuggestionsByName = async (nameQuery: string): Promise<Event[]> => {
+  if (!API_BASE_URL) {
+    console.warn("API_BASE_URL is not defined. Event suggestions are disabled.");
+    return [];
+  }
+  if (!nameQuery || nameQuery.trim().length < 1) {
+    return [];
+  }
+
+  const suggestionUrl = new URL(`${API_BASE_URL}/events/search/name/`);
+  suggestionUrl.searchParams.set('name', nameQuery.trim());
+
+  try {
+    const response = await fetch(suggestionUrl.toString());
+    if (!response.ok) {
+      console.error(`API Error on fetching suggestions for "${nameQuery}":`, response.status, await response.text());
+      return [];
+    }
+    const responseData = await response.json();
+    if (responseData.success && Array.isArray(responseData.data)) {
+      return responseData.data.map(mapApiEventToAppEvent);
+    } else {
+      console.error("Suggestion API response did not match expected format:", responseData);
+      return [];
+    }
+  } catch (error) {
+    console.error(`Network error fetching suggestions for "${nameQuery}":`, error);
+    return [];
+  }
+};
+
 
 const initAdminMockData = async () => {
     if (mockEventsStore.length > 0 && mockEventsStore.some(e => e.id === 'evt-predefined-1-admin')) return;
@@ -1870,6 +1899,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 

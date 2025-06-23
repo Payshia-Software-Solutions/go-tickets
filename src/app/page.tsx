@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, getPopularEvents, searchEvents } from '@/lib/mockData'; 
+import { getUpcomingEvents, getEventCategories, getPopularEvents, getEventSuggestionsByName } from '@/lib/mockData'; 
 import type { Event, Category } from '@/lib/types'; // Added Category
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
@@ -84,10 +84,10 @@ export default function HomePage() {
 
   useEffect(() => {
     const fetchSuggestions = async () => {
-      if (heroSearchQuery.trim().length > 1) {
-        const filtered = await searchEvents(heroSearchQuery.trim()); 
-        setSuggestedEvents(filtered.slice(0,5));
-        setShowSuggestions(filtered.length > 0);
+      if (heroSearchQuery.trim().length > 0) {
+        const suggestions = await getEventSuggestionsByName(heroSearchQuery.trim());
+        setSuggestedEvents(suggestions.slice(0,5));
+        setShowSuggestions(suggestions.length > 0);
       } else {
         setSuggestedEvents([]);
         setShowSuggestions(false);
@@ -209,7 +209,7 @@ export default function HomePage() {
                 value={heroSearchQuery}
                 onChange={(e) => setHeroSearchQuery(e.target.value)}
                 onFocus={() => {
-                  if (heroSearchQuery.trim().length > 1 && suggestedEvents.length > 0) {
+                  if (heroSearchQuery.trim().length > 0 && suggestedEvents.length > 0) {
                     setShowSuggestions(true);
                   }
                 }}
@@ -325,6 +325,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <p className="text-muted-foreground leading-relaxed">{review.review}</p>
+
                   </CardContent>
                   <div className="p-6 pt-0">
                     <p className="text-xs text-muted-foreground">Reviewed event: {review.event}</p>
