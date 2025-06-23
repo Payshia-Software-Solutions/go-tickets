@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
-import { useEffect } from "react";
 
 interface ShowTimeFormProps {
   onSubmit: (data: AddShowTimeFormData) => Promise<void>;
