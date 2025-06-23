@@ -3,11 +3,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-// Removed: import type { User } from '@/lib/types'; 
+import { useState, useEffect, useRef } from 'react';
+import type { Event } from '@/lib/types';
+import { getEventSuggestionsByName } from '@/lib/mockData';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -34,17 +36,65 @@ const Header = () => {
   const { setTheme } = useTheme(); // Removed unused 'theme'
   const [mounted, setMounted] = useState(false);
 
+  // --- New state and ref for search suggestions ---
+  const [suggestedEvents, setSuggestedEvents] = useState<Event[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // --- New useEffect for fetching suggestions ---
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length > 1) { // Fetch suggestions for 2+ characters
+        const suggestions = await getEventSuggestionsByName(searchQuery.trim());
+        setSuggestedEvents(suggestions.slice(0, 5)); // Limit to 5 suggestions
+        setShowSuggestions(suggestions.length > 0);
+      } else {
+        setSuggestedEvents([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchSuggestions();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  // --- New useEffect for handling outside clicks ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [searchContainerRef]);
+
+  // --- Updated handleSearch function ---
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/search?query=${encodeURIComponent(searchQuery.trim())}`);
+      setShowSuggestions(false);
       setSearchQuery('');
       if (isMobileMenuOpen) setIsMobileMenuOpen(false);
     }
+  };
+
+  // --- New handler for when a suggestion is clicked ---
+  const handleSuggestionClick = () => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
   };
 
   const ThemeToggleButton = () => {
@@ -151,18 +201,45 @@ const Header = () => {
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4">
-          <form onSubmit={handleSearch} className="hidden md:flex items-center relative">
-            <Input
-              type="search"
-              placeholder="Search events..."
-              className="h-9 md:w-[150px] lg:w-[250px] pr-8" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
-              <Search className="h-4 w-4" />
-            </Button>
-          </form>
+          {/* --- Updated Desktop Search Form --- */}
+          <div ref={searchContainerRef} className="hidden md:block relative">
+            <form onSubmit={handleSearch} className="flex items-center">
+              <Input
+                type="search"
+                placeholder="Search events..."
+                className="h-9 md:w-[150px] lg:w-[250px] pr-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => {
+                  if (searchQuery.trim().length > 1 && suggestedEvents.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
+              />
+              <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
+                <Search className="h-4 w-4" />
+              </Button>
+            </form>
+            {showSuggestions && suggestedEvents.length > 0 && (
+              <Card className="absolute top-full mt-1 w-full max-h-80 overflow-y-auto z-20 shadow-lg text-left">
+                <CardContent className="p-0">
+                  <ul role="listbox">
+                    {suggestedEvents.map(event => (
+                      <li key={event.id} role="option" aria-selected="false">
+                        <Link
+                          href={`/events/${event.slug}`}
+                          className="block p-3 hover:bg-muted transition-colors text-sm text-foreground"
+                          onClick={handleSuggestionClick}
+                        >
+                          {event.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           <Button variant="ghost" size="icon" onClick={() => router.push('/checkout')} className="relative" suppressHydrationWarning>
             <ShoppingCart className="h-5 w-5" />
@@ -173,7 +250,7 @@ const Header = () => {
             )}
             <span className="sr-only">Cart</span>
           </Button>
-          
+
           <ThemeToggleButton />
 
           <div className="hidden md:block">
@@ -197,6 +274,7 @@ const Header = () => {
                     <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
                        <span className="text-xl font-bold font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
                     </Link>
+                    {/* Mobile search is intentionally left without suggestions for simplicity */}
                     <form onSubmit={handleSearch} className="flex items-center relative w-full">
                       <Input
                         type="search"
@@ -257,5 +335,3 @@ const Header = () => {
 };
 
 export default Header;
-
-    
