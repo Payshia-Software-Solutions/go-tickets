@@ -2,8 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import type { Event, CoreEventFormData } from '@/lib/types';
-// Removed: import { createEvent } from '@/lib/mockData';
+import type { Event, CoreEventFormData, EventFormData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,7 +22,9 @@ import { useToast } from '@/hooks/use-toast';
 import EventForm from '@/components/admin/EventForm';
 import EventDetailsManager from '@/components/admin/EventDetailsManager';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const API_PROXY_URL = '/api/admin/events';
+const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+
 
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -46,7 +47,7 @@ export default function AdminEventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/events`);
+      const response = await fetch(`${PUBLIC_API_URL}/events`);
       if (!response.ok) {
         throw new Error('Failed to fetch events');
       }
@@ -80,11 +81,11 @@ export default function AdminEventsPage() {
     if (!eventToDelete) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/events/${eventToDelete.id}`, {
+      const response = await fetch(`${API_PROXY_URL}/${eventToDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to delete event and parse error' }));
+        const errorData = await response.json().catch(() => ({ message: `Server returned status ${response.status}. Could not parse error.` }));
         throw new Error(errorData.message || 'Failed to delete event');
       }
       toast({
@@ -98,10 +99,11 @@ export default function AdminEventsPage() {
         description: (error instanceof Error ? error.message : "Could not delete the event."),
         variant: "destructive",
       });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
+        setShowDeleteDialog(false);
+        setEventToDelete(null);
     }
-    setShowDeleteDialog(false);
-    setEventToDelete(null);
   };
 
   const resetCreationFlow = () => {
@@ -111,21 +113,29 @@ export default function AdminEventsPage() {
   };
 
   const handleOpenCreateModal = () => {
-    resetCreationFlow(); // Ensure flow is reset when opening
+    resetCreationFlow();
     setShowCreateModal(true);
   };
 
   const handleCreateEventSubmit = async (data: CoreEventFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/admin/events', {
+      const response = await fetch(API_PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
       });
 
       if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Failed to create event and parse error' }));
+          let errorData = { message: 'An unknown error occurred on the server.' };
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+              errorData = await response.json();
+          } else {
+              const errorText = await response.text();
+              console.error("Non-JSON error response from API:", errorText);
+              errorData.message = `Server returned an unexpected response. Status: ${response.status}.`;
+          }
           throw new Error(errorData.message || 'Failed to create event');
       }
       
@@ -151,13 +161,13 @@ export default function AdminEventsPage() {
   
   const handleFinishCreation = () => {
     resetCreationFlow();
-    fetchEvents(); // Refresh the list of events
+    fetchEvents();
   };
 
   const handleOpenEditModal = async (event: Event) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/events/${event.id}`);
+      const response = await fetch(`${PUBLIC_API_URL}/events/${event.id}`);
       if (!response.ok) throw new Error('Failed to fetch event details');
       const fullEventData = await response.json();
       setCurrentEventForEdit(fullEventData);
@@ -174,14 +184,22 @@ export default function AdminEventsPage() {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/events/${currentEventForEdit.id}`, {
+      const response = await fetch(`${API_PROXY_URL}/${currentEventForEdit.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to update event and parse error' }));
-        throw new Error(errorData.message || 'Failed to update event');
+          let errorData = { message: 'An unknown error occurred on the server.' };
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+              errorData = await response.json();
+          } else {
+              const errorText = await response.text();
+              console.error("Non-JSON error response from API:", errorText);
+              errorData.message = `Server returned an unexpected response. Status: ${response.status}.`;
+          }
+          throw new Error(errorData.message || 'Failed to update event');
       }
       const updatedEvent = await response.json();
       toast({
