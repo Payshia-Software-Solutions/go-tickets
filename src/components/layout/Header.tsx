@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Menu, Search, Ticket, LogOut, ShoppingCart, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useTheme } from 'next-themes';
+import Image from 'next/image';
 
 const getInitial = (name?: string | null, email?: string): string => {
   if (name && name.trim().length > 0) {
@@ -222,16 +223,26 @@ const Header = () => {
             </form>
             {showSuggestions && suggestedEvents.length > 0 && (
               <Card className="absolute top-full mt-1 w-full max-h-80 overflow-y-auto z-20 shadow-lg text-left">
-                <CardContent className="p-0">
+                <CardContent className="p-1">
                   <ul role="listbox">
                     {suggestedEvents.map(event => (
                       <li key={event.id} role="option" aria-selected="false">
                         <Link
                           href={`/events/${event.slug}`}
-                          className="block p-3 hover:bg-muted transition-colors text-sm text-foreground"
+                          className="flex items-center p-2 hover:bg-muted transition-colors rounded-md"
                           onClick={handleSuggestionClick}
                         >
-                          {event.name}
+                          <Image
+                            src={event.imageUrl || 'https://placehold.co/40x40.png'}
+                            alt={event.name}
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 rounded-md object-cover mr-3"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-foreground truncate">{event.name}</p>
+                            <p className="text-xs text-muted-foreground">{event.category} &bull; {event.location}</p>
+                          </div>
                         </Link>
                       </li>
                     ))}
