@@ -1014,14 +1014,20 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
     return mockEventsStore.find(event => event.id === id);
   }
   
-  const eventBase = await fetchEventByIdFromApi(id);
-  if (!eventBase) {
-    console.warn(`[getAdminEventById] Event with ID "${id}" not found.`);
+  try {
+    const eventBase = await fetchEventByIdFromApi(id);
+    if (!eventBase) {
+      console.warn(`[getAdminEventById] Event with ID "${id}" not found.`);
+      return undefined;
+    }
+    
+    // Use the centralized function to populate all details
+    return await getFullEventDetails(eventBase);
+  } catch (error) {
+    console.error(`[getAdminEventById] Error during fetch or processing for event ID ${id}:`, error);
+    // Return undefined instead of crashing if the process fails.
     return undefined;
   }
-  
-  // Use the centralized function to populate all details
-  return getFullEventDetails(eventBase);
 };
 
 export const createEvent = async (data: CoreEventFormData): Promise<string> => {
@@ -1160,11 +1166,18 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     venueName: data.venueName,
     venueAddress: data.venueAddress || null,
   };
-  const eventResponse = await fetch(`${API_BASE_URL}/events/${eventId}`, {
+  
+  const eventUpdateUrl = `${API_BASE_URL}/events/${eventId}`;
+  console.log(`[updateEvent] Step 1: Updating main event details.`);
+  console.log(`  - URL: PUT ${eventUpdateUrl}`);
+  console.log(`  - Payload:`, JSON.stringify(eventPayloadForApi, null, 2));
+  
+  const eventResponse = await fetch(eventUpdateUrl, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(eventPayloadForApi),
   });
+
   if (!eventResponse.ok) {
     const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
     throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
@@ -1174,15 +1187,16 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   const createdTicketTypeIds = new Map<string, string>();
 
   // Step 2: Synchronize Ticket Type Definitions
+  console.log(`[updateEvent] Starting Step 2: Syncing Ticket Type Definitions...`);
   for (const ttDef of data.ticketTypes) {
     if (!ttDef.id || ttDef.id.startsWith('temp-')) {
-      console.log(`[updateEvent] Found new ticket type definition: "${ttDef.name}". Attempting to create.`);
       const firstShowtimeId = data.showTimes[0]?.id;
       if (!firstShowtimeId || firstShowtimeId.startsWith('temp-')) {
         console.warn(`[updateEvent] Cannot create new ticket type "${ttDef.name}" because no existing showtimes are available to associate with. It will be skipped.`);
         continue;
       }
       try {
+        console.log(`[updateEvent] Found new ticket type definition: "${ttDef.name}". Attempting to create.`);
         const createdTt = await createTicketType(eventId, { ...ttDef, showtimeId: firstShowtimeId });
         console.log(`[updateEvent] Created new ticket type "${createdTt.name}" with ID: ${createdTt.id}`);
         if (ttDef.id) {
@@ -1194,15 +1208,21 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       }
     }
   }
-   console.log(`[updateEvent] Step 2 complete: Handled new ticket type definitions.`);
+   console.log(`[updateEvent] Step 2 complete.`);
 
   // Step 3: Synchronize Showtimes and their specific Ticket Types
+  console.log(`[updateEvent] Starting Step 3: Syncing Showtimes and their Ticket Availabilities...`);
   for (const stData of data.showTimes) {
     let showtimeId = stData.id;
 
     if (showtimeId && showtimeId.startsWith('temp-')) { // It's a new showtime
         const createPayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
-        const stResponse = await fetch(SHOWTIMES_API_URL, {
+        const newShowtimeUrl = SHOWTIMES_API_URL;
+        console.log(`[updateEvent] Creating new showtime.`);
+        console.log(`  - URL: POST ${newShowtimeUrl}`);
+        console.log(`  - Payload:`, JSON.stringify(createPayload, null, 2));
+
+        const stResponse = await fetch(newShowtimeUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(createPayload)
@@ -1215,7 +1235,12 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         showtimeId = newShowtime.id;
     } else if (showtimeId) { // It's an existing showtime
         const showtimeUpdatePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
-        const stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
+        const updateShowtimeUrl = `${SHOWTIMES_API_URL}/${showtimeId}`;
+        console.log(`[updateEvent] Updating existing showtime.`);
+        console.log(`  - URL: PUT ${updateShowtimeUrl}`);
+        console.log(`  - Payload:`, JSON.stringify(showtimeUpdatePayload, null, 2));
+
+        const stResponse = await fetch(updateShowtimeUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(showtimeUpdatePayload)
@@ -1230,7 +1255,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       console.error("[updateEvent] Could not get a valid showtime ID for a showtime, skipping its ticket updates.");
       continue;
     }
-    console.log(`[updateEvent] Processing showtime ID: ${showtimeId}`);
+    console.log(`[updateEvent] Processing tickets for showtime ID: ${showtimeId}`);
 
     for (const staData of stData.ticketAvailabilities) {
         const originalTtId = staData.ticketTypeId;
@@ -1251,9 +1276,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             description: ticketTypeDefinition.description || "",
             availability: staData.availableCount
         };
-
-        console.log(`[updateEvent] Updating ticket type with full data. URL: ${fullUpdateUrl}`);
-        console.log('[updateEvent] Payload:', JSON.stringify(fullUpdatePayload, null, 2));
+        
+        console.log(`[updateEvent] Updating ticket type with full data.`);
+        console.log(`  - URL: PUT ${fullUpdateUrl}`);
+        console.log('  - Payload:', JSON.stringify(fullUpdatePayload, null, 2));
 
         const fullUpdateResponse = await fetch(fullUpdateUrl, {
             method: 'PUT',
@@ -1266,7 +1292,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         }
     }
   }
-  console.log(`[updateEvent] Update process complete.`);
+  console.log(`[updateEvent] Update process complete for event ID: ${eventId}.`);
 };
 
 
@@ -1453,6 +1479,7 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
 
   // 1. GET current availability
   const getUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}`;
+  console.log(`[updateAvailability] Getting current availability. URL: GET ${getUrl}`);
 
   try {
     const getResponse = await fetch(getUrl);
@@ -1486,7 +1513,9 @@ async function updateAvailabilityForBookedItem(eventId: string, showTimeId: stri
     const putUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}/?eventid=${eventId}&showtimeid=${showTimeId}&tickettypeid=${ticketTypeId}`;
     const putPayload = { availability: newAvailability };
     
-    console.log(`[updateAvailability] PUTting to ${putUrl} with payload:`, putPayload);
+    console.log(`[updateAvailability] Updating availability.`);
+    console.log(`  - URL: PUT ${putUrl}`);
+    console.log(`  - Payload:`, JSON.stringify(putPayload, null, 2));
 
     const putResponse = await fetch(putUrl, {
       method: 'PUT',
@@ -1963,6 +1992,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
