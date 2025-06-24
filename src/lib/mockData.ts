@@ -1,4 +1,5 @@
 
+
 import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, TicketTypeFormData, CoreEventFormData, AddShowTimeFormData } from './types';
 import { parse, isValid, format, parseISO } from 'date-fns';
 
@@ -1277,49 +1278,26 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             continue;
         }
         
-        const updateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
-        const updatePayload = {
+        const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
+        const fullUpdatePayload = {
             name: ticketTypeDefinition.name,
             price: ticketTypeDefinition.price,
             description: ticketTypeDefinition.description || "",
             availability: staData.availableCount,
         };
-        
-        console.log(`[updateEvent] Attempting to UPDATE ticket type association.`);
-        console.log(`  - URL: PUT ${updateUrl}`);
-        console.log('  - Payload:', JSON.stringify(updatePayload, null, 2));
 
-        const updateResponse = await fetch(updateUrl, {
+        console.log(`%c[updateEvent] Calling Full Ticket Update`, 'color: blue; font-weight: bold;');
+        console.log(`  - URL: PUT ${fullUpdateUrl}`);
+        console.log(`  - PAYLOAD:`, JSON.stringify(fullUpdatePayload, null, 2));
+
+        const fullUpdateResponse = await fetch(fullUpdateUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload),
+            body: JSON.stringify(fullUpdatePayload),
         });
 
-        if (updateResponse.status === 404) {
-            // The record doesn't exist, so we need to create it.
-            console.log(`[updateEvent] Update failed with 404. Assuming new ticket association. Attempting to CREATE.`);
-
-            const createPayload: TicketTypeFormData = {
-                // We must provide all the data for a new ticket type row,
-                // as the API seems to create a new row per showtime association.
-                name: ticketTypeDefinition.name,
-                price: ticketTypeDefinition.price,
-                availability: staData.availableCount, // The specific availability for this showtime
-                description: ticketTypeDefinition.description || '',
-                showtimeId: showtimeId, // Link it to the current showtime
-            };
-
-            try {
-                // createTicketType internally POSTs to /ticket-types
-                await createTicketType(eventId, createPayload);
-                console.log(`[updateEvent] Successfully CREATED new ticket type association for "${createPayload.name}" with showtime ${showtimeId}.`);
-            } catch (createError) {
-                console.error(`[updateEvent] After PUT failed, the subsequent CREATE also failed for showtime ${showtimeId}.`, createError);
-            }
-        } else if (!updateResponse.ok) {
-            console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${updateResponse.status}`, await updateResponse.text());
-        } else {
-            console.log(`[updateEvent] Successfully UPDATED ticket type ${ticketTypeDefinition.id} for showtime ${showtimeId}.`);
+        if (!fullUpdateResponse.ok) {
+            console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
         }
     }
   }
@@ -2023,6 +2001,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
