@@ -281,7 +281,7 @@ export const getUpcomingEvents = async (limit: number = 8): Promise<Event[]> => 
 export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
   const allEvents = await fetchEventsFromApi();
    return allEvents
-    .sort((a, b) => ((b.ticketTypes?.length || 0) + (b.showTimes?.length || 0)) - ((a.ticketTypes?.length || 0) + (a.showTimes?.length || 0)))
+    .sort((a, b) => ((b.ticketTypes?.length || 0) + (b.showTimes?.length || 0)) - ((a.ticketTypes?.length || 0) + a.showTimes?.length || 0))
     .slice(0, limit);
 };
 
@@ -951,6 +951,7 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
             if (responseJson.success && Array.isArray(responseJson.data)) {
               detailedShowTime.ticketAvailabilities = responseJson.data
                 .map((availRecord: { id: string; name: string; availability: string }) => {
+                  // The 'id' in this response is the ticketTypeId
                   const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
                   if (!masterTt) {
                     console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
@@ -958,7 +959,7 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
                   }
                   
                   return {
-                    id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID
+                    id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID for form keying
                     showTimeId: basicSt.id,
                     ticketTypeId: masterTt.id,
                     ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
@@ -981,8 +982,8 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
 
   } catch (error) {
     console.error(`[getFullEventDetails] A critical error occurred while populating details for event ${eventBase.id}:`, error);
-    // In case of a failure during population, return the base event object to prevent a full crash.
-    // The UI might show incomplete data, but it's better than a hard error.
+    // In case of a failure during population, return the base event object, but log the issue.
+    // It's better to show partial data than to crash the entire page.
     return eventBase;
   }
 };
@@ -1073,6 +1074,11 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       eventId: eventId,
       showtimeId: data.showtimeId || null,
     };
+
+    console.log(`[createTicketType] Creating ticket type association.`);
+    console.log(`  - URL: POST ${TICKET_TYPES_API_URL}`);
+    console.log('  - Payload:', JSON.stringify(payload, null, 2));
+
     const response = await fetch(TICKET_TYPES_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1215,7 +1221,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   for (const stData of data.showTimes) {
     let showtimeId = stData.id;
 
-    if (showtimeId && showtimeId.startsWith('temp-')) { // It's a new showtime
+    if (!showtimeId || showtimeId.startsWith('temp-')) { // It's a new showtime
         const createPayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
         const newShowtimeUrl = SHOWTIMES_API_URL;
         console.log(`[updateEvent] Creating new showtime.`);
@@ -1233,7 +1239,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         }
         const newShowtime: ApiShowTimeFlat = await stResponse.json();
         showtimeId = newShowtime.id;
-    } else if (showtimeId) { // It's an existing showtime
+    } else { // It's an existing showtime
         const showtimeUpdatePayload = {
           eventId: eventId,
           dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss")
@@ -1270,28 +1276,50 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             console.warn(`[updateEvent] Skipping availability update for unlinked ticket type ID "${resolvedTtId}" within showtime ${showtimeId}.`);
             continue;
         }
-
-        const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
         
-        const fullUpdatePayload = {
+        const updateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
+        const updatePayload = {
             name: ticketTypeDefinition.name,
             price: ticketTypeDefinition.price,
             description: ticketTypeDefinition.description || "",
-            availability: staData.availableCount
+            availability: staData.availableCount,
         };
         
-        console.log(`[updateEvent] Updating ticket type with full data.`);
-        console.log(`  - URL: PUT ${fullUpdateUrl}`);
-        console.log('  - Payload:', JSON.stringify(fullUpdatePayload, null, 2));
+        console.log(`[updateEvent] Attempting to UPDATE ticket type association.`);
+        console.log(`  - URL: PUT ${updateUrl}`);
+        console.log('  - Payload:', JSON.stringify(updatePayload, null, 2));
 
-        const fullUpdateResponse = await fetch(fullUpdateUrl, {
+        const updateResponse = await fetch(updateUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fullUpdatePayload)
+            body: JSON.stringify(updatePayload),
         });
 
-        if (!fullUpdateResponse.ok) {
-            console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
+        if (updateResponse.status === 404) {
+            // The record doesn't exist, so we need to create it.
+            console.log(`[updateEvent] Update failed with 404. Assuming new ticket association. Attempting to CREATE.`);
+
+            const createPayload: TicketTypeFormData = {
+                // We must provide all the data for a new ticket type row,
+                // as the API seems to create a new row per showtime association.
+                name: ticketTypeDefinition.name,
+                price: ticketTypeDefinition.price,
+                availability: staData.availableCount, // The specific availability for this showtime
+                description: ticketTypeDefinition.description || '',
+                showtimeId: showtimeId, // Link it to the current showtime
+            };
+
+            try {
+                // createTicketType internally POSTs to /ticket-types
+                await createTicketType(eventId, createPayload);
+                console.log(`[updateEvent] Successfully CREATED new ticket type association for "${createPayload.name}" with showtime ${showtimeId}.`);
+            } catch (createError) {
+                console.error(`[updateEvent] After PUT failed, the subsequent CREATE also failed for showtime ${showtimeId}.`, createError);
+            }
+        } else if (!updateResponse.ok) {
+            console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${updateResponse.status}`, await updateResponse.text());
+        } else {
+            console.log(`[updateEvent] Successfully UPDATED ticket type ${ticketTypeDefinition.id} for showtime ${showtimeId}.`);
         }
     }
   }
@@ -1995,6 +2023,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
