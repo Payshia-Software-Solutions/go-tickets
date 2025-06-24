@@ -635,6 +635,8 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
       ticketTypeName: selectedType?.name || "",
     })
   };
+  
+  const uniqueTicketTypes = Array.from(new Map(ticketTypes.filter(tt => tt.id && tt.name).map(item => [item.id, item])).values());
 
   return (
     <div className="p-4 border rounded-lg bg-muted/30 relative space-y-4">
@@ -680,7 +682,7 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
                 <Select onValueChange={(value) => handleTicketTypeChange(value, availIndex)} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Select ticket type..." /></SelectTrigger></FormControl>
                   <SelectContent>
-                    {ticketTypes.map(tt => <SelectItem key={tt.id || tt.name} value={tt.id || ''}>{tt.name}</SelectItem>)}
+                    {uniqueTicketTypes.map(tt => <SelectItem key={tt.id || tt.name} value={tt.id || ''}>{tt.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -701,5 +703,3 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
     </div>
   );
 }
-
-    
