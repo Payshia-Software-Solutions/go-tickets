@@ -19,6 +19,11 @@ const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types"
 const TICKET_TYPES_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/availability";
 const TICKET_TYPES_UPDATE_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/update/availability";
 
+// Count URLs
+const EVENTS_COUNT_API_URL = "https://gotickets-server.payshia.com/events/get/count";
+const BOOKINGS_COUNT_API_URL = "https://gotickets-server.payshia.com/bookings/get/count";
+const USERS_COUNT_API_URL = "https://gotickets-server.payshia.com/users/get/count";
+
 
 // Helper to parse various date strings to ISO string
 const parseApiDateString = (dateString?: string): string | undefined => {
@@ -1047,11 +1052,10 @@ export const createEvent = async (data: CoreEventFormData): Promise<string> => {
   }
   
   const createEventResponse: { message: string; newEventId: string } = await eventResponse.json();
-  const newEventId = createEventResponse.newEventId;
-  if (!newEventId) {
+  if (!createEventResponse.newEventId) {
     throw new Error("API did not return a newEventId for the newly created event.");
   }
-  return newEventId;
+  return createEventResponse.newEventId;
 };
 
 export const createTicketType = async (eventId: string, data: TicketTypeFormData): Promise<TicketType> => {
@@ -1842,6 +1846,46 @@ export const getEventSuggestionsByName = async (nameQuery: string): Promise<Even
   }
 };
 
+// --- Dashboard Count Fetchers ---
+export const getEventCount = async (): Promise<number> => {
+  if (!EVENTS_COUNT_API_URL) return 0;
+  try {
+    const response = await fetch(EVENTS_COUNT_API_URL);
+    if (!response.ok) throw new Error('Failed to fetch event count');
+    const data = await response.json();
+    return parseInt(data.totalEvents, 10) || 0;
+  } catch (error) {
+    console.error("Error fetching event count:", error);
+    return 0; // Return a default value on error
+  }
+};
+
+export const getBookingCount = async (): Promise<number> => {
+  if (!BOOKINGS_COUNT_API_URL) return 0;
+  try {
+    const response = await fetch(BOOKINGS_COUNT_API_URL);
+    if (!response.ok) throw new Error('Failed to fetch booking count');
+    const data = await response.json();
+    return parseInt(data.totalBookings, 10) || 0;
+  } catch (error) {
+    console.error("Error fetching booking count:", error);
+    return 0;
+  }
+};
+
+export const getUserCount = async (): Promise<number> => {
+  if (!USERS_COUNT_API_URL) return 0;
+  try {
+    const response = await fetch(USERS_COUNT_API_URL);
+    if (!response.ok) throw new Error('Failed to fetch user count');
+    const data = await response.json();
+    return parseInt(data.totalUsers, 10) || 0;
+  } catch (error) {
+    console.error("Error fetching user count:", error);
+    return 0;
+  }
+};
+
 
 const initAdminMockData = async () => {
     if (mockEventsStore.length > 0 && mockEventsStore.some(e => e.id === 'evt-predefined-1-admin')) return;
@@ -1894,6 +1938,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
