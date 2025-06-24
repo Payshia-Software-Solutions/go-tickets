@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import type { TicketTypeFormData, TicketType } from "@/lib/types";
+import type { TicketTypeFormData, TicketType, ShowTime } from "@/lib/types";
 import { TicketTypeFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface TicketTypeFormProps {
   initialData?: TicketType | null;
@@ -18,6 +19,8 @@ interface TicketTypeFormProps {
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
+  showtimes?: ShowTime[];
+  selectedShowtimeId?: string | null;
 }
 
 export default function TicketTypeForm({
@@ -26,6 +29,8 @@ export default function TicketTypeForm({
   isSubmitting,
   submitButtonText = "Save Ticket Type",
   onCancel,
+  showtimes,
+  selectedShowtimeId,
 }: TicketTypeFormProps) {
   const form = useForm<TicketTypeFormData>({
     resolver: zodResolver(TicketTypeFormSchema),
@@ -33,12 +38,14 @@ export default function TicketTypeForm({
         name: initialData.name, 
         price: initialData.price,
         availability: initialData.availability,
-        description: initialData.description || "" 
+        description: initialData.description || "",
+        showtimeId: selectedShowtimeId || undefined,
     } : { 
         name: "General Admission", 
         price: 0, 
         availability: 100, 
-        description: "" 
+        description: "",
+        showtimeId: selectedShowtimeId || undefined,
     },
   });
 
@@ -47,14 +54,16 @@ export default function TicketTypeForm({
         name: initialData.name, 
         price: initialData.price,
         availability: initialData.availability,
-        description: initialData.description || "" 
+        description: initialData.description || "",
+        showtimeId: selectedShowtimeId || undefined,
     } : { 
         name: "General Admission", 
         price: 0, 
         availability: 100, 
-        description: "" 
+        description: "",
+        showtimeId: selectedShowtimeId || undefined,
     });
-  }, [initialData, form]);
+  }, [initialData, selectedShowtimeId, form]);
 
   const handleFormSubmit = async (data: TicketTypeFormData) => {
     await onSubmit(data);
@@ -63,6 +72,40 @@ export default function TicketTypeForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        {showtimes && selectedShowtimeId && (
+          <FormField
+            control={form.control}
+            name="showtimeId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Showtime</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  defaultValue={selectedShowtimeId}
+                  disabled // This dropdown confirms context but cannot be changed here.
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a showtime" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {showtimes.map((st) => (
+                      <SelectItem key={st.id} value={st.id}>
+                        {new Date(st.dateTime).toLocaleString()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription className="text-xs">
+                  This ticket type will be created for the selected showtime.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="name"

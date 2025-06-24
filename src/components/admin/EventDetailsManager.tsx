@@ -51,14 +51,13 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
   }, [fetchDetails]);
 
   const handleAddTicketType = async (data: TicketTypeFormData) => {
-    if (!currentTargetShowtimeId) {
-      toast({ title: "Error", description: "Cannot add ticket: No showtime selected.", variant: "destructive" });
+    if (!data.showtimeId) {
+      toast({ title: "Error", description: "Cannot add ticket: No showtime was selected in the form.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
     try {
-      const payloadWithShowtime = { ...data, showtimeId: currentTargetShowtimeId };
-      await createTicketType(eventId, payloadWithShowtime);
+      await createTicketType(eventId, data);
       toast({ title: "Success", description: "Ticket type created successfully." });
       setShowAddTicketTypeDialog(false);
       fetchDetails(); // Refresh list
@@ -160,6 +159,8 @@ export default function EventDetailsManager({ eventId, onFinished }: EventDetail
               setShowAddTicketTypeDialog(false);
               setCurrentTargetShowtimeId(null);
             }}
+            showtimes={showTimes}
+            selectedShowtimeId={currentTargetShowtimeId}
           />
         </DialogContent>
       </Dialog>
