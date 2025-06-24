@@ -25,6 +25,7 @@ import Image from "next/image";
 import { getEventCategories } from "@/lib/mockData";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
@@ -242,9 +243,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   
   const handleAddNewShowtime = () => {
     const newAvailabilities = watchedTicketTypes.map(tt => ({
-        ticketTypeId: tt.id || `temp-id-${Math.random()}`, // Use a temp id if not persisted yet
+        ticketTypeId: tt.id || `temp-id-${Math.random()}`,
         ticketTypeName: tt.name,
-        availableCount: tt.availability, // Default availability from the ticket type definition
+        availableCount: tt.availability,
     }));
     appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
   };
@@ -253,301 +254,308 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <section className="space-y-6 p-1">
-            <h3 className="text-xl font-semibold border-b pb-2">Core Event Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-            <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Event Name</FormLabel>
-                    <FormControl>
-                    <Input placeholder="e.g., Annual Tech Summit" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
+        
+        <Tabs defaultValue="core" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="core">Core Details</TabsTrigger>
+            <TabsTrigger value="tickets" disabled={!initialData}>Ticket Types</TabsTrigger>
+            <TabsTrigger value="showtimes" disabled={!initialData}>Showtimes</TabsTrigger>
+          </TabsList>
 
-            <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Event Slug</FormLabel>
-                    <FormControl>
-                    <Input 
-                        placeholder="e.g., annual-tech-summit" 
-                        {...field} 
-                        onChange={(e) => {
-                        field.onChange(e);
-                        setSlugManuallyEdited(true);
-                        }}
-                    />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                    Auto-updates from name if not manually edited. Uniqueness handled on save.
-                    </FormDescription>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-            <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                <FormItem className="flex flex-col">
-                    <FormLabel>Main Event Date</FormLabel>
-                    <Popover>
-                    <PopoverTrigger asChild>
-                        <FormControl>
-                        <Button
-                            variant={"outline"}
-                            className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                            )}
-                        >
-                            {field.value ? (
-                            format(field.value, "PPP") 
-                            ) : (
-                            <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                        </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
-                        initialFocus
-                        />
-                    </PopoverContent>
-                    </Popover>
-                    <FormDescription className="text-xs">The primary date for the event listing.</FormDescription>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-
-            <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                    <FormControl>
-                        <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                        {categories.map((cat) => (
-                        <SelectItem key={String(cat.id)} value={cat.name}>{cat.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                    </Select>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-            </div>
-
-            <FormField
-            control={form.control}
-            name="location"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Location</FormLabel>
-                <FormControl>
-                    <Input placeholder="e.g., City Conference Center" {...field} />
-                </FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            
-            <FormField
-            control={form.control}
-            name="description"
-            render={() => (
-                <FormItem>
-                <FormLabel>Description</FormLabel>
-                <FormControl>
-                    <Controller
-                    name="description"
+          <TabsContent value="core">
+            <section className="space-y-6 p-1 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                <FormField
                     control={form.control}
-                    render={({ field: controllerField }) => (
-                        <RichTextEditor
-                        value={controllerField.value}
-                        onChange={controllerField.onChange}
-                        />
+                    name="name"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Event Name</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., Annual Tech Summit" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
                     )}
-                    />
-                </FormControl>
-                <FormDescription className="text-xs">
-                    Use the rich text editor to format your event description.
-                </FormDescription>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            
-            <FormField
-            control={form.control}
-            name="imageUrl"
-            render={({ field }) => ( 
-                <FormItem>
-                <FormLabel>Event Image</FormLabel>
-                <div className="space-y-3">
+                />
+
+                <FormField
+                    control={form.control}
+                    name="slug"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Event Slug</FormLabel>
+                        <FormControl>
+                        <Input 
+                            placeholder="e.g., annual-tech-summit" 
+                            {...field} 
+                            onChange={(e) => {
+                            field.onChange(e);
+                            setSlugManuallyEdited(true);
+                            }}
+                        />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                        Auto-updates from name if not manually edited. Uniqueness handled on save.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                        <FormLabel>Main Event Date</FormLabel>
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <FormControl>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                                )}
+                            >
+                                {field.value ? (
+                                format(field.value, "PPP") 
+                                ) : (
+                                <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                            </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
+                            initialFocus
+                            />
+                        </PopoverContent>
+                        </Popover>
+                        <FormDescription className="text-xs">The primary date for the event listing.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {categories.map((cat) => (
+                            <SelectItem key={String(cat.id)} value={cat.name}>{cat.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                </div>
+
+                <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Location</FormLabel>
                     <FormControl>
-                    <Input
-                        type="file"
-                        accept="image/*"
-                        ref={fileInputRef}
-                        onChange={handleFileChange} 
-                        className="block w-full text-sm text-slate-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-full file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-primary/10 file:text-primary
-                        hover:file:bg-primary/20"
-                    />
+                        <Input placeholder="e.g., City Conference Center" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                
+                <FormField
+                control={form.control}
+                name="description"
+                render={() => (
+                    <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                        <Controller
+                        name="description"
+                        control={form.control}
+                        render={({ field: controllerField }) => (
+                            <RichTextEditor
+                            value={controllerField.value}
+                            onChange={controllerField.onChange}
+                            />
+                        )}
+                        />
                     </FormControl>
                     <FormDescription className="text-xs">
-                    Select local image, use AI generation, or paste a URL below.
+                        Use the rich text editor to format your event description.
                     </FormDescription>
-                    <Input 
-                        placeholder="Or paste image URL here / Use AI Gen"
-                        value={field.value?.startsWith("data:image/") ? "(Local image selected or AI generated)" : field.value || ""}
-                        onChange={(e) => {
-                            field.onChange(e.target.value);
-                            setLocalImagePreview(e.target.value);
-                            if (fileInputRef.current) fileInputRef.current.value = ""; 
-                        }}
-                        disabled={field.value?.startsWith("data:image/")} 
-                    />
-                     <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
-                      <AlertTriangle className="h-4 w-4 !text-amber-600" />
-                      <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
-                      <AlertDescription>
-                          If using a local image, it&apos;s for preview. Production apps need to upload files to cloud storage and use the returned URL.
-                          AI-generated images are data URIs, which are large and also best uploaded for production.
-                      </AlertDescription>
-                    </Alert>
-                    {(localImagePreview || currentImageUrlFieldValue) && (
-                    <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
-                        <Image
-                        src={localImagePreview || currentImageUrlFieldValue!}
-                        alt="Event image preview"
-                        fill
-                        style={{ objectFit: 'contain' }}
-                        data-ai-hint="event poster"
-                        onError={() => {}}
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                
+                <FormField
+                control={form.control}
+                name="imageUrl"
+                render={({ field }) => ( 
+                    <FormItem>
+                    <FormLabel>Event Image</FormLabel>
+                    <div className="space-y-3">
+                        <FormControl>
+                        <Input
+                            type="file"
+                            accept="image/*"
+                            ref={fileInputRef}
+                            onChange={handleFileChange} 
+                            className="block w-full text-sm text-slate-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-primary/10 file:text-primary
+                            hover:file:bg-primary/20"
                         />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                        Select local image, use AI generation, or paste a URL below.
+                        </FormDescription>
+                        <Input 
+                            placeholder="Or paste image URL here / Use AI Gen"
+                            value={field.value?.startsWith("data:image/") ? "(Local image selected or AI generated)" : field.value || ""}
+                            onChange={(e) => {
+                                field.onChange(e.target.value);
+                                setLocalImagePreview(e.target.value);
+                                if (fileInputRef.current) fileInputRef.current.value = ""; 
+                            }}
+                            disabled={field.value?.startsWith("data:image/")} 
+                        />
+                        <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
+                        <AlertTriangle className="h-4 w-4 !text-amber-600" />
+                        <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
+                        <AlertDescription>
+                            If using a local image, it&apos;s for preview. Production apps need to upload files to cloud storage and use the returned URL.
+                            AI-generated images are data URIs, which are large and also best uploaded for production.
+                        </AlertDescription>
+                        </Alert>
+                        {(localImagePreview || currentImageUrlFieldValue) && (
+                        <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
+                            <Image
+                            src={localImagePreview || currentImageUrlFieldValue!}
+                            alt="Event image preview"
+                            fill
+                            style={{ objectFit: 'contain' }}
+                            data-ai-hint="event poster"
+                            onError={() => {}}
+                            />
+                        </div>
+                        )}
                     </div>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                
+                <div className="space-y-2">
+                    <Button type="button" variant="outline" onClick={handleAiImageAndKeywords} disabled={isGeneratingImage || isSuggestingKeywords} className="w-full sm:w-auto">
+                        {(isGeneratingImage || isSuggestingKeywords) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Sparkles className="mr-2 h-4 w-4" /> Get AI Image & Keywords
+                    </Button>
+                    {suggestedKeywords.length > 0 && (
+                        <div className="pt-2">
+                            <p className="text-sm text-muted-foreground mb-1">Unsplash keyword suggestions:</p>
+                            <div className="flex flex-wrap gap-2">
+                            {suggestedKeywords.map(keyword => (
+                                <Button key={keyword} variant="outline" size="sm" asChild>
+                                <a href={`https://unsplash.com/s/photos/${encodeURIComponent(keyword)}`} target="_blank" rel="noopener noreferrer">
+                                    {keyword}
+                                </a>
+                                </Button>
+                            ))}
+                            </div>
+                        </div>
                     )}
                 </div>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-            
-            <div className="space-y-2">
-                <Button type="button" variant="outline" onClick={handleAiImageAndKeywords} disabled={isGeneratingImage || isSuggestingKeywords} className="w-full sm:w-auto">
-                    {(isGeneratingImage || isSuggestingKeywords) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <Sparkles className="mr-2 h-4 w-4" /> Get AI Image & Keywords
-                </Button>
-                {suggestedKeywords.length > 0 && (
-                    <div className="pt-2">
-                        <p className="text-sm text-muted-foreground mb-1">Unsplash keyword suggestions:</p>
-                        <div className="flex flex-wrap gap-2">
-                        {suggestedKeywords.map(keyword => (
-                            <Button key={keyword} variant="outline" size="sm" asChild>
-                            <a href={`https://unsplash.com/s/photos/${encodeURIComponent(keyword)}`} target="_blank" rel="noopener noreferrer">
-                                {keyword}
-                            </a>
-                            </Button>
-                        ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-            <FormField
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
+                <FormField
+                    control={form.control}
+                    name="organizerId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Organizer</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select an organizer" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {organizers.length === 0 && <p className="p-2 text-sm text-muted-foreground">No organizers found. Please add one.</p>}
+                            {organizers.map((org) => (
+                            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                
+                <FormField
+                    control={form.control}
+                    name="venueName"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Venue Name</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., Grand Hall" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                </div>
+
+                <FormField
                 control={form.control}
-                name="organizerId"
+                name="venueAddress"
                 render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Organizer</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                    <FormItem>
+                    <FormLabel>Venue Address (Optional)</FormLabel>
                     <FormControl>
-                        <SelectTrigger>
-                        <SelectValue placeholder="Select an organizer" />
-                        </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                        {organizers.length === 0 && <p className="p-2 text-sm text-muted-foreground">No organizers found. Please add one.</p>}
-                        {organizers.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                    </Select>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
-            
-            <FormField
-                control={form.control}
-                name="venueName"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Venue Name</FormLabel>
-                    <FormControl>
-                    <Input placeholder="e.g., Grand Hall" {...field} />
+                        <Input placeholder="e.g., 123 Main St, Anytown" {...field} />
                     </FormControl>
                     <FormMessage />
-                </FormItem>
+                    </FormItem>
                 )}
-            />
-            </div>
+                />
+            </section>
+          </TabsContent>
 
-            <FormField
-            control={form.control}
-            name="venueAddress"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Venue Address (Optional)</FormLabel>
-                <FormControl>
-                    <Input placeholder="e.g., 123 Main St, Anytown" {...field} />
-                </FormControl>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
-        </section>
-
-        {initialData && (
-          <>
-            <Separator />
-            {/* Ticket Types Section */}
-            <section className="space-y-6 p-1">
+          <TabsContent value="tickets">
+            <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Ticket className="mr-2"/> Ticket Type Definitions</h3>
                 <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, availability: 100, description: "" })}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
                 </Button>
               </div>
+              <FormDescription>Define the types of tickets available for this event (e.g., General, VIP). These definitions will be used as templates for showtimes.</FormDescription>
               <div className="space-y-4">
                 {ticketTypeFields.map((field, index) => (
                   <div key={field.id} className="p-4 border rounded-lg bg-muted/30 relative">
@@ -573,16 +581,17 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 {ticketTypeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No ticket types defined. Add one to get started.</p>}
               </div>
             </section>
+          </TabsContent>
 
-            <Separator />
-            {/* Showtimes Section */}
-            <section className="space-y-6 p-1">
+          <TabsContent value="showtimes">
+            <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
                 <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowtime}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
                 </Button>
               </div>
+              <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
               <div className="space-y-4">
                 {showTimeFields.map((field, index) => (
                   <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} ticketTypes={watchedTicketTypes} />
@@ -590,10 +599,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
               </div>
             </section>
-          </>
-        )}
+          </TabsContent>
+        </Tabs>
 
-        <div className="flex gap-2 justify-end pt-4">
+
+        <div className="flex gap-2 justify-end pt-4 border-t">
             {onCancel && (
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                     Cancel
@@ -612,10 +622,19 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
 // Sub-component for managing a single showtime within the form
 function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void, ticketTypes: any[] }) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: `showTimes.${showtimeIndex}.ticketAvailabilities`
   });
+
+  const handleTicketTypeChange = (value: string, availIndex: number) => {
+    const selectedType = ticketTypes.find(tt => tt.id === value);
+    update(availIndex, {
+      ...form.getValues(`showTimes.${showtimeIndex}.ticketAvailabilities`)[availIndex],
+      ticketTypeId: value,
+      ticketTypeName: selectedType?.name || "",
+    })
+  };
 
   return (
     <div className="p-4 border rounded-lg bg-muted/30 relative space-y-4">
@@ -649,19 +668,16 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
       <div className="pl-4 border-l-2 border-border/50 space-y-3">
         <div className="flex items-center justify-between">
             <h4 className="text-md font-semibold">Ticket Availability</h4>
-             <Button type="button" variant="ghost" size="sm" onClick={() => append({ ticketTypeId: "", availableCount: 0 })}>
+             <Button type="button" variant="ghost" size="sm" onClick={() => append({ ticketTypeId: "", ticketTypeName: "", availableCount: 0 })}>
                 <PlusCircle className="mr-2 h-4 w-4"/> Add Availability
              </Button>
         </div>
         {fields.map((item, availIndex) => (
-          <div key={item.id} className="grid grid-cols-3 items-center gap-2">
+          <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[2fr,1fr,auto] items-end gap-2">
             <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeId`} render={({ field }) => (
-              <FormItem className="col-span-2">
-                <Select onValueChange={(value) => {
-                    const selectedType = ticketTypes.find(tt => tt.id === value);
-                    field.onChange(value);
-                    form.setValue(`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeName`, selectedType?.name || "");
-                }} defaultValue={field.value}>
+              <FormItem>
+                {availIndex === 0 && <FormLabel className="text-xs">Ticket Type</FormLabel>}
+                <Select onValueChange={(value) => handleTicketTypeChange(value, availIndex)} defaultValue={field.value}>
                   <FormControl><SelectTrigger><SelectValue placeholder="Select ticket type..." /></SelectTrigger></FormControl>
                   <SelectContent>
                     {ticketTypes.map(tt => <SelectItem key={tt.id || tt.name} value={tt.id || ''}>{tt.name}</SelectItem>)}
@@ -671,9 +687,13 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
               </FormItem>
             )} />
             <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.availableCount`} render={({ field }) => (
-              <FormItem><FormControl><Input type="number" placeholder="Count" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>
+              <FormItem>
+                {availIndex === 0 && <FormLabel className="text-xs">Count</FormLabel>}
+                <FormControl><Input type="number" placeholder="Count" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl>
+                <FormMessage />
+              </FormItem>
             )} />
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive" onClick={() => remove(availIndex)}><Trash2 className="h-4 w-4"/></Button>
+            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-destructive/70 hover:text-destructive" onClick={() => remove(availIndex)}><Trash2 className="h-4 w-4"/></Button>
           </div>
         ))}
          {fields.length === 0 && <p className="text-xs text-center text-muted-foreground py-2">No availability specified for this showtime.</p>}
@@ -681,3 +701,5 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
     </div>
   );
 }
+
+    

@@ -21,9 +21,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import EventForm from '@/components/admin/EventForm';
 import EventDetailsManager from '@/components/admin/EventDetailsManager';
+import { getAdminEventById, deleteEvent, createEvent, updateEvent } from '@/lib/mockData';
 
 const API_PROXY_URL = '/api/admin/events';
-const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 
 export default function AdminEventsPage() {
@@ -34,7 +34,6 @@ export default function AdminEventsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
-  // State for the two-step creation flow
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creationStep, setCreationStep] = useState<'create' | 'addDetails'>('create');
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
@@ -47,7 +46,9 @@ export default function AdminEventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${PUBLIC_API_URL}/events`);
+      // The old proxy endpoint /api/admin/events is fine for GET all,
+      // but let's call the mockData function directly for consistency.
+      const response = await fetch('/api/admin/events'); // Using proxy
       if (!response.ok) {
         throw new Error('Failed to fetch events');
       }
@@ -81,13 +82,7 @@ export default function AdminEventsPage() {
     if (!eventToDelete) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_PROXY_URL}/${eventToDelete.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `Server returned status ${response.status}. Could not parse error.` }));
-        throw new Error(errorData.message || 'Failed to delete event');
-      }
+      await deleteEvent(eventToDelete.id);
       toast({
         title: "Event Deleted",
         description: `"${eventToDelete.name}" has been successfully deleted.`,
@@ -120,26 +115,7 @@ export default function AdminEventsPage() {
   const handleCreateEventSubmit = async (data: EventFormData) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch(API_PROXY_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data), // EventForm now submits full EventFormData, but API endpoint for POST only uses core fields
-      });
-
-      if (!response.ok) {
-          let errorData = { message: 'An unknown error occurred on the server.' };
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-              errorData = await response.json();
-          } else {
-              const errorText = await response.text();
-              console.error("Non-JSON error response from API:", errorText);
-              errorData.message = `Server returned an unexpected response. Status: ${response.status}.`;
-          }
-          throw new Error(errorData.message || 'Failed to create event');
-      }
-      
-      const { newEventId } = await response.json();
+      const newEventId = await createEvent(data);
       
       toast({
         title: "Step 1 Complete: Event Created!",
@@ -167,15 +143,15 @@ export default function AdminEventsPage() {
   const handleOpenEditModal = async (event: Event) => {
     setIsLoading(true);
     try {
-      // Use getAdminEventById which is designed to fetch full details
-      const response = await fetch(`/api/admin/events/${event.id}`);
-      if (!response.ok) throw new Error('Failed to fetch full event details for editing.');
-      const fullEventData = await response.json();
+      const fullEventData = await getAdminEventById(event.id);
+      if (!fullEventData) {
+        throw new Error('Event details could not be loaded. It may have been deleted.');
+      }
       setCurrentEventForEdit(fullEventData);
       setShowEditModal(true);
     } catch (error: unknown) {
       console.error("Error fetching event details for edit:", error);
-      toast({ title: "Error", description: "Could not load event details for editing.", variant: "destructive" });
+      toast({ title: "Error", description: (error instanceof Error) ? error.message : "Could not load event details for editing.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -185,32 +161,15 @@ export default function AdminEventsPage() {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_PROXY_URL}/${currentEventForEdit.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-          let errorData = { message: 'An unknown error occurred on the server.' };
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-              errorData = await response.json();
-          } else {
-              const errorText = await response.text();
-              console.error("Non-JSON error response from API:", errorText);
-              errorData.message = `Server returned an unexpected response. Status: ${response.status}.`;
-          }
-          throw new Error(errorData.message || 'Failed to update event');
-      }
-      // Don't rely on response body, a 200 OK is sufficient confirmation.
-      // Use the name from the form data for the toast message.
+      await updateEvent(currentEventForEdit.id, data);
+      
       toast({
         title: "Event Updated",
         description: `Your changes to "${data.name}" have been saved successfully.`,
       });
       setShowEditModal(false);
       setCurrentEventForEdit(null);
-      fetchEvents();
+      fetchEvents(); // Refresh the list
     } catch (error: unknown) {
       console.error("Failed to update event:", error);
       toast({
@@ -278,8 +237,8 @@ export default function AdminEventsPage() {
                       <TableCell className="whitespace-nowrap">{event.location}</TableCell>
                       <TableCell className="whitespace-nowrap">{event.category}</TableCell>
                       <TableCell className="text-right space-x-2 whitespace-nowrap">
-                        <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(event)} title="Edit Event">
-                          <Edit className="h-4 w-4" />
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(event)} title="Edit Event" disabled={isLoading}>
+                          {isLoading && currentEventForEdit?.id === event.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Edit className="h-4 w-4" />}
                         </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(event)} title="Delete Event">
                           <Trash2 className="h-4 w-4" />
@@ -296,17 +255,17 @@ export default function AdminEventsPage() {
       
       {/* Create Event Dialog (Two-Step Flow) */}
       <Dialog open={showCreateModal} onOpenChange={(isOpen) => { if (!isOpen) resetCreationFlow(); else setShowCreateModal(true); }}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{creationStep === 'create' ? 'Create New Event (Step 1 of 2)' : 'Add Details (Step 2 of 2)'}</DialogTitle>
             <DialogDescription>{creationStep === 'create' ? 'Fill in the core details for the new event.' : 'Now, add ticket types and showtimes for the event.'}</DialogDescription>
           </DialogHeader>
-          <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
+          <div className="py-4 max-h-[80vh] overflow-y-auto pr-4">
             {creationStep === 'create' && (
               <EventForm
                 onSubmit={handleCreateEventSubmit}
                 isSubmitting={isSubmitting}
-                submitButtonText="Save & Continue to Step 2"
+                submitButtonText="Save & Continue"
                 onCancel={resetCreationFlow}
               />
             )}
@@ -320,7 +279,7 @@ export default function AdminEventsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Edit Event Dialog (Full form) */}
+      {/* Edit Event Dialog (Full form with tabs) */}
       {currentEventForEdit && (
         <Dialog open={showEditModal} onOpenChange={(isOpen) => {
             setShowEditModal(isOpen);
@@ -374,3 +333,5 @@ export default function AdminEventsPage() {
     </div>
   );
 }
+
+    
