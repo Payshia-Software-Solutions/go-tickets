@@ -16,6 +16,7 @@ const SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/showtimes";
 const SHOWTIMES_BY_EVENT_API_URL_BASE = "https://gotickets-server.payshia.com/showtimes/event";
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const TICKET_TYPES_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/availability";
+const TICKET_TYPES_UPDATE_FULL_API_URL = "https://gotickets-server.payshia.com/ticket-types/update/full";
 const TICKET_TYPES_UPDATE_AVAILABILITY_API_URL = "https://gotickets-server.payshia.com/ticket-types/update/availability";
 
 
@@ -1174,44 +1175,42 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   }
   const updatedEvent: ApiEventFlat = await eventResponse.json();
 
-  // Step 2: Sync Ticket Type Definitions (Create/Update)
-  const updatedTicketTypes: TicketType[] = [];
+  // Handle Ticket Type Definitions (Create/Update definitions first)
+  // This part is tricky because the form has "definitions" but the API might operate on instances per showtime.
+  // Assuming the API supports updating a central ticket type definition.
   for (const ttData of data.ticketTypes) {
-    const ticketTypePayload = {
+    const isNew = !ttData.id || ttData.id.startsWith('temp-');
+    const definitionPayload = {
+      eventId: eventId,
       name: ttData.name,
       price: ttData.price,
-      availability: ttData.availability, // This is the template availability
-      description: ttData.description || "",
-      eventId: eventId,
+      availability: ttData.availability, // This is the 'template' availability
+      description: ttData.description || ""
     };
-    
-    let ttResponse;
-    if (ttData.id && !ttData.id.startsWith('client-')) { // Update existing
-        ttResponse = await fetch(`${TICKET_TYPES_API_URL}/${ttData.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticketTypePayload)
-        });
-    } else { // Create new
-        ttResponse = await fetch(TICKET_TYPES_API_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticketTypePayload)
-        });
+    let syncResponse;
+    if (isNew) {
+      syncResponse = await fetch(TICKET_TYPES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(definitionPayload)
+      });
+    } else {
+      // Assuming a general update endpoint for definitions exists.
+      // If not, this needs to be adapted. The user's provided URLs are showtime-specific.
+      // This is a potential point of failure if the API lacks a global definition update endpoint.
+      syncResponse = await fetch(`${TICKET_TYPES_API_URL}/${ttData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(definitionPayload)
+      });
     }
-
-    if (!ttResponse.ok) {
-        console.error(`Failed to sync ticket type definition "${ttData.name}". Status: ${ttResponse.status}`, await ttResponse.text());
-        continue;
+    if (!syncResponse.ok) {
+      console.error(`Failed to sync ticket type definition for "${ttData.name}". Status: ${syncResponse.status}`, await syncResponse.text());
     }
-    const syncedTicketType: ApiTicketTypeFromEndpoint = await ttResponse.json();
-    updatedTicketTypes.push({
-        id: String(syncedTicketType.id),
-        eventId: String(syncedTicketType.eventId),
-        name: syncedTicketType.name,
-        price: parseFloat(syncedTicketType.price),
-        availability: parseInt(syncedTicketType.availability, 10),
-        description: syncedTicketType.description || null
-    });
   }
 
-  // Step 3 & 4: Sync Showtimes and their specific availabilities
+
+  // Sync Showtimes and their specific availabilities
   for (const stData of data.showTimes) {
       const showtimePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
       let stResponse;
@@ -1235,34 +1234,37 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
       const syncedShowtime: ApiShowTimeFlat = await stResponse.json();
       showtimeId = syncedShowtime.id;
 
-      // Sync the availability for each ticket type for this showtime
+      // Sync the availability and details for each ticket type for this showtime
       for (const staData of stData.ticketAvailabilities) {
-          const correspondingTicketType = updatedTicketTypes.find(ctt => ctt.id === staData.ticketTypeId);
-          if (!correspondingTicketType) {
-              console.warn(`Skipping availability update for an un-synced ticket type: ${staData.ticketTypeName} in showtime ${showtimeId}`);
+          // Find the full ticket type definition from the form data
+          const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === staData.ticketTypeId);
+          if (!ticketTypeDefinition) {
+              console.warn(`Skipping update for ticket type ID ${staData.ticketTypeId} as its definition was not found in the form data.`);
               continue;
           }
 
-          const ticketTypeIdToUpdate = correspondingTicketType.id;
-          const availabilityUrl = `${TICKET_TYPES_UPDATE_AVAILABILITY_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeIdToUpdate}`;
+          const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}/?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
           
-          const availabilityPayload = {
+          const fullUpdatePayload = {
+              name: ticketTypeDefinition.name,
+              price: ticketTypeDefinition.price,
+              description: ticketTypeDefinition.description || "",
               availability: staData.availableCount
           };
 
-          const availResponse = await fetch(availabilityUrl, {
+          const fullUpdateResponse = await fetch(fullUpdateUrl, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(availabilityPayload)
+              body: JSON.stringify(fullUpdatePayload)
           });
 
-          if (!availResponse.ok) {
-              console.error(`Failed to sync availability for showtime ${showtimeId}, ticket type ${ticketTypeIdToUpdate}. Status: ${availResponse.status}`, await availResponse.text());
+          if (!fullUpdateResponse.ok) {
+              console.error(`Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
           }
       }
   }
 
-  // Step 5: Fetch the fully populated event to return it
+  // Final Step: Re-fetch the fully populated event to return the consistent state
   const finalEvent = await getAdminEventById(updatedEvent.id);
   if (!finalEvent) {
       throw new Error("Failed to re-fetch the event after update.");
