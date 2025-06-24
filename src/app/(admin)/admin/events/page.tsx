@@ -161,7 +161,7 @@ export default function AdminEventsPage() {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      await updateEvent(currentEventForEdit.id, data);
+      await updateEvent(currentEventForEdit.id, data, currentEventForEdit);
       
       toast({
         title: "Event Updated",
