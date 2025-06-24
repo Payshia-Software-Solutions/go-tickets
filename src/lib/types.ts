@@ -114,7 +114,7 @@ export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAv
 export const ShowTimeFormSchema = z.object({
   id: z.string().optional(),
   dateTime: z.date({ required_error: "Show date and time is required" }),
-  ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema).min(1, "At least one ticket type's availability must be specified for the showtime."),
+  ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema), // Removed min(1) for flexibility in form
 });
 export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
 
@@ -195,8 +195,8 @@ export const EventFormSchema = z.object({
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
-  ticketTypes: z.array(TicketTypeFormSchema).min(1, "At least one ticket type definition is required."),
-  showTimes: z.array(ShowTimeFormSchema).min(1, "At least one showtime is required."),
+  ticketTypes: z.array(TicketTypeFormSchema), // Removed min(1) to allow creation with no tickets initially
+  showTimes: z.array(ShowTimeFormSchema), // Removed min(1) to allow creation with no showtimes initially
 });
 export type EventFormData = z.infer<typeof EventFormSchema>;
 

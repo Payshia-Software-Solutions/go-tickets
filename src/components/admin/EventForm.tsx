@@ -2,9 +2,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
-import type { Organizer, Category, CoreEventFormData } from "@/lib/types";
-import { CoreEventFormSchema } from "@/lib/types";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import type { Organizer, Category, EventFormData } from "@/lib/types";
+import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, Sparkles, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Loader2, Sparkles, AlertTriangle, Trash2, PlusCircle, Ticket, Clock } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,18 +23,20 @@ import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
 import { getEventCategories } from "@/lib/mockData";
+import { Separator } from "../ui/separator";
+import { Textarea } from "../ui/textarea";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 interface EventFormProps {
-  initialData?: Event | null; // Keep for edit mode, though this form is now for creation
-  onSubmit: (data: CoreEventFormData) => Promise<void>; 
+  initialData?: Event | null;
+  onSubmit: (data: EventFormData) => Promise<void>; 
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
 }
 
-export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Create Event", onCancel }: EventFormProps) {
+export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug);
@@ -46,8 +48,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const form = useForm<CoreEventFormData>({
-    resolver: zodResolver(CoreEventFormSchema),
+  const form = useForm<EventFormData>({
+    resolver: zodResolver(EventFormSchema),
     defaultValues: initialData ? {
       name: initialData.name,
       slug: initialData.slug,
@@ -59,6 +61,23 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       organizerId: initialData.organizerId,
       venueName: initialData.venueName,
       venueAddress: initialData.venueAddress || "",
+      ticketTypes: initialData.ticketTypes?.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        price: tt.price,
+        availability: tt.availability,
+        description: tt.description || '',
+      })) || [],
+      showTimes: initialData.showTimes?.map(st => ({
+        id: st.id,
+        dateTime: new Date(st.dateTime),
+        ticketAvailabilities: st.ticketAvailabilities.map(sta => ({
+          id: sta.id,
+          ticketTypeId: sta.ticketType.id,
+          ticketTypeName: sta.ticketType.name,
+          availableCount: sta.availableCount,
+        }))
+      })) || [],
     } : {
       name: "",
       slug: "",
@@ -70,8 +89,22 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       organizerId: "",
       venueName: "",
       venueAddress: "",
+      ticketTypes: [],
+      showTimes: [],
     },
   });
+
+  const { fields: ticketTypeFields, append: appendTicketType, remove: removeTicketType } = useFieldArray({
+    control: form.control,
+    name: "ticketTypes"
+  });
+
+  const { fields: showTimeFields, append: appendShowTime, remove: removeShowTime } = useFieldArray({
+    control: form.control,
+    name: "showTimes"
+  });
+
+  const watchedTicketTypes = form.watch("ticketTypes");
 
   useEffect(() => {
     const fetchDropdownData = async () => {
@@ -206,12 +239,22 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
        }
     }
   };
+  
+  const handleAddNewShowtime = () => {
+    const newAvailabilities = watchedTicketTypes.map(tt => ({
+        ticketTypeId: tt.id || `temp-id-${Math.random()}`, // Use a temp id if not persisted yet
+        ticketTypeName: tt.name,
+        availableCount: tt.availability, // Default availability from the ticket type definition
+    }));
+    appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
+  };
+
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <section className="space-y-6 p-1">
-            <h3 className="text-lg font-medium border-b pb-2">Event Details</h3>
+            <h3 className="text-xl font-semibold border-b pb-2">Core Event Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
             <FormField
                 control={form.control}
@@ -494,6 +537,62 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             />
         </section>
 
+        {initialData && (
+          <>
+            <Separator />
+            {/* Ticket Types Section */}
+            <section className="space-y-6 p-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold flex items-center"><Ticket className="mr-2"/> Ticket Type Definitions</h3>
+                <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, availability: 100, description: "" })}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {ticketTypeFields.map((field, index) => (
+                  <div key={field.id} className="p-4 border rounded-lg bg-muted/30 relative">
+                    <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive" onClick={() => removeTicketType(index)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField control={form.control} name={`ticketTypes.${index}.name`} render={({ field }) => (
+                        <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={form.control} name={`ticketTypes.${index}.price`} render={({ field }) => (
+                        <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                       <FormField control={form.control} name={`ticketTypes.${index}.availability`} render={({ field }) => (
+                        <FormItem><FormLabel>Template Availability</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={form.control} name={`ticketTypes.${index}.description`} render={({ field }) => (
+                        <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                    </div>
+                  </div>
+                ))}
+                {ticketTypeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No ticket types defined. Add one to get started.</p>}
+              </div>
+            </section>
+
+            <Separator />
+            {/* Showtimes Section */}
+            <section className="space-y-6 p-1">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowtime}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {showTimeFields.map((field, index) => (
+                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} ticketTypes={watchedTicketTypes} />
+                ))}
+                {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
+              </div>
+            </section>
+          </>
+        )}
+
         <div className="flex gap-2 justify-end pt-4">
             {onCancel && (
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -507,5 +606,78 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         </div>
       </form>
     </Form>
+  );
+}
+
+
+// Sub-component for managing a single showtime within the form
+function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void, ticketTypes: any[] }) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: `showTimes.${showtimeIndex}.ticketAvailabilities`
+  });
+
+  return (
+    <div className="p-4 border rounded-lg bg-muted/30 relative space-y-4">
+      <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive" onClick={() => removeShowTime(showtimeIndex)}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
+      <FormField
+        control={form.control}
+        name={`showTimes.${showtimeIndex}.dateTime`}
+        render={({ field }) => (
+          <FormItem className="flex flex-col">
+            <FormLabel>Showtime Date & Time</FormLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <FormControl>
+                  <Button variant={"outline"} className={cn("w-full md:w-1/2 pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                    {field.value ? format(field.value, "PPP p") : <span>Pick date & time</span>}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </FormControl>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+              </PopoverContent>
+            </Popover>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <div className="pl-4 border-l-2 border-border/50 space-y-3">
+        <div className="flex items-center justify-between">
+            <h4 className="text-md font-semibold">Ticket Availability</h4>
+             <Button type="button" variant="ghost" size="sm" onClick={() => append({ ticketTypeId: "", availableCount: 0 })}>
+                <PlusCircle className="mr-2 h-4 w-4"/> Add Availability
+             </Button>
+        </div>
+        {fields.map((item, availIndex) => (
+          <div key={item.id} className="grid grid-cols-3 items-center gap-2">
+            <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeId`} render={({ field }) => (
+              <FormItem className="col-span-2">
+                <Select onValueChange={(value) => {
+                    const selectedType = ticketTypes.find(tt => tt.id === value);
+                    field.onChange(value);
+                    form.setValue(`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeName`, selectedType?.name || "");
+                }} defaultValue={field.value}>
+                  <FormControl><SelectTrigger><SelectValue placeholder="Select ticket type..." /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {ticketTypes.map(tt => <SelectItem key={tt.id || tt.name} value={tt.id || ''}>{tt.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.availableCount`} render={({ field }) => (
+              <FormItem><FormControl><Input type="number" placeholder="Count" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>
+            )} />
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive/70 hover:text-destructive" onClick={() => remove(availIndex)}><Trash2 className="h-4 w-4"/></Button>
+          </div>
+        ))}
+         {fields.length === 0 && <p className="text-xs text-center text-muted-foreground py-2">No availability specified for this showtime.</p>}
+      </div>
+    </div>
   );
 }

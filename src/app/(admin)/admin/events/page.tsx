@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import type { Event, CoreEventFormData, EventFormData } from '@/lib/types';
+import type { Event, EventFormData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -117,13 +117,13 @@ export default function AdminEventsPage() {
     setShowCreateModal(true);
   };
 
-  const handleCreateEventSubmit = async (data: CoreEventFormData) => {
+  const handleCreateEventSubmit = async (data: EventFormData) => {
     setIsSubmitting(true);
     try {
       const response = await fetch(API_PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: JSON.stringify(data), // EventForm now submits full EventFormData, but API endpoint for POST only uses core fields
       });
 
       if (!response.ok) {
@@ -167,8 +167,9 @@ export default function AdminEventsPage() {
   const handleOpenEditModal = async (event: Event) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${PUBLIC_API_URL}/events/${event.id}`);
-      if (!response.ok) throw new Error('Failed to fetch event details');
+      // Use getAdminEventById which is designed to fetch full details
+      const response = await fetch(`/api/admin/events/${event.id}`);
+      if (!response.ok) throw new Error('Failed to fetch full event details for editing.');
       const fullEventData = await response.json();
       setCurrentEventForEdit(fullEventData);
       setShowEditModal(true);
@@ -318,18 +319,18 @@ export default function AdminEventsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Edit Event Dialog (Old single-step flow) */}
+      {/* Edit Event Dialog (Full form) */}
       {currentEventForEdit && (
         <Dialog open={showEditModal} onOpenChange={(isOpen) => {
             setShowEditModal(isOpen);
             if (!isOpen) setCurrentEventForEdit(null);
         }}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle>Edit Event: {currentEventForEdit.name}</DialogTitle>
-              <DialogDescription>Modify the details for this event.</DialogDescription>
+              <DialogDescription>Modify all details for this event.</DialogDescription>
             </DialogHeader>
-            <div className="py-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="py-4 max-h-[80vh] overflow-y-auto pr-4">
               <EventForm
                 initialData={currentEventForEdit}
                 onSubmit={handleUpdateEventSubmit}
