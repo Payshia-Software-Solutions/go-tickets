@@ -1,8 +1,8 @@
 
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Users, DollarSign, Activity, PlusCircle } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Users, DollarSign, Tag, PlusCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -80,17 +80,25 @@ export default function AdminDashboardPage() {
         <StatCard title="Total Bookings" value={stats.bookings} icon={DollarSign} note="Live data from server" />
         <StatCard title="Registered Users" value={stats.users} icon={Users} note="Live data from server" />
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center justify-between">
+                  <span>Manage Categories</span>
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+              </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">
-              (Activity feed to be implemented)
-            </p>
+          <CardContent className="flex-grow">
+              <p className="text-xs text-muted-foreground mt-2">
+                  Organize your events by adding or editing categories.
+              </p>
           </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+                <Link href="/admin/categories">
+                    Go to Categories
+                </Link>
+            </Button>
+          </CardFooter>
         </Card>
       </div>
 
