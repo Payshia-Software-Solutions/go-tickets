@@ -340,9 +340,15 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
             console.error(`[getEventBySlug] Error fetching availabilities for showTime ${basicSt.id} (event ${slug}):`, error);
           }
           
-          detailedShowTime.ticketAvailabilities = masterTicketTypes.map(masterTt => {
-            const matchingAvailRecord = availabilityData.find(avail => avail.id === masterTt.id);
-            const availableCountForThisShowtime = matchingAvailRecord ? parseInt(matchingAvailRecord.availability, 10) || 0 : 0;
+          detailedShowTime.ticketAvailabilities = availabilityData.map(availRecord => {
+            const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
+
+            if (!masterTt) {
+              console.warn(`[getEventBySlug] Availability record found for ticket type ID ${availRecord.id}, but no matching master ticket type definition was found for event ${eventBase.id}. Skipping.`);
+              return null;
+            }
+
+            const availableCountForThisShowtime = parseInt(availRecord.availability, 10) || 0;
             const availabilityRecordId = generateId('sta-client');
 
             return {
@@ -1379,7 +1385,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
             state: apiBooking.billing_state || "",
             // @ts-expect-error Property 'billing_postal_code' does not exist on type 'RawApiBooking'.
             postalCode: apiBooking.billing_postal_code || "",
-            // @ts-expect-error Property 'billing_country' does not exist on type 'RawApiBooking'.
+            // @ts-expect-error Property 'billing_country' does not exist on type 'RawApiBooking'
             country: apiBooking.billing_country || "",
         };
     } else {
@@ -1888,6 +1894,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
+
 
 
 
