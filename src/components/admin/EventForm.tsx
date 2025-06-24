@@ -22,7 +22,7 @@ import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
 import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
-import { getEventCategories } from "@/lib/mockData";
+import { getEventCategories, deleteTicketType } from "@/lib/mockData";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -248,6 +248,32 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         availableCount: tt.availability,
     }));
     appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
+  };
+
+  const handleDeleteTicketType = async (ticketTypeId: string | undefined, index: number) => {
+    // If there's no ID, it's a new, unsaved item. Just remove it from the form.
+    if (!ticketTypeId || ticketTypeId.startsWith('temp-')) {
+      removeTicketType(index);
+      return;
+    }
+    
+    // Add a confirmation dialog for better UX
+    if (window.confirm("Are you sure you want to permanently delete this ticket type? This action cannot be undone.")) {
+      try {
+        await deleteTicketType(ticketTypeId);
+        toast({
+          title: "Ticket Type Deleted",
+          description: "The ticket type definition has been removed.",
+        });
+        removeTicketType(index); // Remove from the UI after successful deletion
+      } catch (error) {
+        toast({
+          title: "Deletion Failed",
+          description: error instanceof Error ? error.message : "This ticket type might be in use and cannot be deleted.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
 
@@ -559,7 +585,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <div className="space-y-4">
                 {ticketTypeFields.map((field, index) => (
                   <div key={field.id} className="p-4 border rounded-lg bg-muted/30 relative">
-                    <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive" onClick={() => removeTicketType(index)}>
+                    <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive" onClick={() => handleDeleteTicketType(field.id, index)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
