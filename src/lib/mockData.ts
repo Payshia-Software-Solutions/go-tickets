@@ -1192,7 +1192,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     if (!ttDef.id || ttDef.id.startsWith('temp-')) {
       const firstShowtimeId = data.showTimes[0]?.id;
       if (!firstShowtimeId || firstShowtimeId.startsWith('temp-')) {
-        console.warn(`[updateEvent] Cannot create new ticket type "${ttDef.name}" because no existing showtimes are available to associate with. It will be skipped.`);
+        console.warn(`[updateEvent] Cannot create new ticket type definition "${ttDef.name}" because no existing showtimes are available to associate with. It will be skipped.`);
         continue;
       }
       try {
@@ -1234,7 +1234,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         const newShowtime: ApiShowTimeFlat = await stResponse.json();
         showtimeId = newShowtime.id;
     } else if (showtimeId) { // It's an existing showtime
-        const showtimeUpdatePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
+        const showtimeUpdatePayload = {
+          eventId: eventId,
+          dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss")
+        };
         const updateShowtimeUrl = `${SHOWTIMES_API_URL}/${showtimeId}`;
         console.log(`[updateEvent] Updating existing showtime.`);
         console.log(`  - URL: PUT ${updateShowtimeUrl}`);
@@ -1268,7 +1271,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             continue;
         }
 
-        const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}/?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
+        const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
         
         const fullUpdatePayload = {
             name: ticketTypeDefinition.name,
@@ -1992,6 +1995,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
