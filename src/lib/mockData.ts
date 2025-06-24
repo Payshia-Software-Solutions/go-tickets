@@ -1145,12 +1145,13 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
     };
 };
 
-
 export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot update event.");
   }
   
+  console.log(`[updateEvent] Starting update for event ID: ${eventId}`);
+
   // Step 1: Update the main event details
   const eventPayloadForApi = {
     name: data.name,
@@ -1165,111 +1166,135 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     venueAddress: data.venueAddress || null,
   };
   const eventResponse = await fetch(`${API_BASE_URL}/events/${eventId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventPayloadForApi),
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventPayloadForApi),
   });
   if (!eventResponse.ok) {
-      const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
-      throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
+    const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
+    throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
   }
   const updatedEvent: ApiEventFlat = await eventResponse.json();
+  console.log(`[updateEvent] Step 1 complete: Main event details updated.`);
 
-  // Handle Ticket Type Definitions (Create/Update definitions first)
-  // This part is tricky because the form has "definitions" but the API might operate on instances per showtime.
-  // Assuming the API supports updating a central ticket type definition.
-  for (const ttData of data.ticketTypes) {
-    const isNew = !ttData.id || ttData.id.startsWith('temp-');
-    const definitionPayload = {
-      eventId: eventId,
-      name: ttData.name,
-      price: ttData.price,
-      availability: ttData.availability, // This is the 'template' availability
-      description: ttData.description || ""
-    };
-    let syncResponse;
-    if (isNew) {
-      syncResponse = await fetch(TICKET_TYPES_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(definitionPayload)
-      });
-    } else {
-      // Assuming a general update endpoint for definitions exists.
-      // If not, this needs to be adapted. The user's provided URLs are showtime-specific.
-      // This is a potential point of failure if the API lacks a global definition update endpoint.
-      syncResponse = await fetch(`${TICKET_TYPES_API_URL}/${ttData.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(definitionPayload)
-      });
-    }
-    if (!syncResponse.ok) {
-      console.error(`Failed to sync ticket type definition for "${ttData.name}". Status: ${syncResponse.status}`, await syncResponse.text());
+  // This map will store newly created ticket type IDs to avoid re-creating them.
+  const createdTicketTypeIds = new Map<string, string>();
+
+  // Step 2: Synchronize Ticket Type Definitions
+  // Handle creation of new ticket types first.
+  for (const ttDef of data.ticketTypes) {
+    if (!ttDef.id || ttDef.id.startsWith('temp-')) {
+      console.log(`[updateEvent] Found new ticket type definition: "${ttDef.name}". Attempting to create.`);
+      // It's a new ticket type. It must be created.
+      // API requires a showtimeId to create a ticket type. This is a UI/API mismatch.
+      // We'll associate it with the first showtime as a workaround.
+      const firstShowtimeId = data.showTimes[0]?.id;
+      if (!firstShowtimeId) {
+        console.warn(`[updateEvent] Cannot create new ticket type "${ttDef.name}" because no showtimes exist for this event yet.`);
+        continue;
+      }
+      try {
+        const createdTt = await createTicketType(eventId, { ...ttDef, showtimeId: firstShowtimeId });
+        console.log(`[updateEvent] Created new ticket type "${createdTt.name}" with ID: ${createdTt.id}`);
+        // Store the original temp id and the new server id
+        if (ttDef.id) {
+          createdTicketTypeIds.set(ttDef.id, createdTt.id);
+        }
+        ttDef.id = createdTt.id; // Update the form data object with the new ID for subsequent steps
+      } catch (error) {
+        console.error(`[updateEvent] Failed to create new ticket type definition "${ttDef.name}":`, error);
+      }
     }
   }
+   console.log(`[updateEvent] Step 2 complete: Handled new ticket type definitions.`);
 
-
-  // Sync Showtimes and their specific availabilities
+  // Step 3: Synchronize Showtimes and their specific Ticket Types
   for (const stData of data.showTimes) {
-      const showtimePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
-      let stResponse;
-      let showtimeId = stData.id;
+    let showtimeId = stData.id;
 
-      if (showtimeId && !showtimeId.startsWith('client-')) { // Update existing
-          stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
-              method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(showtimePayload)
-          });
-      } else { // Create new
-          const createPayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
-          stResponse = await fetch(SHOWTIMES_API_URL, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createPayload)
-          });
-      }
+    // Create or Update the showtime itself
+    if (showtimeId && !showtimeId.startsWith('temp-') && !showtimeId.startsWith('client-')) { // It's an existing showtime
+        const showtimeUpdatePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
+        const stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(showtimeUpdatePayload)
+        });
+        if (!stResponse.ok) {
+            console.error(`[updateEvent] Failed to update showtime ${showtimeId}. Status: ${stResponse.status}`, await stResponse.text());
+            continue; // Skip to next showtime if this one fails
+        }
+    } else { // It's a new showtime
+        const createPayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
+        const stResponse = await fetch(SHOWTIMES_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(createPayload)
+        });
+        if (!stResponse.ok) {
+            console.error(`[updateEvent] Failed to create new showtime. Status: ${stResponse.status}`, await stResponse.text());
+            continue;
+        }
+        const newShowtime: ApiShowTimeFlat = await stResponse.json();
+        showtimeId = newShowtime.id;
+    }
 
-      if (!stResponse.ok) {
-          console.error(`Failed to sync showtime for date "${stData.dateTime}". Status: ${stResponse.status}`, await stResponse.text());
-          continue;
-      }
-      const syncedShowtime: ApiShowTimeFlat = await stResponse.json();
-      showtimeId = syncedShowtime.id;
+    if (!showtimeId) {
+      console.error("[updateEvent] Could not get a valid showtime ID for a showtime, skipping its ticket updates.");
+      continue;
+    }
+    console.log(`[updateEvent] Processing showtime ID: ${showtimeId}`);
 
-      // Sync the availability and details for each ticket type for this showtime
-      for (const staData of stData.ticketAvailabilities) {
-          // Find the full ticket type definition from the form data
-          const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === staData.ticketTypeId);
-          if (!ticketTypeDefinition) {
-              console.warn(`Skipping update for ticket type ID ${staData.ticketTypeId} as its definition was not found in the form data.`);
-              continue;
-          }
+    // Now, for this showtime, synchronize its ticket types using the 'update/full' endpoint
+    for (const staData of stData.ticketAvailabilities) {
+        // Resolve the ticket type ID (it might be a temp ID for a newly created one)
+        const originalTtId = staData.ticketTypeId;
+        const resolvedTtId = createdTicketTypeIds.get(originalTtId) || originalTtId;
 
-          const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}/?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
-          
-          const fullUpdatePayload = {
-              name: ticketTypeDefinition.name,
-              price: ticketTypeDefinition.price,
-              description: ticketTypeDefinition.description || "",
-              availability: staData.availableCount
-          };
+        const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === resolvedTtId);
+        
+        if (!ticketTypeDefinition || !ticketTypeDefinition.id) {
+            console.warn(`[updateEvent] Skipping availability update for unlinked ticket type ID "${resolvedTtId}" within showtime ${showtimeId}.`);
+            continue;
+        }
 
-          const fullUpdateResponse = await fetch(fullUpdateUrl, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(fullUpdatePayload)
-          });
+        const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}/?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeDefinition.id}`;
+        
+        const fullUpdatePayload = {
+            name: ticketTypeDefinition.name,
+            price: ticketTypeDefinition.price,
+            description: ticketTypeDefinition.description || "",
+            availability: staData.availableCount
+        };
 
-          if (!fullUpdateResponse.ok) {
-              console.error(`Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
-          }
-      }
+        console.log(`[updateEvent] Updating ticket type "${fullUpdatePayload.name}" for showtime ${showtimeId} via PUT to ${fullUpdateUrl}`);
+        const fullUpdateResponse = await fetch(fullUpdateUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fullUpdatePayload)
+        });
+
+        if (!fullUpdateResponse.ok) {
+            console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
+        }
+    }
   }
+  console.log(`[updateEvent] Step 3 complete: Showtimes and tickets synchronized.`);
 
-  // Final Step: Re-fetch the fully populated event to return the consistent state
-  const finalEvent = await getAdminEventById(updatedEvent.id);
-  if (!finalEvent) {
-      throw new Error("Failed to re-fetch the event after update.");
+  // Final Step: Re-fetch the fully populated event to return the consistent state.
+  console.log(`[updateEvent] Re-fetching event ${updatedEvent.id} to confirm update consistency...`);
+  try {
+    const finalEvent = await getAdminEventById(updatedEvent.id);
+    if (!finalEvent) {
+      // This is the specific error message the user is seeing.
+      throw new Error("Re-fetch after update failed: getAdminEventById returned undefined.");
+    }
+    console.log(`[updateEvent] Re-fetch successful. Update process complete.`);
+    return finalEvent;
+  } catch (refetchError) {
+      console.error("[updateEvent] Critical error during re-fetch after update:", refetchError);
+      throw new Error(`Failed to re-fetch the event after update. Reason: ${refetchError instanceof Error ? refetchError.message : String(refetchError)}`);
   }
-  return finalEvent;
 };
 
 
@@ -1966,3 +1991,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
