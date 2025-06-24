@@ -1268,19 +1268,10 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   }
   console.log(`[updateEvent] Step 3 complete: Showtimes and tickets synchronized.`);
 
-  // Final Step: Re-fetch the fully populated event to return the consistent state.
-  console.log(`[updateEvent] Re-fetching event ${updatedEvent.id} to confirm update consistency...`);
-  try {
-    const finalEvent = await getAdminEventById(updatedEvent.id);
-    if (!finalEvent) {
-      throw new Error("Re-fetch after update failed: getAdminEventById returned undefined.");
-    }
-    console.log(`[updateEvent] Re-fetch successful. Update process complete.`);
-    return finalEvent;
-  } catch (refetchError) {
-      console.error("[updateEvent] Critical error during re-fetch after update:", refetchError);
-      throw new Error(`Failed to re-fetch the event after update. Reason: ${refetchError instanceof Error ? refetchError.message : String(refetchError)}`);
-  }
+  // Update process is complete. We return the base event data from the initial update call.
+  // The UI will handle refreshing the full event list.
+  console.log(`[updateEvent] Update process complete. Returning updated base event data.`);
+  return mapApiEventToAppEvent(updatedEvent);
 };
 
 
@@ -1977,5 +1968,6 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 

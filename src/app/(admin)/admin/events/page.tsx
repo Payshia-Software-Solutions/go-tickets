@@ -202,10 +202,11 @@ export default function AdminEventsPage() {
           }
           throw new Error(errorData.message || 'Failed to update event');
       }
-      const updatedEvent = await response.json();
+      // Don't rely on response body, a 200 OK is sufficient confirmation.
+      // Use the name from the form data for the toast message.
       toast({
         title: "Event Updated",
-        description: `"${updatedEvent.name}" has been successfully updated.`,
+        description: `Your changes to "${data.name}" have been saved successfully.`,
       });
       setShowEditModal(false);
       setCurrentEventForEdit(null);
