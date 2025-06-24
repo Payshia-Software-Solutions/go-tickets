@@ -903,37 +903,33 @@ export const deleteOrganizer = async (organizerId: string): Promise<boolean> => 
 const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined> => {
   if (!eventBase) return undefined;
   console.log(`[getFullEventDetails] Populating details for event: ${eventBase.name} (ID: ${eventBase.id})`);
-
-  // 1. Populate Organizer
-  if (!eventBase.organizer && eventBase.organizerId) {
-    try {
+  
+  try {
+    // 1. Populate Organizer
+    if (!eventBase.organizer && eventBase.organizerId) {
       const organizerDetails = await getOrganizerById(eventBase.organizerId);
       if (organizerDetails) {
         eventBase.organizer = organizerDetails;
       } else {
         console.warn(`[getFullEventDetails] Organizer with ID ${eventBase.organizerId} not found.`);
       }
-    } catch (error) {
-      console.error(`[getFullEventDetails] Error fetching organizer ${eventBase.organizerId}:`, error);
     }
-  }
 
-  // 2. Fetch Master Ticket Types for the event
-  const masterTicketTypes = await fetchTicketTypesForEvent(eventBase.id);
-  eventBase.ticketTypes = masterTicketTypes;
-  if (masterTicketTypes.length === 0) {
-    console.warn(`[getFullEventDetails] No master ticket types found for event ${eventBase.id}.`);
-  }
+    // 2. Fetch Master Ticket Types for the event
+    const masterTicketTypes = await fetchTicketTypesForEvent(eventBase.id);
+    eventBase.ticketTypes = masterTicketTypes;
+    if (masterTicketTypes.length === 0) {
+      console.warn(`[getFullEventDetails] No master ticket types found for event ${eventBase.id}.`);
+    }
 
-  // 3. Fetch Showtimes and their specific availabilities
-  const populatedShowTimes: ShowTime[] = [];
-  if (!SHOWTIMES_BY_EVENT_API_URL_BASE) {
-    console.warn("[getFullEventDetails] Showtime API URL is not configured. Cannot fetch showtimes.");
-    eventBase.showTimes = [];
-    return eventBase;
-  }
+    // 3. Fetch Showtimes and their specific availabilities
+    const populatedShowTimes: ShowTime[] = [];
+    if (!SHOWTIMES_BY_EVENT_API_URL_BASE) {
+      console.warn("[getFullEventDetails] Showtime API URL is not configured. Cannot fetch showtimes.");
+      eventBase.showTimes = [];
+      return eventBase;
+    }
 
-  try {
     const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
     if (!showtimesResponse.ok) {
       console.warn(`[getFullEventDetails] Failed to fetch showtimes for event ${eventBase.id}: ${showtimesResponse.status}`);
@@ -951,45 +947,45 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
         };
 
         const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}?eventid=${eventBase.id}&showtimeid=${basicSt.id}`;
-        try {
-          const availabilityResponse = await fetch(availabilityUrl);
-          if (availabilityResponse.ok) {
-            const responseJson = await availabilityResponse.json();
-            if (responseJson.success && Array.isArray(responseJson.data)) {
-              detailedShowTime.ticketAvailabilities = responseJson.data
-                .map((availRecord: { id: string; name: string; availability: string }) => {
-                  const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
-                  if (!masterTt) {
-                    console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
-                    return null;
-                  }
-                  
-                  return {
-                    id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID
-                    showTimeId: basicSt.id,
-                    ticketTypeId: masterTt.id,
-                    ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                    availableCount: parseInt(availRecord.availability, 10) || 0,
-                  };
-                })
-                .filter((item): item is ShowTimeTicketAvailability => item !== null);
-            }
-          } else {
-            console.warn(`[getFullEventDetails] Failed to fetch availabilities for showTime ${basicSt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
+        const availabilityResponse = await fetch(availabilityUrl);
+        if (availabilityResponse.ok) {
+          const responseJson = await availabilityResponse.json();
+          if (responseJson.success && Array.isArray(responseJson.data)) {
+            detailedShowTime.ticketAvailabilities = responseJson.data
+              .map((availRecord: { id: string; name: string; availability: string }) => {
+                const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
+                if (!masterTt) {
+                  console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
+                  return null;
+                }
+                
+                return {
+                  id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID
+                  showTimeId: basicSt.id,
+                  ticketTypeId: masterTt.id,
+                  ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+                  availableCount: parseInt(availRecord.availability, 10) || 0,
+                };
+              })
+              .filter((item): item is ShowTimeTicketAvailability => item !== null);
           }
-        } catch (availError) {
-            console.error(`[getFullEventDetails] Network error fetching availabilities for showtime ${basicSt.id}`, availError);
+        } else {
+          console.warn(`[getFullEventDetails] Failed to fetch availabilities for showTime ${basicSt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
         }
         populatedShowTimes.push(detailedShowTime);
       }
     }
-  } catch (error) {
-    console.error(`[getFullEventDetails] Error fetching showtimes/availabilities for event ${eventBase.id}:`, error);
-  }
+    
+    eventBase.showTimes = populatedShowTimes;
+    console.log(`[getFullEventDetails] Finished populating event ${eventBase.id}. Returning with ${eventBase.showTimes.length} showtimes.`);
+    return eventBase;
 
-  eventBase.showTimes = populatedShowTimes;
-  console.log(`[getFullEventDetails] Finished populating event ${eventBase.id}. Returning with ${eventBase.showTimes.length} showtimes.`);
-  return eventBase;
+  } catch (error) {
+    console.error(`[getFullEventDetails] A critical error occurred while populating details for event ${eventBase.id}:`, error);
+    // In case of a failure during population, return the base event object to prevent a full crash.
+    // The UI might show incomplete data, but it's better than a hard error.
+    return eventBase;
+  }
 };
 
 
@@ -1177,30 +1173,24 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   const updatedEvent: ApiEventFlat = await eventResponse.json();
   console.log(`[updateEvent] Step 1 complete: Main event details updated.`);
 
-  // This map will store newly created ticket type IDs to avoid re-creating them.
   const createdTicketTypeIds = new Map<string, string>();
 
   // Step 2: Synchronize Ticket Type Definitions
-  // Handle creation of new ticket types first.
   for (const ttDef of data.ticketTypes) {
     if (!ttDef.id || ttDef.id.startsWith('temp-')) {
       console.log(`[updateEvent] Found new ticket type definition: "${ttDef.name}". Attempting to create.`);
-      // It's a new ticket type. It must be created.
-      // API requires a showtimeId to create a ticket type. This is a UI/API mismatch.
-      // We'll associate it with the first showtime as a workaround.
       const firstShowtimeId = data.showTimes[0]?.id;
-      if (!firstShowtimeId) {
-        console.warn(`[updateEvent] Cannot create new ticket type "${ttDef.name}" because no showtimes exist for this event yet.`);
+      if (!firstShowtimeId || firstShowtimeId.startsWith('temp-')) {
+        console.warn(`[updateEvent] Cannot create new ticket type "${ttDef.name}" because no existing showtimes are available to associate with. It will be skipped.`);
         continue;
       }
       try {
         const createdTt = await createTicketType(eventId, { ...ttDef, showtimeId: firstShowtimeId });
         console.log(`[updateEvent] Created new ticket type "${createdTt.name}" with ID: ${createdTt.id}`);
-        // Store the original temp id and the new server id
         if (ttDef.id) {
           createdTicketTypeIds.set(ttDef.id, createdTt.id);
         }
-        ttDef.id = createdTt.id; // Update the form data object with the new ID for subsequent steps
+        ttDef.id = createdTt.id; 
       } catch (error) {
         console.error(`[updateEvent] Failed to create new ticket type definition "${ttDef.name}":`, error);
       }
@@ -1212,19 +1202,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   for (const stData of data.showTimes) {
     let showtimeId = stData.id;
 
-    // Create or Update the showtime itself
-    if (showtimeId && !showtimeId.startsWith('temp-') && !showtimeId.startsWith('client-')) { // It's an existing showtime
-        const showtimeUpdatePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
-        const stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(showtimeUpdatePayload)
-        });
-        if (!stResponse.ok) {
-            console.error(`[updateEvent] Failed to update showtime ${showtimeId}. Status: ${stResponse.status}`, await stResponse.text());
-            continue; // Skip to next showtime if this one fails
-        }
-    } else { // It's a new showtime
+    if (showtimeId && showtimeId.startsWith('temp-')) { // It's a new showtime
         const createPayload = { eventId: eventId, dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
         const stResponse = await fetch(SHOWTIMES_API_URL, {
             method: 'POST',
@@ -1237,6 +1215,17 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         }
         const newShowtime: ApiShowTimeFlat = await stResponse.json();
         showtimeId = newShowtime.id;
+    } else if (showtimeId) { // It's an existing showtime
+        const showtimeUpdatePayload = { dateTime: format(stData.dateTime, "yyyy-MM-dd HH:mm:ss") };
+        const stResponse = await fetch(`${SHOWTIMES_API_URL}/${showtimeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(showtimeUpdatePayload)
+        });
+        if (!stResponse.ok) {
+            console.error(`[updateEvent] Failed to update showtime ${showtimeId}. Status: ${stResponse.status}`, await stResponse.text());
+            continue;
+        }
     }
 
     if (!showtimeId) {
@@ -1245,9 +1234,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     }
     console.log(`[updateEvent] Processing showtime ID: ${showtimeId}`);
 
-    // Now, for this showtime, synchronize its ticket types using the 'update/full' endpoint
     for (const staData of stData.ticketAvailabilities) {
-        // Resolve the ticket type ID (it might be a temp ID for a newly created one)
         const originalTtId = staData.ticketTypeId;
         const resolvedTtId = createdTicketTypeIds.get(originalTtId) || originalTtId;
 
@@ -1286,7 +1273,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
   try {
     const finalEvent = await getAdminEventById(updatedEvent.id);
     if (!finalEvent) {
-      // This is the specific error message the user is seeing.
       throw new Error("Re-fetch after update failed: getAdminEventById returned undefined.");
     }
     console.log(`[updateEvent] Re-fetch successful. Update process complete.`);
@@ -1991,4 +1977,5 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
