@@ -26,6 +26,17 @@ import { getEventCategories, deleteTicketType } from "@/lib/mockData";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
@@ -48,6 +59,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [isSuggestingKeywords, setIsSuggestingKeywords] = useState(false);
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState<{ id: string | undefined; name: string; index: number } | null>(null);
+  const [isDeletingTicketType, setIsDeletingTicketType] = useState(false);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
@@ -250,32 +265,40 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
   };
 
-  const handleDeleteTicketType = async (ticketTypeId: string | undefined, index: number) => {
+  const handleConfirmDelete = async () => {
+    if (!ticketToDelete) return;
+    setIsDeletingTicketType(true);
+    const { id: ticketTypeId, index } = ticketToDelete;
+
     // If there's no ID, it's a new, unsaved item. Just remove it from the form.
     if (!ticketTypeId || ticketTypeId.startsWith('temp-')) {
       removeTicketType(index);
+      toast({ title: "Ticket Type Removed", description: "The new ticket type has been removed from the form." });
+      setIsDeletingTicketType(false);
+      setIsDeleteDialogOpen(false);
+      setTicketToDelete(null);
       return;
     }
     
-    // Add a confirmation dialog for better UX
-    if (window.confirm("Are you sure you want to permanently delete this ticket type? This action cannot be undone.")) {
-      try {
-        await deleteTicketType(ticketTypeId);
-        toast({
-          title: "Ticket Type Deleted",
-          description: "The ticket type definition has been removed.",
-        });
-        removeTicketType(index); // Remove from the UI after successful deletion
-      } catch (error) {
-        toast({
-          title: "Deletion Failed",
-          description: error instanceof Error ? error.message : "This ticket type might be in use and cannot be deleted.",
-          variant: "destructive",
-        });
-      }
+    try {
+      await deleteTicketType(ticketTypeId);
+      toast({
+        title: "Ticket Type Deleted",
+        description: `"${ticketToDelete.name}" has been permanently deleted.`,
+      });
+      removeTicketType(index); // Remove from the UI after successful deletion
+    } catch (error) {
+      toast({
+        title: "Deletion Failed",
+        description: error instanceof Error ? error.message : "This ticket type might be in use and cannot be deleted.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingTicketType(false);
+      setIsDeleteDialogOpen(false);
+      setTicketToDelete(null);
     }
   };
-
 
   return (
     <Form {...form}>
@@ -585,7 +608,17 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <div className="space-y-4">
                 {ticketTypeFields.map((field, index) => (
                   <div key={field.id} className="p-4 border rounded-lg bg-muted/30 relative">
-                    <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive hover:text-destructive" onClick={() => handleDeleteTicketType(field.id, index)}>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      className="absolute top-2 right-2 text-destructive hover:text-destructive" 
+                      onClick={() => {
+                        const ticketInfo = form.getValues(`ticketTypes.${index}`);
+                        setTicketToDelete({ id: ticketInfo.id, name: ticketInfo.name, index });
+                        setIsDeleteDialogOpen(true);
+                      }}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -628,6 +661,34 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           </TabsContent>
         </Tabs>
 
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center">
+                <AlertTriangle className="mr-2 h-5 w-5 text-destructive" /> Are you sure?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the ticket type:
+                <div className="my-2 p-2 bg-muted rounded-md border text-foreground">
+                    <p><span className="font-semibold">Name:</span> {ticketToDelete?.name}</p>
+                    <p><span className="font-semibold">ID:</span> <code className="text-xs font-mono">{ticketToDelete?.id || 'N/A (new)'}</code></p>
+                </div>
+                Deleting a ticket type definition may fail if it is currently in use by a showtime.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setTicketToDelete(null)} disabled={isDeletingTicketType}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                disabled={isDeletingTicketType}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingTicketType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete Ticket Type
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="flex gap-2 justify-end pt-4 border-t">
             {onCancel && (
@@ -686,6 +747,22 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                 <div className="p-2 border-t border-border">
+                    <Input
+                      type="time"
+                      value={field.value ? format(new Date(field.value), "HH:mm") : ""}
+                      onChange={(e) => {
+                        const newTime = e.target.value;
+                        const currentDate = field.value ? new Date(field.value) : new Date();
+                        const [hours, minutes] = newTime.split(':').map(Number);
+                        const newDate = new Date(currentDate);
+                        newDate.setHours(hours);
+                        newDate.setMinutes(minutes);
+                        field.onChange(newDate);
+                      }}
+                      className="w-full"
+                    />
+                  </div>
               </PopoverContent>
             </Popover>
             <FormMessage />
