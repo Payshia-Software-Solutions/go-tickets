@@ -50,17 +50,11 @@ export default function TicketTypeForm({
   });
 
   useEffect(() => {
-    form.reset(initialData ? { 
-        name: initialData.name, 
-        price: initialData.price,
-        availability: initialData.availability,
-        description: initialData.description || "",
-        showtimeId: selectedShowtimeId || undefined,
-    } : { 
-        name: "General Admission", 
-        price: 0, 
-        availability: 100, 
-        description: "",
+    form.reset({
+        name: initialData?.name || "General Admission",
+        price: initialData?.price || 0,
+        availability: initialData?.availability || 100,
+        description: initialData?.description || "",
         showtimeId: selectedShowtimeId || undefined,
     });
   }, [initialData, selectedShowtimeId, form]);
@@ -72,7 +66,7 @@ export default function TicketTypeForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        {showtimes && selectedShowtimeId && (
+        {showtimes && (
           <FormField
             control={form.control}
             name="showtimeId"
@@ -81,9 +75,7 @@ export default function TicketTypeForm({
                 <FormLabel>Showtime</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  value={field.value}
-                  defaultValue={selectedShowtimeId}
-                  disabled // This dropdown confirms context but cannot be changed here.
+                  defaultValue={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>

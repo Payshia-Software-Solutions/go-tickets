@@ -1027,7 +1027,7 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
     return await getFullEventDetails(eventBase);
   } catch (error) {
     console.error(`[getAdminEventById] Error during fetch or processing for event ID ${id}:`, error);
-    return eventBase; // Return base data if population fails
+    return undefined; // Return undefined if population fails catastrophically
   }
 };
 
@@ -1072,7 +1072,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       availability: data.availability,
       description: data.description || "",
       eventId: eventId,
-      showtimeId: data.showtimeId || null,
+      showtimeId: data.showtimeId,
     };
 
     console.log(`[createTicketType] Creating ticket type association.`);
@@ -1229,14 +1229,13 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
     console.log(`%c[updateEvent] Core details have not changed. Skipping update.`, 'color: green;');
   }
   
-  // Step 2: Synchronize Showtimes and their specific Ticket Types
+  // Step 2 & 3: Synchronize Showtimes and their specific Ticket Types
   console.log(`%c[updateEvent] Starting Steps 2 & 3: Syncing Showtimes and Tickets...`, 'color: #8833ff; font-weight: bold;');
   for (const stData of data.showTimes) {
-    // This logic assumes that new showtimes or ticket types are handled by "Add" buttons,
-    // and this update function only handles modifications to existing items.
-    const initialShowTime = initialData.showTimes?.find(st => st.id === stData.id);
-    if (!stData.id || !initialShowTime) {
-      console.warn(`[updateEvent] Skipping showtime with temporary/missing ID: ${stData.id}. It should be created via 'Add Showtime'.`);
+    const showtimeId = stData.id;
+    const initialShowTime = initialData.showTimes?.find(st => st.id === showtimeId);
+    if (!showtimeId || !initialShowTime) {
+      console.warn(`[updateEvent] Skipping showtime with temporary/missing ID: ${showtimeId}. It should be created via 'Add Showtime'.`);
       continue;
     }
 
@@ -1246,8 +1245,8 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
         eventId: eventId,
         dateTime: format(new Date(stData.dateTime), "yyyy-MM-dd HH:mm:ss")
       };
-      const updateShowtimeUrl = `${SHOWTIMES_API_URL}/${stData.id}`;
-      console.log(`%c[updateEvent] Showtime ${stData.id} dateTime changed. Updating...`, 'color: blue;');
+      const updateShowtimeUrl = `${SHOWTIMES_API_URL}/${showtimeId}`;
+      console.log(`%c[updateEvent] Showtime ${showtimeId} dateTime changed. Updating...`, 'color: blue;');
       console.log(`  - URL: PUT ${updateShowtimeUrl}`);
       console.log(`  - Payload:`, showtimeUpdatePayload);
 
@@ -1257,21 +1256,22 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
           body: JSON.stringify(showtimeUpdatePayload)
       });
       if (!stResponse.ok) {
-          console.error(`[updateEvent] Failed to update showtime ${stData.id}. Status: ${stResponse.status}`, await stResponse.text());
+          console.error(`[updateEvent] Failed to update showtime ${showtimeId}. Status: ${stResponse.status}`, await stResponse.text());
           continue; 
       }
     } else {
-        console.log(`%c[updateEvent] Showtime ${stData.id} dateTime has not changed. Skipping update.`, 'color: green;');
+        console.log(`%c[updateEvent] Showtime ${showtimeId} dateTime has not changed. Skipping update.`, 'color: green;');
     }
     
     // Process ticket availabilities for this showtime
     for (const staData of stData.ticketAvailabilities) {
-        const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === staData.ticketTypeId);
-        const initialTicketDefinition = initialData.ticketTypes?.find(tt => tt.id === staData.ticketTypeId);
-        const initialSta = initialShowTime.ticketAvailabilities.find(sta => sta.ticketType.id === staData.ticketTypeId);
+        const ticketTypeId = staData.ticketTypeId;
+        const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === ticketTypeId);
+        const initialTicketDefinition = initialData.ticketTypes?.find(tt => tt.id === ticketTypeId);
+        const initialSta = initialShowTime.ticketAvailabilities.find(sta => sta.ticketType.id === ticketTypeId);
 
-        if (!ticketTypeDefinition?.id || !initialTicketDefinition || !initialSta) {
-            console.warn(`[updateEvent] Skipping ticket availability update for new/unlinked ticket type ID "${staData.ticketTypeId}" in showtime ${stData.id}. This should be handled via an 'Add' button.`);
+        if (!ticketTypeDefinition?.id || !initialTicketDefinition) {
+            console.warn(`[updateEvent] Skipping ticket availability update for new/unlinked ticket type ID "${ticketTypeId}" in showtime ${showtimeId}. This should be handled via an 'Add' button.`);
             continue;
         }
 
@@ -1280,10 +1280,10 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
             ticketTypeDefinition.price !== initialTicketDefinition.price ||
             (ticketTypeDefinition.description || '') !== (initialTicketDefinition.description || '');
             
-        const availabilityChanged = staData.availableCount !== initialSta.availableCount;
+        const availabilityChanged = initialSta ? staData.availableCount !== initialSta.availableCount : true;
 
         if (definitionChanged || availabilityChanged) {
-            const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${stData.id}&tickettypeid=${ticketTypeDefinition.id}`;
+            const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeId}`;
             const fullUpdatePayload = {
                 name: ticketTypeDefinition.name,
                 price: ticketTypeDefinition.price,
@@ -1291,7 +1291,7 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
                 availability: staData.availableCount,
             };
             
-            console.log(`%c[updateEvent] Ticket details or availability changed for TT_ID ${ticketTypeDefinition.id} in ST_ID ${stData.id}. Updating...`, 'color: blue;');
+            console.log(`%c[updateEvent] Ticket details or availability changed for TT_ID ${ticketTypeId} in ST_ID ${showtimeId}. Updating...`, 'color: blue;');
             console.log(`  - Definition changed: ${definitionChanged}, Availability changed: ${availabilityChanged}`);
             console.log(`  - URL: PUT ${fullUpdateUrl}`);
             console.log(`  - PAYLOAD:`, fullUpdatePayload);
@@ -1303,10 +1303,10 @@ export const updateEvent = async (eventId: string, data: EventFormData, initialD
             });
 
             if (!fullUpdateResponse.ok) {
-                console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${stData.id}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
+                console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
             }
         } else {
-            console.log(`%c[updateEvent] Ticket details and availability for TT_ID ${ticketTypeDefinition.id} in ST_ID ${stData.id} have not changed. Skipping update.`, 'color: green;');
+            console.log(`%c[updateEvent] Ticket details and availability for TT_ID ${ticketTypeId} in ST_ID ${showtimeId} have not changed. Skipping update.`, 'color: green;');
         }
     }
   }
@@ -2010,6 +2010,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
