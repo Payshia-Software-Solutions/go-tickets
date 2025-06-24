@@ -927,52 +927,51 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
     if (!SHOWTIMES_BY_EVENT_API_URL_BASE) {
       console.warn("[getFullEventDetails] Showtime API URL is not configured. Cannot fetch showtimes.");
       eventBase.showTimes = [];
-      return eventBase;
-    }
-
-    const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
-    if (!showtimesResponse.ok) {
-      console.warn(`[getFullEventDetails] Failed to fetch showtimes for event ${eventBase.id}: ${showtimesResponse.status}`);
     } else {
-      const basicShowTimesFromApi: ApiShowTimeFlat[] = await showtimesResponse.json();
-      
-      for (const basicSt of basicShowTimesFromApi) {
-        const detailedShowTime: ShowTime = {
-          id: basicSt.id,
-          eventId: basicSt.eventId || eventBase.id,
-          dateTime: parseApiDateString(basicSt.dateTime) || new Date().toISOString(),
-          ticketAvailabilities: [], // To be populated next
-          createdAt: parseApiDateString(basicSt.createdAt),
-          updatedAt: parseApiDateString(basicSt.updatedAt),
-        };
+      const showtimesResponse = await fetch(`${SHOWTIMES_BY_EVENT_API_URL_BASE}/${eventBase.id}`);
+      if (!showtimesResponse.ok) {
+        console.warn(`[getFullEventDetails] Failed to fetch showtimes for event ${eventBase.id}: ${showtimesResponse.status}`);
+      } else {
+        const basicShowTimesFromApi: ApiShowTimeFlat[] = await showtimesResponse.json();
+        
+        for (const basicSt of basicShowTimesFromApi) {
+          const detailedShowTime: ShowTime = {
+            id: basicSt.id,
+            eventId: basicSt.eventId || eventBase.id,
+            dateTime: parseApiDateString(basicSt.dateTime) || new Date().toISOString(),
+            ticketAvailabilities: [], // To be populated next
+            createdAt: parseApiDateString(basicSt.createdAt),
+            updatedAt: parseApiDateString(basicSt.updatedAt),
+          };
 
-        const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}?eventid=${eventBase.id}&showtimeid=${basicSt.id}`;
-        const availabilityResponse = await fetch(availabilityUrl);
-        if (availabilityResponse.ok) {
-          const responseJson = await availabilityResponse.json();
-          if (responseJson.success && Array.isArray(responseJson.data)) {
-            detailedShowTime.ticketAvailabilities = responseJson.data
-              .map((availRecord: { id: string; name: string; availability: string }) => {
-                const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
-                if (!masterTt) {
-                  console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
-                  return null;
-                }
-                
-                return {
-                  id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID
-                  showTimeId: basicSt.id,
-                  ticketTypeId: masterTt.id,
-                  ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                  availableCount: parseInt(availRecord.availability, 10) || 0,
-                };
-              })
-              .filter((item): item is ShowTimeTicketAvailability => item !== null);
+          const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}?eventid=${eventBase.id}&showtimeid=${basicSt.id}`;
+          const availabilityResponse = await fetch(availabilityUrl);
+          if (availabilityResponse.ok) {
+            const responseJson = await availabilityResponse.json();
+            if (responseJson.success && Array.isArray(responseJson.data)) {
+              detailedShowTime.ticketAvailabilities = responseJson.data
+                .map((availRecord: { id: string; name: string; availability: string }) => {
+                  const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
+                  if (!masterTt) {
+                    console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
+                    return null;
+                  }
+                  
+                  return {
+                    id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID
+                    showTimeId: basicSt.id,
+                    ticketTypeId: masterTt.id,
+                    ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+                    availableCount: parseInt(availRecord.availability, 10) || 0,
+                  };
+                })
+                .filter((item): item is ShowTimeTicketAvailability => item !== null);
+            }
+          } else {
+            console.warn(`[getFullEventDetails] Failed to fetch availabilities for showTime ${basicSt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
           }
-        } else {
-          console.warn(`[getFullEventDetails] Failed to fetch availabilities for showTime ${basicSt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
+          populatedShowTimes.push(detailedShowTime);
         }
-        populatedShowTimes.push(detailedShowTime);
       }
     }
     
@@ -1141,7 +1140,7 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
     };
 };
 
-export const updateEvent = async (eventId: string, data: EventFormData): Promise<Event | undefined> => {
+export const updateEvent = async (eventId: string, data: EventFormData): Promise<void> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot update event.");
   }
@@ -1170,7 +1169,6 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
     const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
     throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
   }
-  const updatedEvent: ApiEventFlat = await eventResponse.json();
   console.log(`[updateEvent] Step 1 complete: Main event details updated.`);
 
   const createdTicketTypeIds = new Map<string, string>();
@@ -1254,7 +1252,9 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
             availability: staData.availableCount
         };
 
-        console.log(`[updateEvent] Updating ticket type "${fullUpdatePayload.name}" for showtime ${showtimeId} via PUT to ${fullUpdateUrl}`);
+        console.log(`[updateEvent] Updating ticket type with full data. URL: ${fullUpdateUrl}`);
+        console.log('[updateEvent] Payload:', JSON.stringify(fullUpdatePayload, null, 2));
+
         const fullUpdateResponse = await fetch(fullUpdateUrl, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1266,12 +1266,7 @@ export const updateEvent = async (eventId: string, data: EventFormData): Promise
         }
     }
   }
-  console.log(`[updateEvent] Step 3 complete: Showtimes and tickets synchronized.`);
-
-  // Update process is complete. We return the base event data from the initial update call.
-  // The UI will handle refreshing the full event list.
-  console.log(`[updateEvent] Update process complete. Returning updated base event data.`);
-  return mapApiEventToAppEvent(updatedEvent);
+  console.log(`[updateEvent] Update process complete.`);
 };
 
 
@@ -1968,6 +1963,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
