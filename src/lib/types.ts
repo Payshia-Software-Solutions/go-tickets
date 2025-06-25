@@ -210,6 +210,7 @@ export interface BookedTicket {
   quantity: number;
   pricePerTicket: number;
   eventNsid: string;
+  checkedInCount?: number; // Added to track check-ins
   createdAt?: string;
   updatedAt?: string;
 }

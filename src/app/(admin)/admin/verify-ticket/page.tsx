@@ -1,16 +1,17 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertTriangle, Video, VideoOff, CheckCircle, XCircle, QrCode } from 'lucide-react';
+import { Loader2, AlertTriangle, Video, VideoOff, CheckCircle, XCircle, QrCode, MinusCircle, PlusCircle, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Booking } from '@/lib/types';
+import type { Booking, BookedTicket } from '@/lib/types';
 
-interface VerificationResult {
+interface VerificationResponse {
   success: boolean;
-  message: string;
+  message?: string;
   booking?: Booking;
 }
 
@@ -18,14 +19,15 @@ const TicketVerificationPage = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<VerificationResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [scannedBooking, setScannedBooking] = useState<Booking | null>(null);
+  const [checkInQuantities, setCheckInQuantities] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(false); // For initial scan
+  const [isCommitting, setIsCommitting] = useState(false); // For check-in commit
   const { toast } = useToast();
   const audioSuccessRef = useRef<HTMLAudioElement>();
   const audioErrorRef = useRef<HTMLAudioElement>();
 
   useEffect(() => {
-    // Preload audio files if they exist
     if (typeof Audio !== "undefined") {
       audioSuccessRef.current = new Audio('/sounds/success.mp3');
       audioErrorRef.current = new Audio('/sounds/error.mp3');
@@ -33,31 +35,19 @@ const TicketVerificationPage = () => {
   }, []);
 
   const getCameraPermission = useCallback(async () => {
-    // Check for BarcodeDetector support
     if (!('BarcodeDetector' in window)) {
-      toast({
-        variant: 'destructive',
-        title: 'Browser Not Supported',
-        description: 'QR code scanning is not supported by your browser. Please use a modern browser like Chrome or Edge.',
-      });
+      toast({ variant: 'destructive', title: 'Browser Not Supported', description: 'QR code scanning is not supported by your browser.' });
       setHasCameraPermission(false);
       return;
     }
-    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setHasCameraPermission(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (error) {
       console.error('Error accessing camera:', error);
       setHasCameraPermission(false);
-      toast({
-        variant: 'destructive',
-        title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings.',
-      });
+      toast({ variant: 'destructive', title: 'Camera Access Denied', description: 'Please enable camera permissions.' });
     }
   }, [toast]);
 
@@ -65,45 +55,50 @@ const TicketVerificationPage = () => {
     getCameraPermission();
   }, [getCameraPermission]);
 
-  const verifyTicket = async (bookingId: string) => {
+  const resetScanner = () => {
+    setScannedBooking(null);
+    setCheckInQuantities({});
+    setIsScanning(true); // Go back to scanning mode
+  };
+
+  const fetchBookingDetails = async (qrCodeValue: string) => {
     setIsLoading(true);
-    setScanResult(null);
+    setScannedBooking(null);
     try {
       const response = await fetch('/api/admin/verify-ticket', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId }),
+        body: JSON.stringify({ qrCodeValue }),
       });
 
-      const result: VerificationResult = await response.json();
+      const result: VerificationResponse = await response.json();
 
-      if (result.success) {
-        audioSuccessRef.current?.play().catch(e => console.warn("Could not play success sound:", e));
+      if (result.success && result.booking) {
+        audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
+        setScannedBooking(result.booking);
+        // Initialize check-in quantities to 0 for all ticket types
+        const initialQuantities: Record<string, number> = {};
+        result.booking.bookedTickets.forEach(t => {
+          initialQuantities[t.ticketTypeId] = 0;
+        });
+        setCheckInQuantities(initialQuantities);
       } else {
-        audioErrorRef.current?.play().catch(e => console.warn("Could not play error sound:", e));
+        audioErrorRef.current?.play().catch(e => console.warn("Could not play sound:", e));
+        toast({ variant: 'destructive', title: 'Verification Failed', description: result.message || 'Ticket not found or invalid.' });
+        // Keep scanning after a brief pause if ticket not found
+        setTimeout(() => setIsScanning(true), 2000);
       }
-      setScanResult(result);
-      
     } catch (error) {
-      audioErrorRef.current?.play().catch(e => console.warn("Could not play error sound:", e));
+      audioErrorRef.current?.play().catch(e => console.warn("Could not play sound:", e));
       console.error('Verification API error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Verification Failed',
-        description: 'An error occurred while trying to verify the ticket.',
-      });
+      toast({ variant: 'destructive', title: 'Verification Failed', description: 'An error occurred while communicating with the server.' });
     } finally {
       setIsLoading(false);
-      // Pause scanning for a bit to show result
-      setTimeout(() => {
-         setIsScanning(false);
-         // Don't clear the result automatically, let the user decide to scan again
-      }, 5000);
     }
   };
   
   const scanFrame = useCallback(async () => {
-    if (!videoRef.current || !videoRef.current.srcObject || isLoading || scanResult) {
+    if (!videoRef.current || !videoRef.current.srcObject || isLoading || scannedBooking) {
       return;
     }
 
@@ -114,85 +109,146 @@ const TicketVerificationPage = () => {
       const barcodes = await barcodeDetector.detect(videoRef.current);
       if (barcodes.length > 0) {
         setIsScanning(false); // Stop scanning once a code is found
-        const bookingId = barcodes[0].rawValue;
-        await verifyTicket(bookingId);
+        await fetchBookingDetails(barcodes[0].rawValue);
       }
     } catch (error) {
-      // This can happen if the frame is not yet ready. We can ignore it.
+      // Ignore detection errors, they happen
     }
-  }, [isLoading, scanResult, verifyTicket]);
+  }, [isLoading, scannedBooking, fetchBookingDetails]);
 
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     if (isScanning && hasCameraPermission) {
-      intervalId = setInterval(scanFrame, 200); // Scan every 200ms
+      intervalId = setInterval(scanFrame, 200);
     }
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      if (intervalId) clearInterval(intervalId);
     };
   }, [isScanning, hasCameraPermission, scanFrame]);
 
   const handleStartScan = () => {
-    setScanResult(null);
+    setScannedBooking(null);
+    setCheckInQuantities({});
     setIsScanning(true);
-  }
+  };
 
-  const renderResultCard = () => {
+  const handleQuantityChange = (ticket: BookedTicket, change: number) => {
+    const currentCheckIn = checkInQuantities[ticket.ticketTypeId] || 0;
+    const newCheckIn = currentCheckIn + change;
+    const alreadyCheckedIn = ticket.checkedInCount || 0;
+    
+    if (newCheckIn >= 0 && (newCheckIn + alreadyCheckedIn <= ticket.quantity)) {
+      setCheckInQuantities(prev => ({...prev, [ticket.ticketTypeId]: newCheckIn }));
+    }
+  };
+  
+  const handleConfirmCheckIn = async () => {
+    if (!scannedBooking) return;
+
+    const checkInItems = Object.entries(checkInQuantities)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity }));
+    
+    if (checkInItems.length === 0) {
+      toast({ title: "No Tickets Selected", description: "Please select at least one ticket to check in." });
+      return;
+    }
+
+    setIsCommitting(true);
+    try {
+      const response = await fetch('/api/admin/verify-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: scannedBooking.id, checkInItems }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: "Check-in Successful!", description: result.message });
+        audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
+        // Refresh booking details to show updated counts
+        await fetchBookingDetails(scannedBooking.qrCodeValue);
+      } else {
+        throw new Error(result.message || "Check-in failed on the server.");
+      }
+    } catch (error) {
+       audioErrorRef.current?.play().catch(e => console.warn("Could not play sound:", e));
+       toast({ variant: 'destructive', title: 'Check-in Failed', description: error instanceof Error ? error.message : "An unknown error occurred." });
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+
+  const renderBookingDetails = () => {
     if (isLoading) {
       return (
-        <Card className="w-full max-w-md text-center">
-            <CardHeader>
-                <CardTitle>Verifying Ticket</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center p-10">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="mt-4 text-muted-foreground">Please wait...</p>
-            </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center p-10">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">Verifying QR Code...</p>
+        </div>
       );
     }
-    
-    if (!scanResult) return null;
 
-    const { success, message, booking } = scanResult;
+    if (!scannedBooking) return null;
+
+    const totalTicketsToCheckIn = Object.values(checkInQuantities).reduce((sum, q) => sum + q, 0);
 
     return (
-      <Card className={`w-full max-w-md ${success ? 'border-green-500' : 'border-red-500'} border-2`}>
-        <CardHeader className="text-center">
-          {success ? 
-            <CheckCircle className="mx-auto h-12 w-12 text-green-500" /> : 
-            <XCircle className="mx-auto h-12 w-12 text-red-500" />
-          }
-          <CardTitle className={`text-2xl ${success ? 'text-green-600' : 'text-red-600'}`}>
-            {message}
-          </CardTitle>
-          {booking && <CardDescription>Booking ID: {booking.id}</CardDescription>}
-        </CardHeader>
-        {booking && (
-          <CardContent className="space-y-2 text-sm">
-            <p><strong>Event:</strong> {booking.eventName}</p>
-            <p><strong>Date:</strong> {new Date(booking.eventDate).toLocaleString()}</p>
-            <p><strong>Location:</strong> {booking.eventLocation}</p>
-            <p><strong>Total Paid:</strong> LKR {booking.totalPrice.toFixed(2)}</p>
-            <div className="pt-2">
-                <p><strong>Tickets:</strong></p>
-                <ul className="list-disc list-inside pl-4">
-                    {booking.bookedTickets.map((ticket, idx) => (
-                        <li key={idx}>{ticket.quantity} x {ticket.ticketTypeName}</li>
-                    ))}
-                </ul>
+      <div className="w-full max-w-lg">
+        <Card className="border-primary border-2">
+          <CardHeader className="text-center bg-primary/10">
+            <CheckCircle className="mx-auto h-12 w-12 text-primary" />
+            <CardTitle className="text-2xl text-primary">Ticket Found</CardTitle>
+            <CardDescription>Booking ID: {scannedBooking.id}</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
+            <div className="text-center">
+                <p className="font-bold text-lg">{scannedBooking.eventName}</p>
+                <p className="text-sm text-muted-foreground">{new Date(scannedBooking.eventDate).toLocaleString()}</p>
             </div>
-            {message === 'Already Scanned' && booking.scannedAt &&
-              <p className="font-bold text-amber-600">Scanned At: {new Date(booking.scannedAt).toLocaleString()}</p>
-            }
+            
+            <div className="space-y-3">
+              <h3 className="font-semibold text-center">Select Tickets to Check In</h3>
+              {scannedBooking.bookedTickets.map(ticket => {
+                const alreadyCheckedIn = ticket.checkedInCount || 0;
+                const availableToCheckIn = ticket.quantity - alreadyCheckedIn;
+                return (
+                  <div key={ticket.ticketTypeId} className="p-3 border rounded-md bg-muted/30">
+                    <p className="font-medium">{ticket.ticketTypeName}</p>
+                    <div className="flex justify-between items-center mt-1">
+                       <p className="text-sm text-muted-foreground">
+                         {alreadyCheckedIn} / {ticket.quantity} checked in
+                       </p>
+                       <div className="flex items-center space-x-2">
+                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, -1)} disabled={checkInQuantities[ticket.ticketTypeId] === 0 || isCommitting}>
+                           <MinusCircle className="h-5 w-5"/>
+                         </Button>
+                         <span className="font-bold text-lg w-8 text-center">{checkInQuantities[ticket.ticketTypeId] || 0}</span>
+                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, 1)} disabled={availableToCheckIn === 0 || checkInQuantities[ticket.ticketTypeId] >= availableToCheckIn || isCommitting}>
+                           <PlusCircle className="h-5 w-5"/>
+                         </Button>
+                       </div>
+                    </div>
+                     {availableToCheckIn === 0 && <p className="text-xs text-center font-bold text-green-600 mt-2">All tickets of this type have been checked in.</p>}
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
-        )}
-      </Card>
+        </Card>
+        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+           <Button size="lg" className="flex-1" onClick={handleConfirmCheckIn} disabled={isCommitting || totalTicketsToCheckIn === 0}>
+              {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4"/>}
+              Confirm Check-in ({totalTicketsToCheckIn})
+            </Button>
+            <Button size="lg" variant="outline" className="flex-1" onClick={resetScanner} disabled={isCommitting}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Scan Another Ticket
+            </Button>
+        </div>
+      </div>
     );
-  };
+  }
   
   return (
     <div className="space-y-8">
@@ -205,40 +261,42 @@ const TicketVerificationPage = () => {
 
       <Card>
         <CardContent className="pt-6 flex flex-col items-center gap-6">
-          <div className="w-full max-w-md relative">
-            <video ref={videoRef} className="w-full aspect-video rounded-md bg-black" autoPlay muted playsInline />
-            {isScanning && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-2/3 h-2/3 border-4 border-dashed border-primary/50 rounded-lg animate-pulse"></div>
-                </div>
-            )}
-          </div>
-
-          {hasCameraPermission === false && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Camera Not Available</AlertTitle>
-              <AlertDescription>
-                Could not access the camera. Please ensure it's connected and permissions are allowed, then try reloading the page.
-                <Button variant="link" onClick={getCameraPermission} className="p-0 h-auto ml-1">Try Again</Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {!isScanning && (
-            <Button size="lg" onClick={handleStartScan} disabled={hasCameraPermission !== true || isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
-              {isLoading ? 'Verifying...' : 'Start Scanning'}
-            </Button>
-          )}
-          {isScanning && (
-             <Button size="lg" variant="destructive" onClick={() => setIsScanning(false)}>
-              <VideoOff className="mr-2 h-4 w-4" /> Stop Scanning
-            </Button>
-          )}
-
-          {renderResultCard()}
           
+          {scannedBooking ? renderBookingDetails() : (
+            <>
+              <div className="w-full max-w-md relative">
+                <video ref={videoRef} className="w-full aspect-video rounded-md bg-black" autoPlay muted playsInline />
+                {isScanning && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-2/3 h-2/3 border-4 border-dashed border-primary/50 rounded-lg animate-pulse"></div>
+                    </div>
+                )}
+              </div>
+
+              {hasCameraPermission === false && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Camera Not Available</AlertTitle>
+                  <AlertDescription>
+                    Could not access camera. Please ensure permissions are allowed.
+                    <Button variant="link" onClick={getCameraPermission} className="p-0 h-auto ml-1">Try Again</Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!isScanning && (
+                <Button size="lg" onClick={handleStartScan} disabled={hasCameraPermission !== true || isLoading}>
+                  <Video className="mr-2 h-4 w-4" /> Start Scanning
+                </Button>
+              )}
+              {isScanning && (
+                 <Button size="lg" variant="destructive" onClick={() => setIsScanning(false)}>
+                  <VideoOff className="mr-2 h-4 w-4" /> Stop Scanning
+                </Button>
+              )}
+            </>
+          )}
+
         </CardContent>
       </Card>
     </div>
