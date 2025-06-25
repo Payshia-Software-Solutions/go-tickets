@@ -84,9 +84,7 @@ export const TicketTypeFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "Ticket type name is required"),
   price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
-  availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative").describe("Default/template availability for new showtimes"),
   description: z.string().optional(),
-  showtimeId: z.string({required_error: "Showtime is required."}).min(1, "Showtime is required."),
 });
 export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 

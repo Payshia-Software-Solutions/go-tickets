@@ -81,7 +81,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         id: tt.id,
         name: tt.name,
         price: tt.price,
-        availability: tt.availability,
         description: tt.description || '',
       })) || [],
       showTimes: initialData.showTimes?.map(st => ({
@@ -260,7 +259,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     const newAvailabilities = watchedTicketTypes.map(tt => ({
         ticketTypeId: tt.id || `temp-id-${Math.random()}`,
         ticketTypeName: tt.name,
-        availableCount: tt.availability,
+        availableCount: 100, // Default to 100 as template availability is removed
     }));
     appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
   };
@@ -600,7 +599,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Ticket className="mr-2"/> Ticket Type Definitions</h3>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, availability: 100, description: "" })}>
+                <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, description: "" })}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
                 </Button>
               </div>
@@ -621,19 +620,18 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField control={form.control} name={`ticketTypes.${index}.name`} render={({ field }) => (
-                        <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name={`ticketTypes.${index}.price`} render={({ field }) => (
-                        <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                       <FormField control={form.control} name={`ticketTypes.${index}.availability`} render={({ field }) => (
-                        <FormItem><FormLabel>Template Availability</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name={`ticketTypes.${index}.description`} render={({ field }) => (
-                        <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={1} /></FormControl><FormMessage /></FormItem>
-                      )} />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField control={form.control} name={`ticketTypes.${index}.name`} render={({ field }) => (
+                                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name={`ticketTypes.${index}.price`} render={({ field }) => (
+                                <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                            )} />
+                        </div>
+                        <FormField control={form.control} name={`ticketTypes.${index}.description`} render={({ field }) => (
+                            <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
+                        )} />
                     </div>
                   </div>
                 ))}
