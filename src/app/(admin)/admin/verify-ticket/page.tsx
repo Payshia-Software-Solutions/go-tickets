@@ -238,12 +238,12 @@ const TicketVerificationPage = () => {
           </CardContent>
         </Card>
         <div className="mt-4 flex flex-col sm:flex-row gap-2">
-           <Button size="lg" className="flex-1" onClick={handleConfirmCheckIn} disabled={isCommitting || totalTicketsToCheckIn === 0}>
-              {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4"/>}
+           <Button size="lg" className="flex-1 py-6 text-lg" onClick={handleConfirmCheckIn} disabled={isCommitting || totalTicketsToCheckIn === 0}>
+              {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-5 w-5"/>}
               Confirm Check-in ({totalTicketsToCheckIn})
             </Button>
-            <Button size="lg" variant="outline" className="flex-1" onClick={resetScanner} disabled={isCommitting}>
-              <RotateCcw className="mr-2 h-4 w-4" /> Scan Another Ticket
+            <Button size="lg" variant="outline" className="flex-1 py-6 text-lg" onClick={resetScanner} disabled={isCommitting}>
+              <RotateCcw className="mr-2 h-5 w-5" /> Scan Another Ticket
             </Button>
         </div>
       </div>
