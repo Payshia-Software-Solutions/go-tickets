@@ -43,7 +43,13 @@ const TicketVerificationPage = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       setHasCameraPermission(true);
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        const existingStream = videoRef.current.srcObject as MediaStream | null;
+        if (existingStream) {
+            existingStream.getTracks().forEach(track => track.stop());
+        }
+        videoRef.current.srcObject = stream;
+      }
     } catch (error) {
       console.error('Error accessing camera:', error);
       setHasCameraPermission(false);
@@ -58,6 +64,7 @@ const TicketVerificationPage = () => {
   const resetScanner = () => {
     setScannedBooking(null);
     setCheckInQuantities({});
+    getCameraPermission();
     setIsScanning(true); // Go back to scanning mode
   };
 
@@ -304,3 +311,5 @@ const TicketVerificationPage = () => {
 };
 
 export default TicketVerificationPage;
+
+    
