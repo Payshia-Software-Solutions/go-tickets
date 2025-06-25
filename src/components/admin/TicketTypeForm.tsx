@@ -66,38 +66,6 @@ export default function TicketTypeForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-        {showtimes && (
-          <FormField
-            control={form.control}
-            name="showtimeId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Showtime</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a showtime" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {showtimes.map((st) => (
-                      <SelectItem key={st.id} value={st.id}>
-                        {new Date(st.dateTime).toLocaleString()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription className="text-xs">
-                  This ticket type will be created for the selected showtime.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
         <FormField
           control={form.control}
           name="name"
