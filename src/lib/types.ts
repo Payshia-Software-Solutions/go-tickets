@@ -230,6 +230,7 @@ export interface Booking {
   bookedTickets: BookedTicket[]; // May be empty if summary view
   showtime?: string; // From API, e.g., "14:00:00"
   tickettype?: string; // From API, e.g., "Early Bird, Regular"
+  scannedAt?: string | null; // ISO string when the ticket was scanned
   createdAt?: string;
   updatedAt?: string;
 }

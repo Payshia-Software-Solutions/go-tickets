@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag } from 'lucide-react'; // Added Tag
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode } from 'lucide-react'; // Added QrCode
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +11,9 @@ const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/organizers', label: 'Organizers', icon: Users },
-  { href: '/admin/categories', label: 'Categories', icon: Tag }, // Added Categories
+  { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
+  { href: '/admin/verify-ticket', label: 'Verify Ticket', icon: QrCode },
 ];
 
 interface AdminSidebarProps {
