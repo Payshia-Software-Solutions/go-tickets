@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import type { Event } from '@/lib/types';
 import { getEventSuggestionsByName } from '@/lib/mockData';
@@ -32,6 +32,7 @@ const Header = () => {
   const { user, logout, loading } = useAuth();
   const { totalItems } = useCart();
   const router = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { setTheme } = useTheme(); // Removed unused 'theme'
@@ -79,6 +80,10 @@ const Header = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [searchContainerRef]);
+
+  if (pathname.startsWith('/admin')) {
+    return null;
+  }
 
   // --- Updated handleSearch function ---
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {

@@ -1,8 +1,17 @@
 
+"use client";
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
 
 const Footer = () => {
+  const pathname = usePathname();
+
+  if (pathname.startsWith('/admin')) {
+    return null;
+  }
+
   return (
     <footer className="bg-[hsl(var(--footer-background))] text-[hsl(var(--footer-foreground))] border-t border-[hsl(var(--footer-border))]">
       <div className="container py-12 px-4 sm:px-6 lg:px-8">
@@ -46,4 +55,3 @@ const Footer = () => {
 };
 
 export default Footer;
-
