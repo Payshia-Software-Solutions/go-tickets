@@ -90,7 +90,6 @@ interface ApiTicketTypeFromEndpoint {
     showtimeId?: string | null; // Added showtimeId
     name: string;
     price: string; 
-    availability: string; 
     description?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -253,7 +252,7 @@ export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketT
       showtimeId: tt.showtimeId ? String(tt.showtimeId) : null,
       name: tt.name,
       price: parseFloat(tt.price) || 0,
-      availability: parseInt(tt.availability, 10) || 0,
+      availability: 0, // This is now managed per showtime
       description: tt.description || null,
       createdAt: parseApiDateString(tt.createdAt),
       updatedAt: parseApiDateString(tt.updatedAt),
@@ -1069,7 +1068,6 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
     const payload = {
       name: data.name,
       price: data.price,
-      availability: data.availability,
       description: data.description || "",
       eventId: eventId,
       showtimeId: data.showtimeId,
@@ -1095,7 +1093,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         showtimeId: newTicketTypeApi.showtimeId ? String(newTicketTypeApi.showtimeId) : null,
         name: newTicketTypeApi.name,
         price: parseFloat(newTicketTypeApi.price),
-        availability: parseInt(newTicketTypeApi.availability, 10),
+        availability: 0, // Not managed at definition level
         description: newTicketTypeApi.description || null
     };
 };
@@ -1865,6 +1863,53 @@ export const getUserBookings = async (userId: string): Promise<Booking[]> => {
   }
 };
 
+export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking | undefined> => {
+  if (!qrCodeValue) {
+    console.warn("[getBookingByQrCode] Called with empty qrCodeValue.");
+    return undefined;
+  }
+  if (!BOOKINGS_API_URL) {
+    console.error("[getBookingByQrCode] BOOKINGS_API_URL is not defined.");
+    return undefined;
+  }
+
+  const url = `${BOOKINGS_API_URL}/?qrvalue=${encodeURIComponent(qrCodeValue)}`;
+  console.log(`[getBookingByQrCode] Fetching booking by QR code from: ${url}`);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`[getBookingByQrCode] Booking with qrCodeValue ${qrCodeValue} not found (404).`);
+        return undefined;
+      }
+      const errorBodyText = await response.text();
+      console.error(`[getBookingByQrCode] API Error fetching booking by QR. Status: ${response.status}, Body: ${errorBodyText}`);
+      return undefined;
+    }
+
+    const responseData = await response.json();
+    
+    // API might return an array `[{...}]` or a single object `{}`. Or even `[]` if not found.
+    const apiBooking: RawApiBooking | undefined = Array.isArray(responseData) ? responseData[0] : responseData;
+
+    if (!apiBooking || Object.keys(apiBooking).length === 0) {
+      console.log(`[getBookingByQrCode] No booking found for qrCodeValue: ${qrCodeValue}`);
+      return undefined;
+    }
+
+    // Now we have the booking, but it might not have the `bookedTickets`.
+    // We use getBookingById to fetch the full details including line items, which is the established pattern.
+    console.log(`[getBookingByQrCode] Found booking ID ${apiBooking.id} for QR value. Fetching full details.`);
+    return getBookingById(String(apiBooking.id));
+
+  } catch (error) {
+    console.error(`[getBookingByQrCode] Network or other error fetching booking by QR:`, error);
+    return undefined;
+  }
+};
+
+
 export const getEventSuggestionsByName = async (nameQuery: string): Promise<Event[]> => {
   if (!API_BASE_URL) {
     console.warn("API_BASE_URL is not defined. Event suggestions are disabled.");
@@ -2010,6 +2055,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
