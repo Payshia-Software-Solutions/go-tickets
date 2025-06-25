@@ -1068,6 +1068,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
     const payload = {
       name: data.name,
       price: data.price,
+      availability: data.availability,
       description: data.description || "",
       eventId: eventId,
       showtimeId: data.showtimeId,
@@ -1735,7 +1736,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const errorJson = JSON.parse(errorBodyText);
         errorJsonMessage = errorJson.message || JSON.stringify(errorJson);
       } catch {}
-      throw new Error(`Failed to fetch main booking ${id}: ${bookingResponse.status}. Message: ${errorJsonMessage}`);
+      throw new Error(`Failed to fetch main booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking: RawApiBooking = await bookingResponse.json();
     const mappedBooking = transformApiBookingToAppBooking(apiBooking);
@@ -2055,6 +2056,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
