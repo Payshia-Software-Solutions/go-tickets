@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useCart } from '@/contexts/CartContext';
@@ -12,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking, processMockPayment } from '@/lib/mockData';
+import { createBooking } from '@/lib/mockData';
 import type { BillingAddress, CartItem } from '@/lib/types';
 import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
@@ -116,19 +115,6 @@ const CheckoutPage = () => {
     const finalTotal = totalPrice + taxes;
 
     try {
-      const paymentResult = await processMockPayment({
-        amount: finalTotal,
-        billingAddress: billingDataForBooking,
-      });
-
-      if (!paymentResult.success) {
-        toast({ title: "Payment Failed", description: paymentResult.message || "Your payment could not be processed.", variant: "destructive" });
-        setIsProcessing(false);
-        return;
-      }
-
-      toast({ title: "Payment Successful!", description: `Transaction ID: ${paymentResult.transactionId}` });
-
       // If a new address was entered (not using default) AND the user wants to save it
       if (!useDefaultAddress && saveNewAddress && user && updateUser) {
         const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
@@ -146,28 +132,43 @@ const CheckoutPage = () => {
             }
         }
       }
-
-      const newBooking = await createBooking({
+      
+      const paymentHtml = await createBooking({
         userId: user.id,
         cart: cart,
         totalPrice: finalTotal,
         billingAddress: billingDataForBooking,
       });
 
-      toast({
-        title: "Booking Confirmed!",
-        description: `Your booking ID is ${newBooking.id}. Redirecting...`,
-      });
+      // Cart is cleared as the user is handed off to the payment gateway.
+      // If payment fails, they can return to an empty cart, which is a common pattern.
       clearCart();
-      router.push(`/booking-confirmation/${newBooking.id}`);
+
+      const formContainer = document.createElement('div');
+      formContainer.innerHTML = paymentHtml;
+      const paymentForm = formContainer.querySelector('form');
+
+      if (paymentForm) {
+        document.body.appendChild(paymentForm);
+        paymentForm.submit();
+        // Do not set isProcessing to false; the page will redirect.
+      } else {
+        console.error("Payment initiation failed: No form found in the API response.");
+        toast({
+          title: "Payment Initiation Failed",
+          description: "Could not find the payment form in the server's response. Please try again.",
+          variant: "destructive"
+        });
+        setIsProcessing(false); // Allow user to try again
+      }
+
     } catch (error: unknown) {
-      console.error("Booking error:", error);
+      console.error("Booking/Payment error:", error);
       toast({
         title: "Booking Failed",
         description: (error instanceof Error ? error.message : "Something went wrong. Please try again."),
         variant: "destructive",
       });
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -363,8 +364,7 @@ const CheckoutPage = () => {
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground">
-                        Payment will be handled by our secure payment gateway.
-                        This is a mock payment step.
+                        You will be redirected to our secure payment partner to complete your purchase.
                     </p>
                 </CardContent>
               </Card>

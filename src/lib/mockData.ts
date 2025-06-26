@@ -89,6 +89,7 @@ interface ApiTicketTypeFromEndpoint {
     name: string;
     price: string; 
     description?: string | null;
+    availability?: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -250,7 +251,7 @@ export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketT
       showtimeId: tt.showtimeId ? String(tt.showtimeId) : null,
       name: tt.name,
       price: parseFloat(tt.price) || 0,
-      availability: 0, // This is now managed per showtime
+      availability: parseInt(tt.availability || '0', 10),
       description: tt.description || null,
       createdAt: parseApiDateString(tt.createdAt),
       updatedAt: parseApiDateString(tt.updatedAt),
@@ -1067,6 +1068,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       name: data.name,
       price: data.price,
       description: data.description || "",
+      availability: data.availability,
       eventId: eventId,
     };
 
@@ -1090,7 +1092,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         showtimeId: newTicketTypeApi.showtimeId ? String(newTicketTypeApi.showtimeId) : null,
         name: newTicketTypeApi.name,
         price: parseFloat(newTicketTypeApi.price),
-        availability: 0, // Not managed at definition level
+        availability: parseInt(newTicketTypeApi.availability || '0', 10),
         description: newTicketTypeApi.description || null
     };
 };
@@ -1490,7 +1492,7 @@ export const createBooking = async (
     totalPrice: number;
     billingAddress: BillingAddress;
   }
-): Promise<Booking> => {
+): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
@@ -1503,9 +1505,9 @@ export const createBooking = async (
     totalPrice: totalPrice,
     eventName: cart.length > 1 ? `Multi-Event Package (${new Date().toLocaleDateString()})` : cart[0].eventName,
     eventDate: format(new Date(), "yyyy-MM-dd"), // Use today's date for booking, specific event dates are in line items
-    eventLocation: cart.length > 1 ? "Multiple Locations" : (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
+    eventLocation: (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
     qrCodeValue: `BOOK-${new Date().getFullYear()}-MULTI-${generateId()}`,
-    payment_status: "completed",
+    payment_status: "pending",
     billing_street: billingAddress.street,
     billing_city: billingAddress.city,
     billing_state: billingAddress.state,
@@ -1536,12 +1538,9 @@ export const createBooking = async (
       throw new Error(errorBody.message || `API Error: ${response.status}`);
     }
 
-    const responseData = await response.json();
-    if (!responseData.booking) {
-      throw new Error("Booking response from API was successful, but did not contain a 'booking' object.");
-    }
-
-    return transformApiBookingToAppBooking(responseData.booking);
+    // The API now returns an HTML form for payment redirection
+    const html = await response.text();
+    return html;
 
   } catch (error) {
     console.error("Error creating booking:", error);
@@ -1573,7 +1572,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const errorJson = JSON.parse(errorBodyText);
         errorJsonMessage = errorJson.message || JSON.stringify(errorJson);
       } catch {}
-      throw new Error(`Failed to fetch main booking ${id}: ${response.status}. Message: ${errorJsonMessage}`);
+      throw new Error(`Failed to fetch main booking ${id}: ${bookingResponse.status}. Message: ${errorJsonMessage}`);
     }
     const apiBooking: RawApiBooking = await bookingResponse.json();
     const mappedBooking = transformApiBookingToAppBooking(apiBooking);
@@ -1891,6 +1890,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 
