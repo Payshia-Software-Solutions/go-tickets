@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Event, ShowTime, TicketType } from '@/lib/types';
@@ -103,7 +104,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
             // Find it from the event's master list.
             const fullTicketType = event.ticketTypes?.find(tt => tt.id === ticketTypeId);
             if (fullTicketType) {
-                addToCart(event, fullTicketType, newQuantity, selectedShowTime.id);
+                addToCart(event, fullTicketType, newQuantity, selectedShowTime.id, selectedShowTime.dateTime);
                  toast({
                     title: "Added to Cart",
                     description: `${newQuantity} x ${ticketTypeForAvailability.name} for ${event.name} added.`,

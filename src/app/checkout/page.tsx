@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useCart } from '@/contexts/CartContext';
@@ -12,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { createBooking, processMockPayment } from '@/lib/mockData';
-import type { BillingAddress } from '@/lib/types';
+import type { BillingAddress, CartItem } from '@/lib/types';
 import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
@@ -111,12 +112,6 @@ const CheckoutPage = () => {
       ? user.billingAddress
       : formBillingData;
 
-    const primaryEventId = cart[0]?.eventId;
-    if (!primaryEventId) {
-         toast({ title: "Error", description: "Event ID missing from cart.", variant: "destructive" });
-         setIsProcessing(false);
-         return;
-    }
     const taxes = totalPrice * 0.1;
     const finalTotal = totalPrice + taxes;
 
@@ -152,24 +147,12 @@ const CheckoutPage = () => {
         }
       }
 
-      const bookingPayloadForCreateBooking = {
+      const newBooking = await createBooking({
         userId: user.id,
-        eventId: primaryEventId, 
-        tickets: cart.map(item => ({
-            eventNsid: item.eventNsid,
-            eventId: item.eventId,
-            ticketTypeId: item.ticketTypeId,
-            ticketTypeName: item.ticketTypeName,
-            quantity: item.quantity,
-            pricePerTicket: item.pricePerTicket,
-            showTimeId: item.showTimeId,
-        })),
+        cart: cart,
         totalPrice: finalTotal,
-        // billingAddress is NOT sent to /bookings endpoint as per schema,
-        // it's handled for user profile update above.
-      };
-
-      const newBooking = await createBooking(bookingPayloadForCreateBooking);
+        billingAddress: billingDataForBooking,
+      });
 
       toast({
         title: "Booking Confirmed!",
@@ -421,5 +404,3 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
-
-    

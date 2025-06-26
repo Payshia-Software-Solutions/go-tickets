@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { CartItem, Event, TicketType } from '@/lib/types'; // Removed ShowTime
@@ -6,7 +7,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (event: Event, ticketType: TicketType, quantity: number, showTimeId: string) => void;
+  addToCart: (event: Event, ticketType: TicketType, quantity: number, showTimeId: string, showTimeDateTime: string) => void;
   removeFromCart: (ticketTypeId: string, showTimeId: string) => void; // Needs showTimeId for uniqueness
   updateQuantity: (ticketTypeId: string, showTimeId: string, quantity: number) => void; // Needs showTimeId
   clearCart: () => void;
@@ -36,7 +37,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [cart]);
 
-  const addToCart = (event: Event, ticketType: TicketType, quantity: number, showTimeId: string) => {
+  const addToCart = (event: Event, ticketType: TicketType, quantity: number, showTimeId: string, showTimeDateTime: string) => {
     setCart(prevCart => {
       const existingItemIndex = prevCart.findIndex(
         item => item.ticketTypeId === ticketType.id && item.eventId === event.id && item.showTimeId === showTimeId
@@ -56,7 +57,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ticketTypeName: ticketType.name,
             quantity,
             pricePerTicket: ticketType.price,
-            showTimeId: showTimeId, // Store the showTimeId
+            showTimeId: showTimeId,
+            showTimeDateTime: showTimeDateTime,
           }
         ];
       }
