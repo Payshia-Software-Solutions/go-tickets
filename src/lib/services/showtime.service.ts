@@ -1,3 +1,4 @@
+
 import type { ShowTime, AddShowTimeFormData } from '@/lib/types';
 import { SHOWTIMES_API_URL, SHOWTIMES_BY_EVENT_API_URL_BASE } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -9,6 +10,11 @@ interface ApiShowTimeFlat {
   dateTime: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface CreateShowTimeResponse {
+  message: string;
+  showtimeId: string | number;
 }
 
 export const getShowTimesForEvent = async (eventId: string): Promise<ShowTime[]> => {
@@ -39,7 +45,7 @@ export const getShowTimesForEvent = async (eventId: string): Promise<ShowTime[]>
   }
 };
 
-export const createShowTime = async (eventId: string, data: AddShowTimeFormData): Promise<ShowTime> => {
+export const createShowTime = async (eventId: string, data: AddShowTimeFormData): Promise<{ id: string; dateTime: string; }> => {
     if (!SHOWTIMES_API_URL) {
         throw new Error("SHOWTIMES_API_URL is not configured.");
     }
@@ -57,11 +63,14 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
         const errorBody = await response.json().catch(() => ({ message: 'Failed to create show time.' }));
         throw new Error(errorBody.message || `API error: ${response.status}`);
     }
-    const newShowTimeApi: ApiShowTimeFlat = await response.json();
+    
+    const newShowTimeResponse: CreateShowTimeResponse = await response.json();
+    if (!newShowTimeResponse.showtimeId) {
+        throw new Error("API did not return a showtimeId after creating a showtime.");
+    }
+
     return {
-        id: newShowTimeApi.id,
-        eventId: String(newShowTimeApi.eventId || eventId),
-        dateTime: parseApiDateString(newShowTimeApi.dateTime) || new Date().toISOString(),
-        ticketAvailabilities: [],
+        id: String(newShowTimeResponse.showtimeId),
+        dateTime: data.dateTime.toISOString(), // Return dateTime as ISO string for consistency
     };
 };
