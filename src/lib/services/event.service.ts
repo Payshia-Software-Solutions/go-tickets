@@ -1,3 +1,4 @@
+
 import type { Event, Organizer, EventFormData, CoreEventFormData, ShowTime, ShowTimeTicketAvailability } from '@/lib/types';
 import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -220,35 +221,16 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
             updatedAt: parseApiDateString(basicSt.updatedAt),
           };
 
-          if (masterTicketTypes.length > 0) {
-            const availabilitiesPromises = masterTicketTypes.map(async (masterTt) => {
-              const availabilityUrl = `${API_BASE_URL}/ticket-types/purchase/?eventid=${eventBase.id}&showtimeid=${basicSt.id}&tickettypeid=${masterTt.id}`;
-              try {
-                const availabilityResponse = await fetch(availabilityUrl);
-                if (availabilityResponse.ok) {
-                  const availData = await availabilityResponse.json();
-                  return {
-                    id: `sta-${basicSt.id}-${masterTt.id}`,
-                    showTimeId: basicSt.id,
-                    ticketTypeId: masterTt.id,
-                    ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                    availableCount: parseInt(availData.ticketCount, 10) || 0,
-                  };
-                }
-                 console.warn(`Failed to fetch availability for ticket ${masterTt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
-              } catch (e) {
-                console.error(`Error fetching availability for ticket ${masterTt.id}:`, e);
-              }
-              return {
-                id: `sta-${basicSt.id}-${masterTt.id}`,
-                showTimeId: basicSt.id,
-                ticketTypeId: masterTt.id,
-                ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                availableCount: 0,
-              };
-            });
-            detailedShowTime.ticketAvailabilities = (await Promise.all(availabilitiesPromises)).filter(Boolean) as ShowTimeTicketAvailability[];
-          }
+          const ticketsForThisShowtime = masterTicketTypes.filter(tt => tt.showtimeId === basicSt.id);
+
+          detailedShowTime.ticketAvailabilities = ticketsForThisShowtime.map(tt => ({
+            id: `sta-${basicSt.id}-${tt.id}`,
+            showTimeId: basicSt.id,
+            ticketTypeId: tt.id,
+            ticketType: { id: tt.id, name: tt.name, price: tt.price },
+            availableCount: tt.availability, // Use the availability from the master list
+          }));
+          
           populatedShowTimes.push(detailedShowTime);
         }
       }
