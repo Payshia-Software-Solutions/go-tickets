@@ -1,3 +1,4 @@
+
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -187,20 +188,12 @@ export const createBooking = async (
       updateUrl.searchParams.append('eventid', item.eventId);
       updateUrl.searchParams.append('showtimeid', item.showTimeId);
       updateUrl.searchParams.append('tickettypeid', item.ticketTypeId);
+      updateUrl.searchParams.append('ticketCount', String(item.quantity));
       
-      const payload = {
-          ticketCount: item.quantity
-      };
-
       try {
-          console.log(`Updating availability via POST: ${updateUrl.toString()}`);
-          console.log('Payload:', payload);
+          console.log(`Updating availability via GET: ${updateUrl.toString()}`);
           const updateResponse = await fetch(updateUrl.toString(), {
-              method: 'POST', // Corrected to POST
-              headers: {
-                  'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(payload) // Sending ticketCount in the body
+              method: 'GET',
           });
 
           if (updateResponse.ok) {
