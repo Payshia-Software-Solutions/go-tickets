@@ -377,8 +377,6 @@ export const updateEvent = async (
   
   const formData = new FormData();
   
-  formData.append('_method', 'PUT');
-
   formData.append('name', data.name);
   formData.append('slug', data.slug);
   formData.append('date', data.date.toISOString());
@@ -405,10 +403,10 @@ export const updateEvent = async (
   const updateUrl = `${API_BASE_URL}/events/${eventId}`;
   
   console.log(`%c[updateEvent] Sending FormData to backend...`, 'color: blue;');
-  console.log(`  - URL: POST ${updateUrl}`);
+  console.log(`  - URL: PUT ${updateUrl}`);
   
   const response = await fetch(updateUrl, {
-    method: 'POST',
+    method: 'PUT',
     body: formData,
   });
 
