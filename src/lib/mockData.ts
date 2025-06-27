@@ -4,6 +4,7 @@ import { parse, isValid, format, parseISO } from 'date-fns';
 
 // API Base URL from environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const CONTENT_PROVIDER_URL = "https://content-provider.gotickets.lk";
 const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categories";
 const INTERNAL_PUBLIC_CATEGORY_API_URL = "/api/public-categories";
 const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
@@ -112,6 +113,12 @@ interface ApiEventFlat {
 }
 
 const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
+  let finalImageUrl = apiEvent.imageUrl;
+  // Prepend the content provider URL if imageUrl is a relative path
+  if (finalImageUrl && finalImageUrl.startsWith('/')) {
+    finalImageUrl = `${CONTENT_PROVIDER_URL}${finalImageUrl}`;
+  }
+
   return {
     id: apiEvent.id,
     name: apiEvent.name,
@@ -120,7 +127,7 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
     location: apiEvent.location,
     description: apiEvent.description,
     category: apiEvent.category,
-    imageUrl: apiEvent.imageUrl,
+    imageUrl: finalImageUrl,
     venueName: apiEvent.venueName,
     venueAddress: apiEvent.venueAddress,
     organizerId: apiEvent.organizerId,
