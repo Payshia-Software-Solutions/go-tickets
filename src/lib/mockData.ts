@@ -1102,8 +1102,8 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       price: data.price,
       description: data.description || "",
       availability: data.availability,
-      eventId: eventId,
-      showtimeId: data.showtimeId,
+      eventId: parseInt(eventId, 10),
+      showtimeId: data.showtimeId ? parseInt(data.showtimeId, 10) : undefined,
     };
 
     console.log(`[createTicketType] Creating ticket type definition.`);
@@ -1127,7 +1127,9 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         name: newTicketTypeApi.name,
         price: parseFloat(newTicketTypeApi.price),
         availability: parseInt(newTicketTypeApi.availability || '0', 10),
-        description: newTicketTypeApi.description || null
+        description: newTicketTypeApi.description || null,
+        createdAt: parseApiDateString(newTicketTypeApi.createdAt),
+        updatedAt: parseApiDateString(newTicketTypeApi.updatedAt),
     };
 };
 

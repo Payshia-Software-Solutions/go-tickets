@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
-import type { Organizer, Category, EventFormData, AddShowTimeFormData } from "@/lib/types";
+import type { Organizer, Category, EventFormData, AddShowTimeFormData, TicketTypeFormData } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -22,7 +22,7 @@ import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
 import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
-import { getEventCategories, deleteTicketType, createShowTime } from "@/lib/mockData";
+import { getEventCategories, deleteTicketType, createShowTime, createTicketType } from "@/lib/mockData";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShowTimeForm from "./ShowTimeForm";
+import TicketTypeForm from "./TicketTypeForm";
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
@@ -76,6 +77,10 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   
   const [isAddShowTimeDialogOpen, setAddShowTimeDialogOpen] = useState(false);
   const [isSubmittingShowTime, setIsSubmittingShowTime] = useState(false);
+
+  const [isAddTicketTypeDialogOpen, setAddTicketTypeDialogOpen] = useState(false);
+  const [isSubmittingTicketType, setIsSubmittingTicketType] = useState(false);
+  const [currentTargetShowtimeId, setCurrentTargetShowtimeId] = useState<string | null>(null);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
@@ -128,7 +133,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     name: "ticketTypes"
   });
 
-  const { fields: showTimeFields, append: appendShowTime, remove: removeShowTime } = useFieldArray({
+  const { fields: showTimeFields, append: appendShowTime, remove: removeShowTime, update: updateShowTime } = useFieldArray({
     control: form.control,
     name: "showTimes"
   });
@@ -255,6 +260,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       reader.readAsDataURL(file);
     }
   };
+
+  const openAddTicketTypeDialog = (showtimeId: string) => {
+    setCurrentTargetShowtimeId(showtimeId);
+    setAddTicketTypeDialogOpen(true);
+  };
   
   const handleShowTimeDialogSubmit = async (data: AddShowTimeFormData) => {
       if (!initialData?.id) {
@@ -283,6 +293,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             title: "Showtime Created",
             description: "The new showtime has been successfully saved.",
         });
+        // Open ticket type dialog for the new showtime
+        openAddTicketTypeDialog(newShowTime.id);
       } catch (error) {
           toast({
               title: "Error Creating Showtime",
@@ -291,6 +303,46 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           });
           setIsSubmittingShowTime(false);
       }
+  };
+
+  const handleTicketTypeDialogSubmit = async (data: TicketTypeFormData) => {
+    if (!initialData?.id || !data.showtimeId) {
+        toast({
+            title: "Cannot Create Ticket Type",
+            description: "A valid event and showtime must be selected.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    setIsSubmittingTicketType(true);
+    try {
+        const newTicketType = await createTicketType(initialData.id, data);
+        
+        const showtimeIndex = showTimeFields.findIndex(st => st.id === data.showtimeId);
+        if (showtimeIndex !== -1) {
+            const currentShowtime = form.getValues(`showTimes.${showtimeIndex}`);
+            const newAvailability = {
+                id: `sta-${newTicketType.id}`, 
+                ticketTypeId: newTicketType.id,
+                ticketTypeName: newTicketType.name,
+                availableCount: newTicketType.availability
+            };
+            const updatedAvailabilities = [...currentShowtime.ticketAvailabilities, newAvailability];
+            updateShowTime(showtimeIndex, { ...currentShowtime, ticketAvailabilities: updatedAvailabilities });
+        }
+        
+        toast({ title: "Ticket Type Created", description: `Added "${newTicketType.name}" to the showtime.` });
+        setAddTicketTypeDialogOpen(false);
+    } catch (error) {
+        toast({
+            title: "Error Creating Ticket Type",
+            description: error instanceof Error ? error.message : "An unexpected error occurred.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmittingTicketType(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -617,7 +669,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           </TabsContent>
 
           <TabsContent value="showtimes">
-            <section className="space-y-6 p-1 mt-6">
+             <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
                 <Button type="button" variant="outline" size="sm" onClick={() => setAddShowTimeDialogOpen(true)}>
@@ -627,7 +679,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
               <div className="space-y-4">
                 {showTimeFields.map((field, index) => (
-                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} />
+                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} openAddTicketTypeDialog={openAddTicketTypeDialog} />
                 ))}
                 {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
               </div>
@@ -733,6 +785,26 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 />
             </DialogContent>
         </Dialog>
+        
+        <Dialog open={isAddTicketTypeDialogOpen} onOpenChange={(isOpen) => {
+            setAddTicketTypeDialogOpen(isOpen);
+            if (!isOpen) setCurrentTargetShowtimeId(null);
+        }}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Ticket Type</DialogTitle>
+                    <DialogDescription>
+                        Enter the details for a new ticket type for this specific showtime.
+                    </DialogDescription>
+                </DialogHeader>
+                <TicketTypeForm 
+                    onSubmit={handleTicketTypeDialogSubmit}
+                    isSubmitting={isSubmittingTicketType}
+                    onCancel={() => setAddTicketTypeDialogOpen(false)}
+                    selectedShowtimeId={currentTargetShowtimeId}
+                />
+            </DialogContent>
+        </Dialog>
 
         <div className="flex gap-2 justify-end pt-4 border-t">
             {onCancel && (
@@ -752,7 +824,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
 
 // Sub-component for managing a single showtime within the form
-function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void }) {
+function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, openAddTicketTypeDialog }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void, openAddTicketTypeDialog: (showtimeId: string) => void }) {
   const { fields, remove } = useFieldArray({
     control: form.control,
     name: `showTimes.${showtimeIndex}.ticketAvailabilities`
@@ -804,8 +876,11 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, s
       />
 
       <div className="pl-4 border-l-2 border-border/50 space-y-3">
-        <div className="flex items-center justify-between">
+         <div className="flex items-center justify-between">
             <h4 className="text-md font-semibold">Ticket Availability</h4>
+             <Button type="button" variant="outline" size="sm" onClick={() => openAddTicketTypeDialog(form.getValues(`showTimes.${showtimeIndex}.id`))}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
+            </Button>
         </div>
         {fields.map((item, availIndex) => (
           <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[2fr,1fr,auto] items-end gap-2">
