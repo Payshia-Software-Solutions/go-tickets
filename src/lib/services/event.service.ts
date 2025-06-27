@@ -433,7 +433,11 @@ export const updateEvent = async (
   for (const ticketTypeData of data.ticketTypes) {
     if (ticketTypeData.id) {
       console.log(`[updateEvent] Updating ticket type ID: ${ticketTypeData.id}`);
-      promises.push(updateTicketType(ticketTypeData.id, ticketTypeData));
+      if (!ticketTypeData.showtimeId) {
+        console.warn(`[updateEvent] Skipping update for ticket type "${ticketTypeData.name}" because it's missing a showtimeId.`);
+        continue;
+      }
+      promises.push(updateTicketType(ticketTypeData.id, ticketTypeData, eventId));
     } else {
       console.log(`[updateEvent] Creating new ticket type: ${ticketTypeData.name}`);
       promises.push(createTicketType(eventId, ticketTypeData));

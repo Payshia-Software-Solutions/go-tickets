@@ -104,7 +104,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
     };
 };
 
-export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFormData): Promise<TicketType> => {
+export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFormData, eventId: string): Promise<TicketType> => {
     if (!TICKET_TYPES_API_URL) {
         throw new Error("TICKET_TYPES_API_URL is not configured.");
     }
@@ -114,6 +114,8 @@ export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFor
       price: data.price,
       description: data.description || "",
       availability: data.availability,
+      eventId: parseInt(eventId, 10),
+      showtimeId: data.showtimeId ? parseInt(data.showtimeId, 10) : undefined,
     };
 
     console.log(`[updateTicketType] Updating ticket type. URL: PUT ${url}`, 'Payload:', payload);

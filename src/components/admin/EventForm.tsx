@@ -101,6 +101,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         price: tt.price,
         availability: tt.availability,
         description: tt.description || '',
+        showtimeId: tt.showtimeId || undefined,
       })) || [],
       showTimes: initialData.showTimes?.map(st => ({
         id: st.id,
@@ -905,7 +906,3 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, openAddTicketTyp
     </div>
   );
 }
-
-    
-
-    
