@@ -598,7 +598,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
               <div className="space-y-4">
                 {showTimeFields.map((field, index) => (
-                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} ticketTypes={watchedTicketTypes} />
+                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} />
                 ))}
                 {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
               </div>
@@ -706,22 +706,11 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
 
 // Sub-component for managing a single showtime within the form
-function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void, ticketTypes: any[] }) {
-  const { fields, append, remove, update } = useFieldArray({
+function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void }) {
+  const { fields, remove } = useFieldArray({
     control: form.control,
     name: `showTimes.${showtimeIndex}.ticketAvailabilities`
   });
-
-  const handleTicketTypeChange = (value: string, availIndex: number) => {
-    const selectedType = ticketTypes.find(tt => tt.id === value);
-    update(availIndex, {
-      ...form.getValues(`showTimes.${showtimeIndex}.ticketAvailabilities`)[availIndex],
-      ticketTypeId: value,
-      ticketTypeName: selectedType?.name || "",
-    })
-  };
-  
-  const uniqueTicketTypes = Array.from(new Map(ticketTypes.filter(tt => tt.id && tt.name).map(item => [item.id, item])).values());
 
   return (
     <div className="p-4 border rounded-lg bg-muted/30 relative space-y-4">
@@ -771,24 +760,16 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: {
       <div className="pl-4 border-l-2 border-border/50 space-y-3">
         <div className="flex items-center justify-between">
             <h4 className="text-md font-semibold">Ticket Availability</h4>
-             <Button type="button" variant="ghost" size="sm" onClick={() => append({ ticketTypeId: "", ticketTypeName: "", availableCount: 0 })}>
-                <PlusCircle className="mr-2 h-4 w-4"/> Add Availability
-             </Button>
+            {/* "Add Availability" button removed to simplify the flow */}
         </div>
         {fields.map((item, availIndex) => (
           <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[2fr,1fr,auto] items-end gap-2">
-            <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeId`} render={({ field }) => (
-              <FormItem>
-                {availIndex === 0 && <FormLabel className="text-xs">Ticket Type</FormLabel>}
-                <Select onValueChange={(value) => handleTicketTypeChange(value, availIndex)} defaultValue={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select ticket type..." /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {uniqueTicketTypes.map(tt => <SelectItem key={tt.id || tt.name} value={tt.id || ''}>{tt.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormItem>
+              {availIndex === 0 && <FormLabel className="text-xs">Ticket Type</FormLabel>}
+              <div className="flex items-center h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                {form.getValues(`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeName`)}
+              </div>
+            </FormItem>
             <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.availableCount`} render={({ field }) => (
               <FormItem>
                 {availIndex === 0 && <FormLabel className="text-xs">Count</FormLabel>}
