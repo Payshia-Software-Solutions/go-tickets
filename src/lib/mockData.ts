@@ -1072,7 +1072,15 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   
   const responseText = await eventResponse.text();
   try {
-    const createEventResponse: { message: string; newEventId: string | number; imageUrl: string } = JSON.parse(responseText);
+    // It seems the server sometimes sends back HTML notices before the JSON.
+    // Let's find the start of the JSON object.
+    const jsonStartIndex = responseText.indexOf('{');
+    if (jsonStartIndex === -1) {
+      console.error("Could not find start of JSON in successful server response:", responseText);
+      throw new Error("The server returned a successful but unreadable response. It did not contain valid JSON.");
+    }
+    const jsonString = responseText.substring(jsonStartIndex);
+    const createEventResponse: { message: string; newEventId: string | number; imageUrl: string } = JSON.parse(jsonString);
     if (!createEventResponse.newEventId) {
         throw new Error("API did not return a newEventId for the newly created event.");
     }
