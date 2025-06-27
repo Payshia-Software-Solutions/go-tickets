@@ -1056,15 +1056,31 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   });
 
   if (!eventResponse.ok) {
-    const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to create event and parse error' }));
-    throw new Error(errorBody.message || `API error creating event: ${eventResponse.status}`);
+    const errorText = await eventResponse.text();
+    let errorMessage;
+    try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || `API error creating event: ${eventResponse.status}`;
+    } catch(e) {
+        // Not a JSON response, maybe HTML error page
+        const cleanErrorText = errorText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        errorMessage = `API error creating event: ${eventResponse.status}. Server response: ${cleanErrorText.substring(0, 200)}...`;
+        console.error("Non-JSON error response from server:", errorText);
+    }
+    throw new Error(errorMessage);
   }
   
-  const createEventResponse: { message: string; newEventId: string } = await eventResponse.json();
-  if (!createEventResponse.newEventId) {
-    throw new Error("API did not return a newEventId for the newly created event.");
+  const responseText = await eventResponse.text();
+  try {
+    const createEventResponse: { message: string; newEventId: string } = JSON.parse(responseText);
+    if (!createEventResponse.newEventId) {
+        throw new Error("API did not return a newEventId for the newly created event.");
+    }
+    return createEventResponse.newEventId;
+  } catch (e) {
+      console.error("Failed to parse successful JSON response from createEvent:", responseText);
+      throw new Error("The server returned a successful but invalid response. Please check server logs.");
   }
-  return createEventResponse.newEventId;
 };
 
 export const createTicketType = async (eventId: string, data: TicketTypeFormData): Promise<TicketType> => {
@@ -1229,8 +1245,17 @@ export const updateEvent = async (
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({ message: `Failed to update event ${eventId} and parse error` }));
-    throw new Error(errorBody.message || `API error updating event ${eventId}: ${response.status}`);
+    const errorText = await response.text();
+    let errorMessage;
+    try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || `API error updating event ${eventId}: ${response.status}`;
+    } catch(e) {
+        const cleanErrorText = errorText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        errorMessage = `API error updating event ${eventId}: ${response.status}. Server response: ${cleanErrorText.substring(0, 200)}...`;
+        console.error("Non-JSON error response from server:", errorText);
+    }
+    throw new Error(errorMessage);
   }
   
   console.log(`%c[updateEvent] FormData update complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
@@ -1794,41 +1819,3 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 }
 
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
