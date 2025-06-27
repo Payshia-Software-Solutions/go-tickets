@@ -949,32 +949,35 @@ const getFullEventDetails = async (eventBase: Event): Promise<Event | undefined>
             updatedAt: parseApiDateString(basicSt.updatedAt),
           };
 
-          const availabilityUrl = `${TICKET_TYPES_AVAILABILITY_API_URL}?eventid=${eventBase.id}&showtimeid=${basicSt.id}`;
-          const availabilityResponse = await fetch(availabilityUrl);
-          if (availabilityResponse.ok) {
-            const responseJson = await availabilityResponse.json();
-            if (responseJson.success && Array.isArray(responseJson.data)) {
-              detailedShowTime.ticketAvailabilities = responseJson.data
-                .map((availRecord: { id: string; name: string; availability: string }) => {
-                  // The 'id' in this response is the ticketTypeId
-                  const masterTt = masterTicketTypes.find(tt => tt.id === availRecord.id);
-                  if (!masterTt) {
-                    console.warn(`[getFullEventDetails] Availability record for ticket type ID ${availRecord.id} found, but no matching master ticket type definition exists for event ${eventBase.id}.`);
-                    return null;
-                  }
-                  
+          // Updated logic to fetch availability count
+          if (masterTicketTypes.length > 0) {
+            const availabilitiesPromises = masterTicketTypes.map(async (masterTt) => {
+              const availabilityUrl = `${API_BASE_URL}/ticket-types/purchase/?eventid=${eventBase.id}&showtimeid=${basicSt.id}&tickettypeid=${masterTt.id}`;
+              try {
+                const availabilityResponse = await fetch(availabilityUrl);
+                if (availabilityResponse.ok) {
+                  const availData = await availabilityResponse.json();
                   return {
-                    id: `sta-${basicSt.id}-${masterTt.id}`, // Create a stable, unique ID for form keying
+                    id: `sta-${basicSt.id}-${masterTt.id}`,
                     showTimeId: basicSt.id,
                     ticketTypeId: masterTt.id,
                     ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
-                    availableCount: parseInt(availRecord.availability, 10) || 0,
+                    availableCount: parseInt(availData.ticketCount, 10) || 0,
                   };
-                })
-                .filter((item): item is ShowTimeTicketAvailability => item !== null);
-            }
-          } else {
-            console.warn(`[getFullEventDetails] Failed to fetch availabilities for showTime ${basicSt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
+                }
+                 console.warn(`Failed to fetch availability for ticket ${masterTt.id}. URL: ${availabilityUrl}, Status: ${availabilityResponse.status}`);
+              } catch (e) {
+                console.error(`Error fetching availability for ticket ${masterTt.id}:`, e);
+              }
+              return { // Fallback if fetch fails
+                id: `sta-${basicSt.id}-${masterTt.id}`,
+                showTimeId: basicSt.id,
+                ticketTypeId: masterTt.id,
+                ticketType: { id: masterTt.id, name: masterTt.name, price: masterTt.price },
+                availableCount: 0,
+              };
+            });
+            detailedShowTime.ticketAvailabilities = (await Promise.all(availabilitiesPromises)).filter(Boolean) as ShowTimeTicketAvailability[];
           }
           populatedShowTimes.push(detailedShowTime);
         }
@@ -1527,59 +1530,90 @@ export const createBooking = async (
 
 
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
-  if (!id || id === "undefined" || id === "null" || typeof id !== 'string' || id.trim() === '') {
-    console.warn(`[getBookingById] Attempt to fetch booking with invalid ID: "${id}". Aborting fetch.`);
-    return undefined;
-  }
-  console.log(`Attempting to fetch main booking by ID: ${id} from: ${BOOKINGS_API_URL}/${id}`);
-  try {
-    const bookingResponse = await fetch(`${BOOKINGS_API_URL}/${id}`);
-    if (!bookingResponse.ok) {
-      if (bookingResponse.status === 404) {
-        console.log(`Main booking with ID ${id} not found (404).`);
+    if (!id || id === "undefined" || id === "null" || typeof id !== 'string' || id.trim() === '') {
+        console.warn(`[getBookingById] Attempt to fetch booking with invalid ID: "${id}". Aborting fetch.`);
         return undefined;
-      }
-      const errorBodyText = await bookingResponse.text();
-      console.error(`API Error fetching main booking ${id}: Status ${bookingResponse.status}, Body: ${errorBodyText}`);
-      let errorJsonMessage = 'Failed to parse error JSON.';
-      try {
-        const errorJson = JSON.parse(errorBodyText);
-        errorJsonMessage = errorJson.message || JSON.stringify(errorJson);
-      } catch {}
-      throw new Error(`Failed to fetch main booking ${id}: ${bookingResponse.status}. Message: ${errorJsonMessage}`);
-    }
-    const apiBooking: RawApiBooking = await bookingResponse.json();
-    const mappedBooking = transformApiBookingToAppBooking(apiBooking);
-
-    // Fetch associated booked tickets
-    const lineItemUrl = `${BOOKINGS_API_URL}/tickets/${id}`;
-    console.log(`Fetching booked_tickets for booking ID: ${id} from: ${lineItemUrl}`);
-    const lineItemsResponse = await fetch(lineItemUrl);
-    
-    if (lineItemsResponse.ok) {
-        const rawLineItems: RawApiBookedTicket[] = await lineItemsResponse.json();
-        mappedBooking.bookedTickets = rawLineItems.map(bt => ({
-          id: String(bt.id),
-          bookingId: String(bt.booking_id || bt.bookingId || id),
-          ticketTypeId: String(bt.ticket_type_id || bt.ticketTypeId),
-          ticketTypeName: bt.ticket_type_name || bt.ticketTypeName || "N/A",
-          showTimeId: String(bt.show_time_id || bt.showTimeId || 'unknown-showtime'),
-          quantity: parseInt(String(bt.quantity), 10) || 0,
-          pricePerTicket: parseFloat(String(bt.price_per_ticket || bt.pricePerTicket)) || 0,
-          eventNsid: String(bt.event_nsid || mappedBooking.eventId),
-          createdAt: parseApiDateString(bt.created_at || bt.createdAt),
-          updatedAt: parseApiDateString(bt.updated_at || bt.updatedAt),
-        }));
-    } else {
-        console.warn(`Failed to fetch line items for booking ${id}: ${lineItemsResponse.status} - ${await lineItemsResponse.text()}`);
-        mappedBooking.bookedTickets = [];
     }
 
-    return mappedBooking;
-  } catch (error) {
-    console.error(`Network or other error fetching booking ${id}:`, error);
-    return undefined;
-  }
+    const fullBookingUrl = `https://gotickets-server.payshia.com/bookings/full/${id}`;
+    console.log(`[getBookingById] Fetching full booking details from: ${fullBookingUrl}`);
+
+    try {
+        const response = await fetch(fullBookingUrl);
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log(`Booking with ID ${id} not found (404).`);
+                return undefined;
+            }
+            const errorBodyText = await response.text();
+            console.error(`API Error fetching full booking ${id}: Status ${response.status}, Body: ${errorBodyText}`);
+            return undefined;
+        }
+
+        const responseData = await response.json();
+        if (!responseData.success || !responseData.booking) {
+            console.error("API response was not successful or did not contain a 'booking' object.", responseData);
+            return undefined;
+        }
+
+        const apiBooking = responseData.booking;
+        
+        const billingInfo = apiBooking.user_billing_info || {};
+        const billingAddress: BillingAddress = {
+            street: billingInfo.billing_street || "",
+            city: billingInfo.billing_city || "",
+            state: billingInfo.billing_state || "",
+            postalCode: billingInfo.billing_postal_code || "",
+            country: billingInfo.billing_country || "",
+        };
+
+        const bookedTickets: BookedTicket[] = [];
+        if (Array.isArray(apiBooking.booking_event)) {
+            for (const event of apiBooking.booking_event) {
+                if(Array.isArray(event.booking_showtime)) {
+                    for (const ticket of event.booking_showtime) {
+                        const eventDetails = await fetchEventByIdFromApi(event.eventId);
+                        bookedTickets.push({
+                            id: String(ticket.id),
+                            bookingId: String(ticket.booking_id),
+                            ticketTypeId: String(ticket.tickettype_id),
+                            ticketTypeName: ticket.ticket_type,
+                            showTimeId: String(ticket.showtime_id),
+                            quantity: parseInt(ticket.ticket_count, 10) || 0,
+                            pricePerTicket: 0, // Price per ticket is not available in this endpoint
+                            eventNsid: eventDetails?.slug || '',
+                            createdAt: parseApiDateString(ticket.created_at),
+                            updatedAt: parseApiDateString(ticket.updated_at),
+                        });
+                    }
+                }
+            }
+        }
+        
+        const firstEventId = apiBooking.booking_event?.[0]?.eventId || 'N/A';
+
+        const appBooking: Booking = {
+            id: String(apiBooking.id),
+            userId: String(apiBooking.userId),
+            totalPrice: parseFloat(apiBooking.totalPrice) || 0,
+            bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
+            eventName: apiBooking.eventName,
+            eventDate: parseApiDateString(apiBooking.eventDate) || new Date().toISOString(),
+            eventLocation: apiBooking.eventLocation,
+            qrCodeValue: apiBooking.qrCodeValue,
+            createdAt: parseApiDateString(apiBooking.createdAt),
+            updatedAt: parseApiDateString(apiBooking.updatedAt),
+            billingAddress: billingAddress,
+            bookedTickets: bookedTickets,
+            eventId: String(firstEventId),
+        };
+
+        return appBooking;
+
+    } catch (error) {
+        console.error(`Network or other error fetching full booking ${id}:`, error);
+        return undefined;
+    }
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
@@ -1845,3 +1879,4 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
