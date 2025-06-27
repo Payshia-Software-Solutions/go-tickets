@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
-import type { Organizer, Category, EventFormData } from "@/lib/types";
+import type { Organizer, Category, EventFormData, AddShowTimeFormData } from "@/lib/types";
 import { EventFormSchema } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -23,7 +23,6 @@ import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
 import { getEventCategories, deleteTicketType } from "@/lib/mockData";
-import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -36,6 +35,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ShowTimeForm from "./ShowTimeForm";
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
@@ -72,6 +73,9 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<{ id: string | undefined; name: string; index: number } | null>(null);
   const [isDeletingTicketType, setIsDeletingTicketType] = useState(false);
+  
+  const [isAddShowTimeDialogOpen, setAddShowTimeDialogOpen] = useState(false);
+  const [isSubmittingShowTime, setIsSubmittingShowTime] = useState(false);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
@@ -166,8 +170,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           });
         }
       }
-      // This effect is to keep the preview in sync with the form's URL field
-      // if it's not a data URI (i.e., not a local file or AI gen).
       if (name === 'imageUrl' && typeof value.imageUrl === 'string' && !value.imageUrl.startsWith('data:image')) {
           setLocalImagePreview(value.imageUrl || null);
       }
@@ -243,24 +245,36 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         }
         return;
       }
-      setImageFile(file); // Set the file object for upload
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUri = reader.result as string;
-        setLocalImagePreview(dataUri); // Set for preview
-        form.setValue("imageUrl", dataUri, { shouldValidate: true, shouldDirty: true }); // Set for validation
+        setLocalImagePreview(dataUri);
+        form.setValue("imageUrl", dataUri, { shouldValidate: true, shouldDirty: true });
       };
       reader.readAsDataURL(file);
     }
   };
   
-  const handleAddNewShowtime = () => {
+  const handleShowTimeDialogSubmit = (data: AddShowTimeFormData) => {
+    setIsSubmittingShowTime(true);
     const newAvailabilities = watchedTicketTypes.map(tt => ({
-        ticketTypeId: tt.id || `temp-id-${Math.random()}`,
-        ticketTypeName: tt.name,
-        availableCount: tt.availability, // Use the template availability
+      ticketTypeId: tt.id || `temp-id-${Math.random()}`,
+      ticketTypeName: tt.name,
+      availableCount: tt.availability,
     }));
-    appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
+
+    appendShowTime({
+      dateTime: data.dateTime,
+      ticketAvailabilities: newAvailabilities,
+    });
+    
+    setIsSubmittingShowTime(false);
+    setAddShowTimeDialogOpen(false);
+    toast({
+      title: "Showtime Added to Form",
+      description: "The new showtime is staged. Click 'Update Event' to save all changes.",
+    });
   };
 
   const handleConfirmDelete = async () => {
@@ -268,7 +282,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     setIsDeletingTicketType(true);
     const { id: ticketTypeId, index } = ticketToDelete;
 
-    // If there's no ID, it's a new, unsaved item. Just remove it from the form.
     if (!ticketTypeId || ticketTypeId.startsWith('temp-')) {
       removeTicketType(index);
       toast({ title: "Ticket Type Removed", description: "The new ticket type has been removed from the form." });
@@ -284,7 +297,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         title: "Ticket Type Deleted",
         description: `"${ticketToDelete.name}" has been permanently deleted.`,
       });
-      removeTicketType(index); // Remove from the UI after successful deletion
+      removeTicketType(index);
     } catch (error) {
       toast({
         title: "Deletion Failed",
@@ -487,7 +500,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                             onChange={(e) => {
                                 field.onChange(e.target.value);
                                 setLocalImagePreview(e.target.value);
-                                setImageFile(null); // Clear file if URL is pasted
+                                setImageFile(null);
                                 if (fileInputRef.current) fileInputRef.current.value = ""; 
                             }}
                             disabled={field.value?.startsWith("data:image/")} 
@@ -591,7 +604,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowtime}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setAddShowTimeDialogOpen(true)}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
                 </Button>
               </div>
@@ -688,6 +701,23 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           </AlertDialogContent>
         </AlertDialog>
 
+        <Dialog open={isAddShowTimeDialogOpen} onOpenChange={setAddShowTimeDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Showtime</DialogTitle>
+                    <DialogDescription>
+                        Specify a new date and time. This will add a showtime to the form, pre-populated with your defined ticket types.
+                    </DialogDescription>
+                </DialogHeader>
+                <ShowTimeForm
+                    onSubmit={handleShowTimeDialogSubmit}
+                    isSubmitting={isSubmittingShowTime}
+                    submitButtonText="Add to Form"
+                    onCancel={() => setAddShowTimeDialogOpen(false)}
+                />
+            </DialogContent>
+        </Dialog>
+
         <div className="flex gap-2 justify-end pt-4 border-t">
             {onCancel && (
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
@@ -760,7 +790,6 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, s
       <div className="pl-4 border-l-2 border-border/50 space-y-3">
         <div className="flex items-center justify-between">
             <h4 className="text-md font-semibold">Ticket Availability</h4>
-            {/* "Add Availability" button removed to simplify the flow */}
         </div>
         {fields.map((item, availIndex) => (
           <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[2fr,1fr,auto] items-end gap-2">
@@ -785,3 +814,5 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, s
     </div>
   );
 }
+
+    
