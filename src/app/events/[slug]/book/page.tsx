@@ -182,9 +182,9 @@ export default function BookEventPage({ params }: BookEventPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="aspect-video relative rounded-md overflow-hidden">
+              <div className="aspect-square relative rounded-md overflow-hidden">
                 <Image 
-                  src={event.imageUrl || "https://placehold.co/600x400.png"} 
+                  src={event.imageUrl || "https://placehold.co/400x400.png"} 
                   alt={event.name} 
                   fill
                   style={{objectFit: 'cover'}}

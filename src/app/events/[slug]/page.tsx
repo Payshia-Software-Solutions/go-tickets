@@ -114,15 +114,16 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
         <div className="lg:col-span-2 space-y-6">
           <Card className="overflow-hidden shadow-lg">
             <CardHeader className="p-0">
-              <Image
-                src={event.imageUrl || "https://placehold.co/800x450.png"}
-                alt={event.name}
-                width={800}
-                height={450}
-                className="w-full h-auto object-cover aspect-[16/9]"
-                data-ai-hint="event stage"
-                priority
-              />
+              <div className="relative w-full aspect-square">
+                <Image
+                  src={event.imageUrl || "https://placehold.co/600x600.png"}
+                  alt={event.name}
+                  fill
+                  className="object-cover"
+                  data-ai-hint="event stage"
+                  priority
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-6">
               <div className="flex flex-wrap gap-2 mb-3">
