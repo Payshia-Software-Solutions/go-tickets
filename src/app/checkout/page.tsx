@@ -115,22 +115,22 @@ const CheckoutPage = () => {
 
     try {
       // If a new address was entered (not using default) AND the user wants to save it
-      if (!useDefaultAddress && saveNewAddress && user && updateUser) {
-        const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
-        if (isNewAddressMeaningful) {
-            try {
-            await updateUser(user.id, { billingAddress: formBillingData });
-            toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
-            } catch (updateError: unknown) {
-            console.error("Failed to update user billing address:", updateError);
-            toast({
-                title: "Profile Update Failed",
-                description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
-                variant: "default" // Changed to default as it's not a critical booking error
-            });
-            }
-        }
-      }
+      // if (!useDefaultAddress && saveNewAddress && user && updateUser) {
+      //   const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
+      //   if (isNewAddressMeaningful) {
+      //       try {
+      //       await updateUser(user.id, { billingAddress: formBillingData });
+      //       toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
+      //       } catch (updateError: unknown) {
+      //       console.error("Failed to update user billing address:", updateError);
+      //       toast({
+      //           title: "Profile Update Failed",
+      //           description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
+      //           variant: "default" // Changed to default as it's not a critical booking error
+      //       });
+      //       }
+      //   }
+      // }
       
       const paymentHtml = await createBooking({
         userId: user.id,
