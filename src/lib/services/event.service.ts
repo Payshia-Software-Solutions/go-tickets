@@ -1,4 +1,5 @@
 
+
 import type { Event, Organizer, EventFormData, CoreEventFormData, ShowTime, ShowTimeTicketAvailability } from '@/lib/types';
 import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -364,17 +365,17 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
 };
 
 export const updateEvent = async (
-  eventId: string, 
-  data: EventFormData, 
+  eventId: string,
+  data: EventFormData,
   initialData: Event,
   imageFile: File | null
 ): Promise<void> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot update event.");
   }
-  
-  console.log(`%c[updateEvent] Starting FormData update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
-  
+
+  console.log(`%c[updateEvent] Starting POST (as PUT) update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
+
   const formData = new FormData();
   
   formData.append('name', data.name);
@@ -400,13 +401,16 @@ export const updateEvent = async (
   formData.append('ticketTypes', JSON.stringify(data.ticketTypes));
   formData.append('showTimes', JSON.stringify(data.showTimes));
   
+  // Method override to tell the server to treat this POST as a PUT request
+  formData.append('_method', 'PUT');
+
   const updateUrl = `${API_BASE_URL}/events/${eventId}`;
   
-  console.log(`%c[updateEvent] Sending FormData to backend...`, 'color: blue;');
-  console.log(`  - URL: PUT ${updateUrl}`);
+  console.log(`%c[updateEvent] Sending POST request to backend...`, 'color: blue;');
+  console.log(`  - URL: POST ${updateUrl}`);
   
   const response = await fetch(updateUrl, {
-    method: 'PUT',
+    method: 'POST', // Use POST for FormData with file uploads
     body: formData,
   });
 
@@ -424,7 +428,7 @@ export const updateEvent = async (
     throw new Error(errorMessage);
   }
   
-  console.log(`%c[updateEvent] FormData update complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
+  console.log(`%c[updateEvent] POST (as PUT) update complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
 };
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
