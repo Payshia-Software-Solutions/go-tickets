@@ -124,3 +124,25 @@ export const deleteTicketType = async (ticketTypeId: string): Promise<boolean> =
     throw error;
   }
 };
+
+interface AvailabilityResponse {
+  available: number;
+  booked: string;
+  released: string;
+}
+
+export const getTicketAvailabilityCount = async (eventId: string, showtimeId: string, ticketTypeId: string): Promise<number> => {
+    const url = `https://gotickets-server.payshia.com/events/get/booked-tickets-count/?eventId=${eventId}&showtimeId=${showtimeId}&ticketTypeId=${ticketTypeId}`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`Failed to fetch availability for t:${ticketTypeId} s:${showtimeId} e:${eventId}. Status: ${response.status}`);
+            return 0; // Default to 0 if API fails
+        }
+        const data: AvailabilityResponse = await response.json();
+        return data.available || 0;
+    } catch (error) {
+        console.error(`Network error fetching availability for t:${ticketTypeId} s:${showtimeId} e:${eventId}`, error);
+        return 0;
+    }
+};

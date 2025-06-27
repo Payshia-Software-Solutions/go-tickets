@@ -3,7 +3,7 @@ import type { Event, Organizer, EventFormData, CoreEventFormData, ShowTime, Show
 import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
 import { getOrganizerById } from './organizer.service';
-import { fetchTicketTypesForEvent } from './ticket.service';
+import { fetchTicketTypesForEvent, getTicketAvailabilityCount } from './ticket.service';
 
 interface ApiEventFlat {
   id: string;
@@ -223,13 +223,18 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
 
           const ticketsForThisShowtime = masterTicketTypes.filter(tt => tt.showtimeId === basicSt.id);
 
-          detailedShowTime.ticketAvailabilities = ticketsForThisShowtime.map(tt => ({
-            id: `sta-${basicSt.id}-${tt.id}`,
-            showTimeId: basicSt.id,
-            ticketTypeId: tt.id,
-            ticketType: { id: tt.id, name: tt.name, price: tt.price },
-            availableCount: tt.availability, // Use the availability from the master list
-          }));
+          detailedShowTime.ticketAvailabilities = await Promise.all(
+            ticketsForThisShowtime.map(async (tt) => {
+                const availableCount = await getTicketAvailabilityCount(eventBase.id, basicSt.id, tt.id);
+                return {
+                    id: `sta-${basicSt.id}-${tt.id}`,
+                    showTimeId: basicSt.id,
+                    ticketTypeId: tt.id,
+                    ticketType: { id: tt.id, name: tt.name, price: tt.price },
+                    availableCount: availableCount,
+                };
+            })
+          );
           
           populatedShowTimes.push(detailedShowTime);
         }
