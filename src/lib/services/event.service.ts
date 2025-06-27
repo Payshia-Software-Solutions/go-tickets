@@ -398,8 +398,32 @@ export const updateEvent = async (
     formData.append('imageUrl', imageUrlToSend);
   }
   
-  formData.append('ticketTypes', JSON.stringify(data.ticketTypes));
-  formData.append('showTimes', JSON.stringify(data.showTimes));
+  // Format nested arrays in a way that backend frameworks like Laravel can easily parse.
+  data.ticketTypes.forEach((ticket, index) => {
+    if (ticket.id) {
+        formData.append(`ticketTypes[${index}][id]`, ticket.id);
+    }
+    formData.append(`ticketTypes[${index}][name]`, ticket.name);
+    formData.append(`ticketTypes[${index}][price]`, String(ticket.price));
+    formData.append(`ticketTypes[${index}][availability]`, String(ticket.availability));
+    if (ticket.description) {
+        formData.append(`ticketTypes[${index}][description]`, ticket.description);
+    }
+  });
+
+  data.showTimes.forEach((showtime, sIndex) => {
+    if (showtime.id) {
+        formData.append(`showTimes[${sIndex}][id]`, showtime.id);
+    }
+    formData.append(`showTimes[${sIndex}][dateTime]`, showtime.dateTime.toISOString());
+    showtime.ticketAvailabilities.forEach((avail, aIndex) => {
+        if (avail.id) {
+            formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][id]`, avail.id);
+        }
+        formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][ticketTypeId]`, avail.ticketTypeId);
+        formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][availableCount]`, String(avail.availableCount));
+    });
+  });
   
   // Method override to tell the server to treat this POST as a PUT request
   formData.append('_method', 'PUT');
@@ -410,7 +434,7 @@ export const updateEvent = async (
   console.log(`  - URL: POST ${updateUrl}`);
   
   const response = await fetch(updateUrl, {
-    method: 'POST', // Use POST for FormData with file uploads
+    method: 'POST', // Use POST for FormData with file uploads and method override
     body: formData,
   });
 
