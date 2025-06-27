@@ -121,14 +121,14 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
           </div>
 
           <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
-            <h3 className="text-lg font-semibold text-foreground mb-2">Your Tickets</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-1">Your Tickets</h3>
+            <p className="text-sm font-medium text-muted-foreground -mt-1 mb-3">{booking.eventName}</p>
             {booking.bookedTickets.map((ticket, index) => (
-              <div key={index} className="flex justify-between items-center text-sm">
+              <div key={index} className="flex justify-between items-center text-sm border-b last:border-b-0 py-2">
                 <span>{ticket.quantity} x {ticket.ticketTypeName}</span>
-                <span>LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}</span>
               </div>
             ))}
-            <div className="flex justify-between items-center font-bold text-lg border-t pt-2 mt-2">
+            <div className="flex justify-between items-center font-bold text-lg border-t pt-3 mt-3">
               <span>Total Paid:</span>
               <span>LKR {booking.totalPrice.toFixed(2)}</span>
             </div>
