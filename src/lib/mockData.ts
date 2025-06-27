@@ -1072,8 +1072,6 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   
   const responseText = await eventResponse.text();
   try {
-    // It seems the server sometimes sends back HTML notices before the JSON.
-    // Let's find the start of the JSON object.
     const jsonStartIndex = responseText.indexOf('{');
     if (jsonStartIndex === -1) {
       console.error("Could not find start of JSON in successful server response:", responseText);
@@ -1098,6 +1096,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       description: data.description || "",
       availability: data.availability,
       eventId: eventId,
+      showtimeId: data.showtimeId,
     };
 
     console.log(`[createTicketType] Creating ticket type definition.`);
