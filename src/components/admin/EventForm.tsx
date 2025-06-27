@@ -90,6 +90,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         id: tt.id,
         name: tt.name,
         price: tt.price,
+        availability: tt.availability,
         description: tt.description || '',
       })) || [],
       showTimes: initialData.showTimes?.map(st => ({
@@ -257,7 +258,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     const newAvailabilities = watchedTicketTypes.map(tt => ({
         ticketTypeId: tt.id || `temp-id-${Math.random()}`,
         ticketTypeName: tt.name,
-        availableCount: 100, // Default to 100 as template availability is removed
+        availableCount: tt.availability, // Use the template availability
     }));
     appendShowTime({ dateTime: new Date(), ticketAvailabilities: newAvailabilities });
   };
@@ -304,8 +305,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         <Tabs defaultValue="core" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="core">Core Details</TabsTrigger>
-            <TabsTrigger value="tickets" disabled={!initialData}>Ticket Types</TabsTrigger>
             <TabsTrigger value="showtimes" disabled={!initialData}>Showtimes</TabsTrigger>
+            <TabsTrigger value="tickets" disabled={!initialData}>Ticket Types</TabsTrigger>
           </TabsList>
 
           <TabsContent value="core">
@@ -586,11 +587,29 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             </section>
           </TabsContent>
 
+          <TabsContent value="showtimes">
+            <section className="space-y-6 p-1 mt-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowtime}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
+                </Button>
+              </div>
+              <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
+              <div className="space-y-4">
+                {showTimeFields.map((field, index) => (
+                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} ticketTypes={watchedTicketTypes} />
+                ))}
+                {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
+              </div>
+            </section>
+          </TabsContent>
+
           <TabsContent value="tickets">
             <section className="space-y-6 p-1 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center"><Ticket className="mr-2"/> Ticket Type Definitions</h3>
-                <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, description: "" })}>
+                <Button type="button" variant="outline" size="sm" onClick={() => appendTicketType({ name: "New Ticket", price: 0, availability: 100, description: "" })}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Ticket Type
                 </Button>
               </div>
@@ -620,6 +639,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                                 <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
                             )} />
                         </div>
+                         <FormField control={form.control} name={`ticketTypes.${index}.availability`} render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Template Availability</FormLabel>
+                                <FormControl><Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 0)} /></FormControl>
+                                <FormDescription className="text-xs">This sets the default availability when adding a new showtime.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
                         <FormField control={form.control} name={`ticketTypes.${index}.description`} render={({ field }) => (
                             <FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
                         )} />
@@ -627,24 +654,6 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                   </div>
                 ))}
                 {ticketTypeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No ticket types defined. Add one to get started.</p>}
-              </div>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="showtimes">
-            <section className="space-y-6 p-1 mt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold flex items-center"><Clock className="mr-2"/> Showtimes</h3>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddNewShowtime}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Showtime
-                </Button>
-              </div>
-              <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
-              <div className="space-y-4">
-                {showTimeFields.map((field, index) => (
-                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} ticketTypes={watchedTicketTypes} />
-                ))}
-                {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
               </div>
             </section>
           </TabsContent>
