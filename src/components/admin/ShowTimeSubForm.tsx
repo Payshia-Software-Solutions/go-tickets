@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Trash2, PlusCircle } from "lucide-react";
 
-// This component is now being replaced by the logic inside EventForm.tsx
-// to simplify the file structure and state management.
-// It can be deleted, but for now, we'll just leave it un-used.
-// Keeping it here in case there's a need to revert to a sub-component structure.
+// This component is now being replaced by logic embedded directly in EventForm.tsx
+// to simplify state management and API calls.
+// This file is kept to avoid breaking changes but is no longer actively used by the event form.
+// For the current implementation, please see the showtime mapping logic inside `src/components/admin/EventForm.tsx`.
 
 export default function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, ticketTypes }: { form: any, showtimeIndex: number, removeShowTime: (index: number) => void, ticketTypes: any[] }) {
   const { fields, append, remove, update } = useFieldArray({
@@ -97,5 +97,7 @@ export default function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, t
     </div>
   );
 }
+
+    
 
     

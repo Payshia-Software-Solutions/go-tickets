@@ -22,7 +22,7 @@ import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
 import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
-import { getEventCategories, deleteTicketType } from "@/lib/mockData";
+import { getEventCategories, deleteTicketType, createShowTime } from "@/lib/mockData";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -256,25 +256,41 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     }
   };
   
-  const handleShowTimeDialogSubmit = (data: AddShowTimeFormData) => {
-    setIsSubmittingShowTime(true);
-    const newAvailabilities = watchedTicketTypes.map(tt => ({
-      ticketTypeId: tt.id || `temp-id-${Math.random()}`,
-      ticketTypeName: tt.name,
-      availableCount: tt.availability,
-    }));
+  const handleShowTimeDialogSubmit = async (data: AddShowTimeFormData) => {
+      if (!initialData?.id) {
+        toast({ title: "Cannot Add Showtime", description: "The event must be saved first before adding showtimes.", variant: "destructive" });
+        return;
+      }
+      setIsSubmittingShowTime(true);
+      try {
+        const newShowTime = await createShowTime(initialData.id, data);
 
-    appendShowTime({
-      dateTime: data.dateTime,
-      ticketAvailabilities: newAvailabilities,
-    });
-    
-    setIsSubmittingShowTime(false);
-    setAddShowTimeDialogOpen(false);
-    toast({
-      title: "Showtime Added to Form",
-      description: "The new showtime is staged. Click 'Update Event' to save all changes.",
-    });
+        const newAvailabilities = watchedTicketTypes.map(tt => ({
+            ticketTypeId: tt.id || `temp-id-${Math.random()}`,
+            ticketTypeName: tt.name,
+            availableCount: tt.availability || 0,
+        }));
+        
+        appendShowTime({
+            id: newShowTime.id,
+            dateTime: new Date(newShowTime.dateTime),
+            ticketAvailabilities: newAvailabilities,
+        });
+
+        setIsSubmittingShowTime(false);
+        setAddShowTimeDialogOpen(false);
+        toast({
+            title: "Showtime Created",
+            description: "The new showtime has been successfully saved.",
+        });
+      } catch (error) {
+          toast({
+              title: "Error Creating Showtime",
+              description: error instanceof Error ? error.message : "An unexpected error occurred.",
+              variant: "destructive",
+          });
+          setIsSubmittingShowTime(false);
+      }
   };
 
   const handleConfirmDelete = async () => {
@@ -814,5 +830,7 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime }: { form: any, s
     </div>
   );
 }
+
+    
 
     

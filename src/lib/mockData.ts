@@ -1183,10 +1183,14 @@ export const getShowTimesForEvent = async (eventId: string): Promise<ShowTime[]>
 };
 
 export const createShowTime = async (eventId: string, data: AddShowTimeFormData): Promise<ShowTime> => {
+    if (!SHOWTIMES_API_URL) {
+        throw new Error("SHOWTIMES_API_URL is not configured.");
+    }
     const payload = {
-      eventId: eventId,
+      eventId: parseInt(eventId, 10),
       dateTime: format(data.dateTime, "yyyy-MM-dd HH:mm:ss"),
     };
+    console.log(`[createShowTime] Creating showtime. URL: POST ${SHOWTIMES_API_URL}`, 'Payload:', payload);
     const response = await fetch(SHOWTIMES_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1200,7 +1204,7 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
     // Return a shell showtime object; availabilities will be managed separately.
     return {
         id: newShowTimeApi.id,
-        eventId: newShowTimeApi.eventId,
+        eventId: String(newShowTimeApi.eventId || eventId),
         dateTime: parseApiDateString(newShowTimeApi.dateTime) || new Date().toISOString(),
         ticketAvailabilities: [],
     };
@@ -1834,5 +1838,8 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 } else if (!API_BASE_URL && !ORGANIZERS_API_URL) {
     console.warn("Local mock data initialization for admin events will run. Mock organizers might be created if initAdminMockData handles it or fetched if ORGANIZERS_API_URL is set independently.");
 }
+
+    
+
 
     
