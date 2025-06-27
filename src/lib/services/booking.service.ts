@@ -161,14 +161,20 @@ export const createBooking = async (
     booking_event: uniqueEventIds.map(id => ({
       eventId: parseInt(id, 10)
     })),
-    booking_showtime: cart.map(item => ({
-      eventId: parseInt(item.eventId, 10),
-      showtime_id: parseInt(item.showTimeId, 10),
-      ticket_type: item.ticketTypeName,
-      tickettype_id: parseInt(item.ticketTypeId, 10),
-      showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm:ss"),
-      ticket_count: item.quantity
-    }))
+    booking_showtime: cart.map(item => {
+      if (!item.showTimeDateTime || typeof item.showTimeDateTime !== 'string') {
+        console.error("Cart item is missing or has an invalid showTimeDateTime:", item);
+        throw new Error(`A ticket in your cart (${item.eventName} - ${item.ticketTypeName}) is invalid. Please remove it and add it to your cart again.`);
+      }
+      return {
+        eventId: parseInt(item.eventId, 10),
+        showtime_id: parseInt(item.showTimeId, 10),
+        ticket_type: item.ticketTypeName,
+        tickettype_id: parseInt(item.ticketTypeId, 10),
+        showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm:ss"),
+        ticket_count: item.quantity
+      };
+    })
   };
 
   try {
@@ -196,7 +202,7 @@ export const createBooking = async (
           const updateResponse = await fetch(updateUrl.toString(), {
               method: 'GET',
           });
-
+          await updateResponse;
           if (updateResponse.ok) {
               const result = await updateResponse.json();
               console.log(`Successfully updated availability for ticket ${item.ticketTypeId}:`, result.data || result);
@@ -439,4 +445,5 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
+
 
