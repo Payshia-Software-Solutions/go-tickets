@@ -1072,11 +1072,11 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   
   const responseText = await eventResponse.text();
   try {
-    const createEventResponse: { message: string; newEventId: string } = JSON.parse(responseText);
+    const createEventResponse: { message: string; newEventId: string | number; imageUrl: string } = JSON.parse(responseText);
     if (!createEventResponse.newEventId) {
         throw new Error("API did not return a newEventId for the newly created event.");
     }
-    return createEventResponse.newEventId;
+    return String(createEventResponse.newEventId);
   } catch (e) {
       console.error("Failed to parse successful JSON response from createEvent:", responseText);
       throw new Error("The server returned a successful but invalid response. Please check server logs.");
