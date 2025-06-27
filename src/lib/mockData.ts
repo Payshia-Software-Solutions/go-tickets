@@ -1062,22 +1062,22 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
     body: formData, // No 'Content-Type' header needed; browser sets it for FormData
   });
 
+  const responseText = await eventResponse.text();
+
   if (!eventResponse.ok) {
-    const errorText = await eventResponse.text();
     let errorMessage;
     try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(responseText);
         errorMessage = errorJson.message || `API error creating event: ${eventResponse.status}`;
     } catch(e) {
         // Not a JSON response, maybe HTML error page
-        const cleanErrorText = errorText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const cleanErrorText = responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         errorMessage = `API error creating event: ${eventResponse.status}. Server response: ${cleanErrorText.substring(0, 200)}...`;
-        console.error("Non-JSON error response from server:", errorText);
+        console.error("Non-JSON error response from server:", responseText);
     }
     throw new Error(errorMessage);
   }
   
-  const responseText = await eventResponse.text();
   try {
     const jsonStartIndex = responseText.indexOf('{');
     if (jsonStartIndex === -1) {
@@ -1238,9 +1238,12 @@ export const updateEvent = async (
   if (imageFile) {
     formData.append('image', imageFile);
   } else if (data.imageUrl) {
-    // If there's no new file, but there is a URL (and it's not a data URI preview)
-    // send it so the backend knows what the current image URL is.
-    formData.append('imageUrl', data.imageUrl);
+    // If there's no new file, but there is a URL, we must send the relative path if it's from our content provider.
+    let imageUrlToSend = data.imageUrl;
+    if (imageUrlToSend.startsWith(CONTENT_PROVIDER_URL)) {
+      imageUrlToSend = imageUrlToSend.substring(CONTENT_PROVIDER_URL.length);
+    }
+    formData.append('imageUrl', imageUrlToSend);
   }
   
   // Append complex nested data as JSON strings
