@@ -398,7 +398,7 @@ export const updateEvent = async (
   coreFormData.append('_method', 'PUT');
 
   const coreUpdatePromise = fetch(`${API_BASE_URL}/events/${eventId}`, {
-    method: 'POST', // Using POST with method override for FormData
+    method: 'POST',
     body: coreFormData,
   }).then(async response => {
     if (!response.ok) {
@@ -460,7 +460,7 @@ export const updateEvent = async (
   for (const showTimeData of data.showTimes) {
     if (showTimeData.id) {
       console.log(`[updateEvent] Updating showtime ID: ${showTimeData.id}`);
-      promises.push(updateShowTime(showTimeData.id, showTimeData));
+      promises.push(updateShowTime(showTimeData.id, showTimeData, eventId));
     } else {
       // Creation of new showtimes should ideally be handled in a separate dialog flow
       // to get the new showtime ID before associating tickets.

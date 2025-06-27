@@ -75,18 +75,14 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
     };
 };
 
-export const updateShowTime = async (showTimeId: string, data: ShowTimeFormData): Promise<ShowTime> => {
+export const updateShowTime = async (showTimeId: string, data: ShowTimeFormData, eventId: string): Promise<ShowTime> => {
     if (!SHOWTIMES_API_URL) {
         throw new Error("SHOWTIMES_API_URL is not configured.");
     }
     const url = `${SHOWTIMES_API_URL}/${showTimeId}`;
     const payload = {
+        eventId: parseInt(eventId, 10),
         dateTime: format(data.dateTime, "yyyy-MM-dd HH:mm:ss"),
-        ticketAvailabilities: data.ticketAvailabilities.map(avail => ({
-            id: avail.id?.includes('sta-') ? undefined : avail.id, // Don't send temporary frontend IDs
-            ticket_type_id: avail.ticketTypeId,
-            available_count: avail.availableCount,
-        }))
     };
     console.log(`[updateShowTime] Updating showtime. URL: PUT ${url}`, 'Payload:', payload);
     const response = await fetch(url, {
