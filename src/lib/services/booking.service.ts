@@ -187,24 +187,31 @@ export const createBooking = async (
       updateUrl.searchParams.append('eventid', item.eventId);
       updateUrl.searchParams.append('showtimeid', item.showTimeId);
       updateUrl.searchParams.append('tickettypeid', item.ticketTypeId);
-      updateUrl.searchParams.append('ticketCount', String(item.quantity));
+      
+      const payload = {
+          ticketCount: item.quantity
+      };
 
       try {
-        console.log(`Updating availability via GET: ${updateUrl.toString()}`);
-        const updateResponse = await fetch(updateUrl.toString(), {
-          method: 'GET', // As specified by user
-        });
+          console.log(`Updating availability via POST: ${updateUrl.toString()}`);
+          console.log('Payload:', payload);
+          const updateResponse = await fetch(updateUrl.toString(), {
+              method: 'POST', // Corrected to POST
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(payload) // Sending ticketCount in the body
+          });
 
-        if (updateResponse.ok) {
-          const result = await updateResponse.json();
-          console.log(`Successfully updated availability for ticket ${item.ticketTypeId}:`, result.data);
-        } else {
-          // Log error but don't fail the entire booking process
-          const errorBody = await updateResponse.text();
-          console.error(`Failed to update ticket availability for ticket type ${item.ticketTypeId}. Status: ${updateResponse.status}. Response: ${errorBody}`);
-        }
+          if (updateResponse.ok) {
+              const result = await updateResponse.json();
+              console.log(`Successfully updated availability for ticket ${item.ticketTypeId}:`, result.data || result);
+          } else {
+              const errorBody = await updateResponse.text();
+              console.error(`Failed to update ticket availability for ticket type ${item.ticketTypeId}. Status: ${updateResponse.status}. Response: ${errorBody}`);
+          }
       } catch (e) {
-        console.error(`Network error while updating ticket availability for ticket type ${item.ticketTypeId}.`, e);
+          console.error(`Network error while updating ticket availability for ticket type ${item.ticketTypeId}.`, e);
       }
     }
 
