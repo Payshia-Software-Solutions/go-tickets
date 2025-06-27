@@ -150,7 +150,7 @@ const AccountDashboardPage = () => {
                     </CardContent>
                     <CardFooter>
                       <Button variant="outline" asChild>
-                        <Link href={`/booking-confirmation/${booking.id}`}>View Details & QR</Link>
+                        <Link href={`/booking-confirmation?order_id=${booking.id}`}>View Details & QR</Link>
                       </Button>
                     </CardFooter>
                   </Card>

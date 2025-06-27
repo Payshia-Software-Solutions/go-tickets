@@ -190,7 +190,7 @@ export default function AdminBookingsPage() {
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
                         <TableCell className="text-right space-x-1 whitespace-nowrap">
                           <Button variant="outline" size="sm" asChild title="View Booking Confirmation">
-                            <Link href={`/booking-confirmation/${booking.id}`} target="_blank">
+                            <Link href={`/booking-confirmation?order_id=${booking.id}`} target="_blank">
                               View <ExternalLink className="ml-1 h-3.5 w-3.5" />
                             </Link>
                           </Button>
@@ -223,4 +223,3 @@ export default function AdminBookingsPage() {
     </div>
   );
 }
-
