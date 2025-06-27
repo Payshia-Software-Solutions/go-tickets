@@ -1,3 +1,4 @@
+
 import type { TicketType, TicketTypeFormData } from '@/lib/types';
 import { TICKET_TYPES_API_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -100,6 +101,43 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         description: data.description || null,
         createdAt: new Date().toISOString(), // The API doesn't return this, so we'll approximate
         updatedAt: new Date().toISOString(),
+    };
+};
+
+export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFormData): Promise<TicketType> => {
+    if (!TICKET_TYPES_API_URL) {
+        throw new Error("TICKET_TYPES_API_URL is not configured.");
+    }
+    const url = `${TICKET_TYPES_API_URL}/${ticketTypeId}`;
+    const payload = {
+      name: data.name,
+      price: data.price,
+      description: data.description || "",
+      availability: data.availability,
+    };
+
+    console.log(`[updateTicketType] Updating ticket type. URL: PUT ${url}`, 'Payload:', payload);
+
+    const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Failed to update ticket type.' }));
+        throw new Error(errorBody.message || `API error updating ticket type: ${response.status}`);
+    }
+    const updatedTicketType: ApiTicketTypeFromEndpoint = await response.json();
+     return {
+        id: String(updatedTicketType.id),
+        eventId: updatedTicketType.eventId ? String(updatedTicketType.eventId) : undefined,
+        showtimeId: updatedTicketType.showtimeId ? String(updatedTicketType.showtimeId) : null,
+        name: updatedTicketType.name,
+        price: parseFloat(updatedTicketType.price) || 0,
+        availability: parseInt(updatedTicketType.availability || '0', 10),
+        description: updatedTicketType.description || null,
+        createdAt: parseApiDateString(updatedTicketType.createdAt),
+        updatedAt: parseApiDateString(updatedTicketType.updatedAt),
     };
 };
 

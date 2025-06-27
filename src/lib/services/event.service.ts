@@ -4,7 +4,8 @@ import type { Event, Organizer, EventFormData, CoreEventFormData, ShowTime, Show
 import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
 import { getOrganizerById } from './organizer.service';
-import { fetchTicketTypesForEvent, getTicketAvailabilityCount } from './ticket.service';
+import { createTicketType, deleteTicketType, fetchTicketTypesForEvent, getTicketAvailabilityCount, updateTicketType } from './ticket.service';
+import { createShowTime, deleteShowTime, getShowTimesForEvent, updateShowTime } from './showtime.service';
 
 interface ApiEventFlat {
   id: string;
@@ -206,11 +207,7 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
       console.warn("[getFullEventDetails] Showtime API URL is not configured. Cannot fetch showtimes.");
       eventBase.showTimes = [];
     } else {
-      const showtimesResponse = await fetch(`${API_BASE_URL}/showtimes/event/${eventBase.id}`);
-      if (!showtimesResponse.ok) {
-        console.warn(`[getFullEventDetails] Failed to fetch showtimes for event ${eventBase.id}: ${showtimesResponse.status}`);
-      } else {
-        const basicShowTimesFromApi: ApiShowTimeFlat[] = await showtimesResponse.json();
+      const basicShowTimesFromApi: ApiShowTimeFlat[] = await getShowTimesForEvent(eventBase.id);
         
         for (const basicSt of basicShowTimesFromApi) {
           const detailedShowTime: ShowTime = {
@@ -239,7 +236,6 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
           
           populatedShowTimes.push(detailedShowTime);
         }
-      }
     }
     
     eventBase.showTimes = populatedShowTimes;
@@ -374,86 +370,105 @@ export const updateEvent = async (
     throw new Error("API_BASE_URL is not defined. Cannot update event.");
   }
 
-  console.log(`%c[updateEvent] Starting POST (as PUT) update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
+  console.log(`%c[updateEvent] Starting multifaceted update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
 
-  const formData = new FormData();
-  
-  formData.append('name', data.name);
-  formData.append('slug', data.slug);
-  formData.append('date', data.date.toISOString());
-  formData.append('location', data.location);
-  formData.append('description', data.description);
-  formData.append('category', data.category);
-  formData.append('organizerId', data.organizerId);
-  formData.append('venueName', data.venueName);
-  formData.append('venueAddress', data.venueAddress || '');
+  const promises = [];
+
+  // == Step 1: Update Core Event Data ==
+  const coreFormData = new FormData();
+  coreFormData.append('name', data.name);
+  coreFormData.append('slug', data.slug);
+  coreFormData.append('date', data.date.toISOString());
+  coreFormData.append('location', data.location);
+  coreFormData.append('description', data.description);
+  coreFormData.append('category', data.category);
+  coreFormData.append('organizerId', data.organizerId);
+  coreFormData.append('venueName', data.venueName);
+  coreFormData.append('venueAddress', data.venueAddress || '');
 
   if (imageFile) {
-    formData.append('image', imageFile);
+    coreFormData.append('image', imageFile);
   } else if (data.imageUrl) {
     let imageUrlToSend = data.imageUrl;
     if (imageUrlToSend.startsWith(CONTENT_PROVIDER_URL)) {
       imageUrlToSend = imageUrlToSend.substring(CONTENT_PROVIDER_URL.length);
     }
-    formData.append('imageUrl', imageUrlToSend);
+    coreFormData.append('imageUrl', imageUrlToSend);
   }
-  
-  // Format nested arrays in a way that backend frameworks like Laravel can easily parse.
-  data.ticketTypes.forEach((ticket, index) => {
-    if (ticket.id) {
-        formData.append(`ticketTypes[${index}][id]`, ticket.id);
-    }
-    formData.append(`ticketTypes[${index}][name]`, ticket.name);
-    formData.append(`ticketTypes[${index}][price]`, String(ticket.price));
-    formData.append(`ticketTypes[${index}][availability]`, String(ticket.availability));
-    if (ticket.description) {
-        formData.append(`ticketTypes[${index}][description]`, ticket.description);
-    }
-  });
+  coreFormData.append('_method', 'PUT');
 
-  data.showTimes.forEach((showtime, sIndex) => {
-    if (showtime.id) {
-        formData.append(`showTimes[${sIndex}][id]`, showtime.id);
-    }
-    formData.append(`showTimes[${sIndex}][dateTime]`, showtime.dateTime.toISOString());
-    showtime.ticketAvailabilities.forEach((avail, aIndex) => {
-        if (avail.id) {
-            formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][id]`, avail.id);
+  const coreUpdatePromise = fetch(`${API_BASE_URL}/events/${eventId}`, {
+    method: 'POST', // Using POST with method override for FormData
+    body: coreFormData,
+  }).then(async response => {
+    if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage;
+        try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.message || `API error updating core event: ${response.status}`;
+        } catch(e) {
+            errorMessage = `API error updating core event: ${response.status}. See console for server response.`;
+            console.error("Non-JSON error response from server on core event update:", errorText);
         }
-        formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][ticketTypeId]`, avail.ticketTypeId);
-        formData.append(`showTimes[${sIndex}][ticketAvailabilities][${aIndex}][availableCount]`, String(avail.availableCount));
-    });
-  });
-  
-  // Method override to tell the server to treat this POST as a PUT request
-  formData.append('_method', 'PUT');
-
-  const updateUrl = `${API_BASE_URL}/events/${eventId}`;
-  
-  console.log(`%c[updateEvent] Sending POST request to backend...`, 'color: blue;');
-  console.log(`  - URL: POST ${updateUrl}`);
-  
-  const response = await fetch(updateUrl, {
-    method: 'POST', // Use POST for FormData with file uploads and method override
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage;
-    try {
-        const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.message || `API error updating event ${eventId}: ${response.status}`;
-    } catch(e) {
-        const cleanErrorText = errorText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-        errorMessage = `API error updating event ${eventId}: ${response.status}. Server response: ${cleanErrorText.substring(0, 200)}...`;
-        console.error("Non-JSON error response from server:", errorText);
+        throw new Error(errorMessage);
     }
-    throw new Error(errorMessage);
-  }
+    console.log('[updateEvent] Core event details updated successfully.');
+  });
+  promises.push(coreUpdatePromise);
   
-  console.log(`%c[updateEvent] POST (as PUT) update complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
+  // == Step 2: Sync Ticket Type Definitions ==
+  const initialTicketTypeIds = new Set(initialData.ticketTypes?.map(t => t.id) || []);
+  const finalTicketTypeIds = new Set(data.ticketTypes.map(t => t.id).filter(Boolean));
+
+  // Deletions
+  for (const idToDelete of initialTicketTypeIds) {
+    if (!finalTicketTypeIds.has(idToDelete)) {
+      console.log(`[updateEvent] Deleting ticket type ID: ${idToDelete}`);
+      promises.push(deleteTicketType(idToDelete));
+    }
+  }
+
+  // Creations & Updates
+  for (const ticketTypeData of data.ticketTypes) {
+    if (ticketTypeData.id) {
+      console.log(`[updateEvent] Updating ticket type ID: ${ticketTypeData.id}`);
+      promises.push(updateTicketType(ticketTypeData.id, ticketTypeData));
+    } else {
+      console.log(`[updateEvent] Creating new ticket type: ${ticketTypeData.name}`);
+      promises.push(createTicketType(eventId, ticketTypeData));
+    }
+  }
+
+  // == Step 3: Sync Showtimes ==
+  const initialShowTimeIds = new Set(initialData.showTimes?.map(st => st.id) || []);
+  const finalShowTimeIds = new Set(data.showTimes.map(st => st.id).filter(Boolean));
+
+  // Deletions
+  for (const idToDelete of initialShowTimeIds) {
+    if (!finalShowTimeIds.has(idToDelete)) {
+      console.log(`[updateEvent] Deleting showtime ID: ${idToDelete}`);
+      promises.push(deleteShowTime(idToDelete));
+    }
+  }
+
+  // Creations & Updates
+  for (const showTimeData of data.showTimes) {
+    if (showTimeData.id) {
+      console.log(`[updateEvent] Updating showtime ID: ${showTimeData.id}`);
+      promises.push(updateShowTime(showTimeData.id, showTimeData));
+    } else {
+      // Creation of new showtimes should ideally be handled in a separate dialog flow
+      // to get the new showtime ID before associating tickets.
+      // For now, we'll log a warning.
+      console.warn(`[updateEvent] Skipping creation of a new showtime in the main update form:`, showTimeData);
+    }
+  }
+
+  await Promise.all(promises);
+  console.log(`%c[updateEvent] Multifaceted update for event ID ${eventId} complete.`, 'color: green; font-weight: bold;');
 };
+
 
 export const deleteEvent = async (eventId: string): Promise<boolean> => {
     if (API_BASE_URL) {
