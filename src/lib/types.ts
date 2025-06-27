@@ -84,7 +84,9 @@ export const TicketTypeFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "Ticket type name is required"),
   price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
+  availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative").describe("Total availability for this ticket type"),
   description: z.string().optional(),
+  showtimeId: z.string().optional(),
 });
 export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 
@@ -173,7 +175,7 @@ export const CoreEventFormSchema = z.object({
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(1, "Category is required"),
-  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
+  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")).optional().or(z.literal('')),
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
@@ -190,7 +192,7 @@ export const EventFormSchema = z.object({
   location: z.string().min(5, "Location must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").default("<p></p>"),
   category: z.string().min(1, "Category is required"),
-  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")),
+  imageUrl: z.string().url({ message: "Invalid image URL" }).or(z.string().startsWith("data:image/")).optional().or(z.literal('')),
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
@@ -248,4 +250,3 @@ export interface BookedTicketItem {
 export interface CartItem extends BookedTicketItem {
   eventName: string;
 }
-

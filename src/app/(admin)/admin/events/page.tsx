@@ -112,10 +112,10 @@ export default function AdminEventsPage() {
     setShowCreateModal(true);
   };
 
-  const handleCreateEventSubmit = async (data: EventFormData) => {
+  const handleCreateEventSubmit = async (data: EventFormData, imageFile: File | null) => {
     setIsSubmitting(true);
     try {
-      const newEventId = await createEvent(data);
+      const newEventId = await createEvent(data, imageFile);
       
       toast({
         title: "Step 1 Complete: Event Created!",
@@ -157,11 +157,11 @@ export default function AdminEventsPage() {
     }
   };
 
-  const handleUpdateEventSubmit = async (data: EventFormData) => {
+  const handleUpdateEventSubmit = async (data: EventFormData, imageFile: File | null) => {
     if (!currentEventForEdit) return;
     setIsSubmitting(true);
     try {
-      await updateEvent(currentEventForEdit.id, data, currentEventForEdit);
+      await updateEvent(currentEventForEdit.id, data, currentEventForEdit, imageFile);
       
       toast({
         title: "Event Updated",
@@ -333,5 +333,3 @@ export default function AdminEventsPage() {
     </div>
   );
 }
-
-    

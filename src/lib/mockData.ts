@@ -1,5 +1,4 @@
 
-
 import type { Event, Booking, User, Organizer, TicketType, EventFormData, OrganizerFormData, BookedTicketItem, BillingAddress, Category, CategoryFormData, SignupFormData, BookedTicket, ShowTimeTicketAvailability, ShowTime, CoreEventFormData, AddShowTimeFormData, CartItem } from './types';
 import { parse, isValid, format, parseISO } from 'date-fns';
 
@@ -1029,26 +1028,31 @@ export const getAdminEventById = async (id: string): Promise<Event | undefined> 
   }
 };
 
-export const createEvent = async (data: CoreEventFormData): Promise<string> => {
+export const createEvent = async (data: CoreEventFormData, imageFile: File | null): Promise<string> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot create event.");
   }
-  const eventPayloadForApi = {
-    name: data.name,
-    slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''),
-    date: data.date.toISOString(),
-    location: data.location,
-    description: data.description,
-    category: data.category,
-    imageUrl: data.imageUrl,
-    organizerId: data.organizerId,
-    venueName: data.venueName,
-    venueAddress: data.venueAddress || null,
-  };
+  
+  const formData = new FormData();
+  formData.append('name', data.name);
+  formData.append('slug', data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''));
+  formData.append('date', data.date.toISOString());
+  formData.append('location', data.location);
+  formData.append('description', data.description);
+  formData.append('category', data.category);
+  formData.append('organizerId', data.organizerId);
+  formData.append('venueName', data.venueName);
+  formData.append('venueAddress', data.venueAddress || '');
+
+  if (imageFile) {
+    formData.append('image', imageFile);
+  } else if (data.imageUrl) {
+    formData.append('imageUrl', data.imageUrl);
+  }
+
   const eventResponse = await fetch(`${API_BASE_URL}/events`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(eventPayloadForApi),
+    body: formData, // No 'Content-Type' header needed; browser sets it for FormData
   });
 
   if (!eventResponse.ok) {
@@ -1172,142 +1176,64 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
     };
 };
 
-export const updateEvent = async (eventId: string, data: EventFormData, initialData: Event): Promise<void> => {
+export const updateEvent = async (
+  eventId: string, 
+  data: EventFormData, 
+  initialData: Event,
+  imageFile: File | null
+): Promise<void> => {
   if (!API_BASE_URL) {
     throw new Error("API_BASE_URL is not defined. Cannot update event.");
   }
   
-  console.log(`%c[updateEvent] Starting intelligent update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
+  console.log(`%c[updateEvent] Starting FormData update for event ID: ${eventId}`, 'color: #8833ff; font-weight: bold;');
+  
+  const formData = new FormData();
+  
+  // To handle PUT with FormData, we use POST with a _method field
+  formData.append('_method', 'PUT');
 
-  // Step 1: Update the main event details if they have changed
-  const mainDetailsChanged = 
-    data.name !== initialData.name ||
-    data.slug !== initialData.slug ||
-    new Date(data.date).getTime() !== new Date(initialData.date).getTime() ||
-    data.location !== initialData.location ||
-    data.description !== initialData.description ||
-    data.category !== initialData.category ||
-    data.imageUrl !== initialData.imageUrl ||
-    data.organizerId !== initialData.organizerId ||
-    data.venueName !== initialData.venueName ||
-    data.venueAddress !== (initialData.venueAddress || "");
+  // Append all top-level form fields
+  formData.append('name', data.name);
+  formData.append('slug', data.slug);
+  formData.append('date', data.date.toISOString());
+  formData.append('location', data.location);
+  formData.append('description', data.description);
+  formData.append('category', data.category);
+  formData.append('organizerId', data.organizerId);
+  formData.append('venueName', data.venueName);
+  formData.append('venueAddress', data.venueAddress || '');
 
-  if (mainDetailsChanged) {
-    const eventPayloadForApi = {
-      name: data.name,
-      slug: data.slug,
-      date: data.date.toISOString(),
-      location: data.location,
-      description: data.description,
-      category: data.category,
-      imageUrl: data.imageUrl,
-      organizerId: data.organizerId,
-      venueName: data.venueName,
-      venueAddress: data.venueAddress || null,
-    };
-    
-    const eventUpdateUrl = `${API_BASE_URL}/events/${eventId}`;
-    console.log(`%c[updateEvent] Core details changed. Updating...`, 'color: blue;');
-    console.log(`  - URL: PUT ${eventUpdateUrl}`);
-    console.log(`  - Payload:`, eventPayloadForApi);
-    
-    const eventResponse = await fetch(eventUpdateUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventPayloadForApi),
-    });
-
-    if (!eventResponse.ok) {
-      const errorBody = await eventResponse.json().catch(() => ({ message: 'Failed to update event and parse error' }));
-      throw new Error(errorBody.message || `API error updating event ${eventId}: ${eventResponse.status}`);
-    }
-    console.log(`[updateEvent] Step 1 complete: Main event details updated.`);
-  } else {
-    console.log(`%c[updateEvent] Core details have not changed. Skipping update.`, 'color: green;');
+  // Handle the image
+  if (imageFile) {
+    formData.append('image', imageFile);
+  } else if (data.imageUrl) {
+    // If there's no new file, but there is a URL (and it's not a data URI preview)
+    // send it so the backend knows what the current image URL is.
+    formData.append('imageUrl', data.imageUrl);
   }
   
-  // Step 2 & 3: Synchronize Showtimes and their specific Ticket Types
-  console.log(`%c[updateEvent] Starting Steps 2 & 3: Syncing Showtimes and Tickets...`, 'color: #8833ff; font-weight: bold;');
-  for (const stData of data.showTimes) {
-    const showtimeId = stData.id;
-    const initialShowTime = initialData.showTimes?.find(st => st.id === showtimeId);
-    if (!showtimeId || !initialShowTime) {
-      console.warn(`[updateEvent] Skipping showtime with temporary/missing ID: ${showtimeId}. It should be created via 'Add Showtime'.`);
-      continue;
-    }
+  // Append complex nested data as JSON strings
+  // The backend will need to parse these strings.
+  formData.append('ticketTypes', JSON.stringify(data.ticketTypes));
+  formData.append('showTimes', JSON.stringify(data.showTimes));
+  
+  const updateUrl = `${API_BASE_URL}/events/${eventId}`;
+  
+  console.log(`%c[updateEvent] Sending FormData to backend...`, 'color: blue;');
+  console.log(`  - URL: POST ${updateUrl}`);
+  
+  const response = await fetch(updateUrl, {
+    method: 'POST', // Using POST to send FormData for PUT
+    body: formData,
+  });
 
-    // Update the showtime's date/time if it has changed
-    if (new Date(stData.dateTime).getTime() !== new Date(initialShowTime.dateTime).getTime()) {
-      const showtimeUpdatePayload = {
-        eventId: eventId,
-        dateTime: format(new Date(stData.dateTime), "yyyy-MM-dd HH:mm:ss")
-      };
-      const updateShowtimeUrl = `${SHOWTIMES_API_URL}/${showtimeId}`;
-      console.log(`%c[updateEvent] Showtime ${showtimeId} dateTime changed. Updating...`, 'color: blue;');
-      console.log(`  - URL: PUT ${updateShowtimeUrl}`);
-      console.log(`  - Payload:`, showtimeUpdatePayload);
-
-      const stResponse = await fetch(updateShowtimeUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(showtimeUpdatePayload)
-      });
-      if (!stResponse.ok) {
-          console.error(`[updateEvent] Failed to update showtime ${showtimeId}. Status: ${stResponse.status}`, await stResponse.text());
-          continue; 
-      }
-    } else {
-        console.log(`%c[updateEvent] Showtime ${showtimeId} dateTime has not changed. Skipping update.`, 'color: green;');
-    }
-    
-    // Process ticket availabilities for this showtime
-    for (const staData of stData.ticketAvailabilities) {
-        const ticketTypeId = staData.ticketTypeId;
-        const ticketTypeDefinition = data.ticketTypes.find(tt => tt.id === ticketTypeId);
-        const initialTicketDefinition = initialData.ticketTypes?.find(tt => tt.id === ticketTypeId);
-        const initialSta = initialShowTime.ticketAvailabilities.find(sta => sta.ticketType.id === ticketTypeId);
-
-        if (!ticketTypeDefinition?.id || !initialTicketDefinition) {
-            console.warn(`[updateEvent] Skipping ticket availability update for new/unlinked ticket type ID "${ticketTypeId}" in showtime ${showtimeId}. This should be handled via an 'Add' button.`);
-            continue;
-        }
-
-        const definitionChanged = 
-            ticketTypeDefinition.name !== initialTicketDefinition.name ||
-            ticketTypeDefinition.price !== initialTicketDefinition.price ||
-            (ticketTypeDefinition.description || '') !== (initialTicketDefinition.description || '');
-            
-        const availabilityChanged = initialSta ? staData.availableCount !== initialSta.availableCount : true;
-
-        if (definitionChanged || availabilityChanged) {
-            const fullUpdateUrl = `${TICKET_TYPES_UPDATE_FULL_API_URL}?eventid=${eventId}&showtimeid=${showtimeId}&tickettypeid=${ticketTypeId}`;
-            const fullUpdatePayload = {
-                name: ticketTypeDefinition.name,
-                price: ticketTypeDefinition.price,
-                description: ticketTypeDefinition.description || "",
-                availability: staData.availableCount,
-            };
-            
-            console.log(`%c[updateEvent] Ticket details or availability changed for TT_ID ${ticketTypeId} in ST_ID ${showtimeId}. Updating...`, 'color: blue;');
-            console.log(`  - Definition changed: ${definitionChanged}, Availability changed: ${availabilityChanged}`);
-            console.log(`  - URL: PUT ${fullUpdateUrl}`);
-            console.log(`  - PAYLOAD:`, fullUpdatePayload);
-
-            const fullUpdateResponse = await fetch(fullUpdateUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(fullUpdatePayload),
-            });
-
-            if (!fullUpdateResponse.ok) {
-                console.error(`[updateEvent] Failed to perform full update for ticket type ${ticketTypeDefinition.id} in showtime ${showtimeId}. Status: ${fullUpdateResponse.status}`, await fullUpdateResponse.text());
-            }
-        } else {
-            console.log(`%c[updateEvent] Ticket details and availability for TT_ID ${ticketTypeId} in ST_ID ${showtimeId} have not changed. Skipping update.`, 'color: green;');
-        }
-    }
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({ message: `Failed to update event ${eventId} and parse error` }));
+    throw new Error(errorBody.message || `API error updating event ${eventId}: ${response.status}`);
   }
-  console.log(`%c[updateEvent] Intelligent update process complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
+  
+  console.log(`%c[updateEvent] FormData update complete for event ID: ${eventId}.`, 'color: #8833ff; font-weight: bold;');
 };
 
 
@@ -1854,7 +1780,7 @@ const initAdminMockData = async () => {
 
     for (const eventData of defaultEventDataList) {
         try {
-          await createEvent(eventData);
+          await createEvent(eventData, null);
         } catch (error) {
           console.error("Failed to create mock admin event:", eventData.name, error);
         }
@@ -1890,6 +1816,7 @@ if (!API_BASE_URL && ORGANIZERS_API_URL) {
 
 
     
+
 
 
 

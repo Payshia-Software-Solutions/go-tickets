@@ -42,11 +42,19 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 interface EventFormProps {
   initialData?: Event | null;
-  onSubmit: (data: EventFormData) => Promise<void>; 
+  onSubmit: (data: EventFormData, imageFile: File | null) => Promise<void>; 
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
 }
+
+// Helper to convert a data URI to a File object
+async function dataUriToFile(dataUri: string, filename: string): Promise<File> {
+  const res = await fetch(dataUri);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type });
+}
+
 
 export default function EventForm({ initialData, onSubmit, isSubmitting, submitButtonText = "Save Event", onCancel }: EventFormProps) {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,6 +66,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
   const [isSuggestingKeywords, setIsSuggestingKeywords] = useState(false);
   const [localImagePreview, setLocalImagePreview] = useState<string | null>(initialData?.imageUrl || null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -156,18 +165,15 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
           });
         }
       }
-      if (name === 'imageUrl') {
-          if (typeof value.imageUrl === 'string' && !value.imageUrl?.startsWith('data:image')) {
-            setLocalImagePreview(value.imageUrl || null);
-          } else if (!value.imageUrl) {
-            setLocalImagePreview(null);
-          }
+      // This effect is to keep the preview in sync with the form's URL field
+      // if it's not a data URI (i.e., not a local file or AI gen).
+      if (name === 'imageUrl' && typeof value.imageUrl === 'string' && !value.imageUrl.startsWith('data:image')) {
+          setLocalImagePreview(value.imageUrl || null);
       }
     });
     return () => subscription.unsubscribe();
   }, [form, slugManuallyEdited]);
 
-  const currentImageUrlFieldValue = form.watch("imageUrl");
 
   const handleAiImageAndKeywords = async () => {
     const eventName = form.getValues("name");
@@ -192,6 +198,8 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       if (imageResult.imageUrl) {
         form.setValue("imageUrl", imageResult.imageUrl, { shouldValidate: true, shouldDirty: true });
         setLocalImagePreview(imageResult.imageUrl);
+        const aiFile = await dataUriToFile(imageResult.imageUrl, "ai-generated-image.png");
+        setImageFile(aiFile);
         toast({ title: "🖼️ AI Image Generated!", description: "Image URL has been updated." });
       } else {
         throw new Error("AI did not return an image.");
@@ -234,24 +242,14 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         }
         return;
       }
+      setImageFile(file); // Set the file object for upload
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUri = reader.result as string;
-        setLocalImagePreview(dataUri);
-        form.setValue("imageUrl", dataUri, { shouldValidate: true, shouldDirty: true });
+        setLocalImagePreview(dataUri); // Set for preview
+        form.setValue("imageUrl", dataUri, { shouldValidate: true, shouldDirty: true }); // Set for validation
       };
       reader.readAsDataURL(file);
-    } else {
-      const currentUrl = form.getValues("imageUrl");
-      if (currentUrl?.startsWith("data:image/")) {
-          form.setValue("imageUrl", initialData?.imageUrl || "", { shouldValidate: true, shouldDirty: true });
-          setLocalImagePreview(initialData?.imageUrl || null);
-      } else {
-          setLocalImagePreview(currentUrl || null);
-      }
-       if (fileInputRef.current) {
-          fileInputRef.current.value = ""; 
-       }
     }
   };
   
@@ -301,7 +299,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit((data) => onSubmit(data, imageFile))} className="space-y-8">
         
         <Tabs defaultValue="core" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -483,34 +481,27 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                         Select local image, use AI generation, or paste a URL below.
                         </FormDescription>
                         <Input 
-                            placeholder="Or paste image URL here / Use AI Gen"
-                            value={field.value?.startsWith("data:image/") ? "(Local image selected or AI generated)" : field.value || ""}
+                            placeholder="Or paste image URL here"
+                            value={field.value?.startsWith("data:image/") ? "(Local or AI image selected)" : field.value || ""}
                             onChange={(e) => {
                                 field.onChange(e.target.value);
                                 setLocalImagePreview(e.target.value);
+                                setImageFile(null); // Clear file if URL is pasted
                                 if (fileInputRef.current) fileInputRef.current.value = ""; 
                             }}
                             disabled={field.value?.startsWith("data:image/")} 
                         />
-                        <Alert variant="default" className="bg-amber-50 border-amber-300 text-amber-700">
-                        <AlertTriangle className="h-4 w-4 !text-amber-600" />
-                        <AlertTitle className="text-amber-700">Important: Image Handling</AlertTitle>
-                        <AlertDescription>
-                            If using a local image, it&apos;s for preview. Production apps need to upload files to cloud storage and use the returned URL.
-                            AI-generated images are data URIs, which are large and also best uploaded for production.
-                        </AlertDescription>
-                        </Alert>
-                        {(localImagePreview || currentImageUrlFieldValue) && (
-                        <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
-                            <Image
-                            src={localImagePreview || currentImageUrlFieldValue!}
-                            alt="Event image preview"
-                            fill
-                            style={{ objectFit: 'contain' }}
-                            data-ai-hint="event poster"
-                            onError={() => {}}
-                            />
-                        </div>
+                         {localImagePreview && (
+                            <div className="mt-2 relative w-full aspect-video max-w-sm border rounded-md overflow-hidden bg-muted">
+                                <Image
+                                src={localImagePreview}
+                                alt="Event image preview"
+                                fill
+                                style={{ objectFit: 'contain' }}
+                                data-ai-hint="event poster"
+                                onError={() => setLocalImagePreview(null)}
+                                />
+                            </div>
                         )}
                     </div>
                     <FormMessage />
