@@ -181,6 +181,33 @@ export const createBooking = async (
       throw new Error(errorBody.message || `API Error: ${response.status}`);
     }
 
+    // After successful booking, update the availability of each ticket type in the cart
+    for (const item of cart) {
+      const updateUrl = new URL('https://gotickets-server.payshia.com/ticket-types/update/purchase/');
+      updateUrl.searchParams.append('eventid', item.eventId);
+      updateUrl.searchParams.append('showtimeid', item.showTimeId);
+      updateUrl.searchParams.append('tickettypeid', item.ticketTypeId);
+      updateUrl.searchParams.append('ticketCount', String(item.quantity));
+
+      try {
+        console.log(`Updating availability via GET: ${updateUrl.toString()}`);
+        const updateResponse = await fetch(updateUrl.toString(), {
+          method: 'GET', // As specified by user
+        });
+
+        if (updateResponse.ok) {
+          const result = await updateResponse.json();
+          console.log(`Successfully updated availability for ticket ${item.ticketTypeId}:`, result.data);
+        } else {
+          // Log error but don't fail the entire booking process
+          const errorBody = await updateResponse.text();
+          console.error(`Failed to update ticket availability for ticket type ${item.ticketTypeId}. Status: ${updateResponse.status}. Response: ${errorBody}`);
+        }
+      } catch (e) {
+        console.error(`Network error while updating ticket availability for ticket type ${item.ticketTypeId}.`, e);
+      }
+    }
+
     const html = await response.text();
     return html;
 
