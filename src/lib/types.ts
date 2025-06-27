@@ -23,7 +23,7 @@ export interface User {
   updatedAt?: string;
 }
 
-// Zod schema for signup form
+// Zod schema for public signup form
 export const SignupFormSchema = z.object({
   name: z.string().min(2, "Full name must be at least 2 characters."),
   email: z.string().email("Invalid email address."),
@@ -46,6 +46,42 @@ export const SignupFormSchema = z.object({
 });
 
 export type SignupFormData = z.infer<typeof SignupFormSchema>;
+
+// Zod schema for admin user management form
+export const AdminUserFormSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(2, "Full name must be at least 2 characters."),
+  email: z.string().email("Invalid email address."),
+  password: z.string().optional().or(z.literal('')),
+  confirmPassword: z.string().optional().or(z.literal('')),
+  isAdmin: z.boolean().default(false),
+})
+.superRefine(({ password, id }, ctx) => {
+    if (!id && (!password || password.length < 8)) {
+        ctx.addIssue({
+            code: "custom",
+            message: "Password is required and must be at least 8 characters for new users.",
+            path: ['password'],
+        });
+    }
+    if (id && password && password.length > 0 && password.length < 8) {
+        ctx.addIssue({
+            code: "custom",
+            message: "New password must be at least 8 characters.",
+            path: ['password'],
+        });
+    }
+})
+.refine(data => {
+    if (data.password !== data.confirmPassword) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+});
+export type AdminUserFormData = z.infer<typeof AdminUserFormSchema>;
 
 
 // --- Organizer Related ---
@@ -86,7 +122,7 @@ export const TicketTypeFormSchema = z.object({
   price: z.number({invalid_type_error: "Price must be a number"}).min(0, "Price must be non-negative"),
   availability: z.number({invalid_type_error: "Availability must be a number"}).int("Availability must be a whole number").min(0, "Availability must be non-negative").describe("Total availability for this ticket type"),
   description: z.string().optional(),
-  showtimeId: z.string().optional(),
+  showtimeId: z.string().min(1, "A showtime must be associated."),
 });
 export type TicketTypeFormData = z.infer<typeof TicketTypeFormSchema>;
 

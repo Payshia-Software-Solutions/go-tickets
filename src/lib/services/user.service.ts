@@ -1,4 +1,5 @@
-import type { User, SignupFormData, BillingAddress } from '@/lib/types';
+
+import type { User, SignupFormData, BillingAddress, AdminUserFormData } from '@/lib/types';
 import { USERS_API_URL, USER_LOGIN_API_URL, API_BASE_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
 
@@ -234,13 +235,45 @@ export const createUser = async (data: SignupFormData): Promise<User> => {
   }
 };
 
-export const updateUser = async (userId: string, dataToUpdate: Partial<User>): Promise<User | null> => {
+export const adminCreateUser = async (data: AdminUserFormData): Promise<User> => {
+  if (!USERS_API_URL) {
+    throw new Error("USERS_API_URL is not configured.");
+  }
+  
+  if (!data.password) {
+    throw new Error("Password is required for creating a new user.");
+  }
+
+  const payload = {
+    email: data.email.toLowerCase(),
+    name: data.name,
+    password: data.password,
+    isAdmin: data.isAdmin ? '1' : '0',
+  };
+
+  const response = await fetch(USERS_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({ message: `API error ${response.status} during user creation.` }));
+    throw new Error(errorBody.message || `Failed to create user: ${response.status}`);
+  }
+  
+  const newApiUser: RawApiUser = await response.json();
+  return mapApiUserToAppUser(newApiUser);
+};
+
+export const updateUser = async (userId: string, dataToUpdate: Partial<User> & { password?: string }): Promise<User | null> => {
   if (API_BASE_URL && USERS_API_URL) {
-    const apiPayload: Partial<RawApiUser> = {};
+    const apiPayload: Partial<RawApiUser & { password?: string }> = {};
 
     if (dataToUpdate.name !== undefined) apiPayload.name = dataToUpdate.name;
     if (dataToUpdate.email !== undefined) apiPayload.email = dataToUpdate.email;
     if (dataToUpdate.isAdmin !== undefined) apiPayload.isAdmin = dataToUpdate.isAdmin ? '1' : '0';
+    if (dataToUpdate.password) apiPayload.password = dataToUpdate.password;
     
     if (dataToUpdate.billingAddress === null) {
         apiPayload.billing_street = null;
@@ -301,5 +334,41 @@ export const updateUser = async (userId: string, dataToUpdate: Partial<User>): P
       }
     }
     return mockUsers[userIndex];
+  }
+};
+
+export const adminGetAllUsers = async (): Promise<User[]> => {
+  if (!USERS_API_URL) {
+    console.error("USERS_API_URL is not configured.");
+    return [];
+  }
+  try {
+    const response = await fetch(USERS_API_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch users: ${response.status}`);
+    }
+    const apiUsers: RawApiUser[] = await response.json();
+    return apiUsers.map(mapApiUserToAppUser).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
+  } catch (error) {
+    console.error("Error in adminGetAllUsers:", error);
+    return [];
+  }
+};
+
+export const deleteUser = async (userId: string): Promise<boolean> => {
+  if (!USERS_API_URL) {
+    throw new Error("USERS_API_URL is not configured.");
+  }
+  const url = `${USERS_API_URL}/${userId}`;
+  try {
+    const response = await fetch(url, { method: 'DELETE' });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to delete user and parse error response.' }));
+      throw new Error(errorBody.message || `Failed to delete user ${userId}: ${response.status}`);
+    }
+    return true;
+  } catch (error) {
+    console.error(`Error deleting user ${userId}:`, error);
+    throw error;
   }
 };
