@@ -263,15 +263,17 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         }
         
         const firstEventId = apiBooking.booking_event?.[0]?.eventId || 'N/A';
+        const eventDetailsForBooking = await fetchEventByIdFromApi(String(firstEventId));
+
 
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
             totalPrice: parseFloat(apiBooking.totalPrice) || 0,
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
-            eventName: apiBooking.eventName,
+            eventName: eventDetailsForBooking?.name || apiBooking.eventName,
             eventDate: parseApiDateString(apiBooking.eventDate) || new Date().toISOString(),
-            eventLocation: apiBooking.eventLocation,
+            eventLocation: eventDetailsForBooking?.location || apiBooking.eventLocation,
             qrCodeValue: apiBooking.qrCodeValue,
             createdAt: parseApiDateString(apiBooking.createdAt),
             updatedAt: parseApiDateString(apiBooking.updatedAt),
@@ -419,6 +421,7 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
+
 
 
 
