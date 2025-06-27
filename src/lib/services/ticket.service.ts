@@ -14,6 +14,11 @@ interface ApiTicketTypeFromEndpoint {
     updatedAt?: string;
 }
 
+interface CreateTicketTypeResponse {
+    message: string;
+    id: string | number;
+}
+
 export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketType[]> => {
   if (!TICKET_TYPES_API_URL) {
     console.warn("TICKET_TYPES_API_URL is not defined. Cannot fetch ticket types.");
@@ -78,17 +83,23 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         const errorBody = await response.json().catch(() => ({ message: 'Failed to create ticket type.' }));
         throw new Error(errorBody.message || `API error: ${response.status}`);
     }
-    const newTicketTypeApi: ApiTicketTypeFromEndpoint = await response.json();
+    
+    const newTicketTypeResponse: CreateTicketTypeResponse = await response.json();
+    if (!newTicketTypeResponse.id) {
+        throw new Error("API did not return an ID for the newly created ticket type.");
+    }
+
+    // Construct the TicketType object to return, based on the input data and the new ID
     return {
-        id: String(newTicketTypeApi.id),
-        eventId: String(newTicketTypeApi.eventId),
-        showtimeId: newTicketTypeApi.showtimeId ? String(newTicketTypeApi.showtimeId) : null,
-        name: newTicketTypeApi.name,
-        price: parseFloat(newTicketTypeApi.price),
-        availability: parseInt(newTicketTypeApi.availability || '0', 10),
-        description: newTicketTypeApi.description || null,
-        createdAt: parseApiDateString(newTicketTypeApi.createdAt),
-        updatedAt: parseApiDateString(newTicketTypeApi.updatedAt),
+        id: String(newTicketTypeResponse.id),
+        eventId: eventId,
+        showtimeId: data.showtimeId || null,
+        name: data.name,
+        price: data.price,
+        availability: data.availability,
+        description: data.description || null,
+        createdAt: new Date().toISOString(), // The API doesn't return this, so we'll approximate
+        updatedAt: new Date().toISOString(),
     };
 };
 
