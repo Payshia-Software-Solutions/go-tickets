@@ -111,8 +111,7 @@ const CheckoutPage = () => {
       ? user.billingAddress
       : formBillingData;
 
-    const taxes = totalPrice * 0.1;
-    const finalTotal = totalPrice + taxes;
+    const finalTotal = totalPrice;
 
     try {
       // If a new address was entered (not using default) AND the user wants to save it
@@ -201,8 +200,7 @@ const CheckoutPage = () => {
     );
   }
 
-  const taxes = totalPrice * 0.1;
-  const finalTotal = totalPrice + taxes;
+  const finalTotal = totalPrice;
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -238,10 +236,6 @@ const CheckoutPage = () => {
               <div className="flex justify-between">
                 <p>Subtotal</p>
                 <p>LKR {totalPrice.toFixed(2)}</p>
-              </div>
-              <div className="flex justify-between">
-                <p>Taxes (Mock 10%)</p>
-                <p>LKR {taxes.toFixed(2)}</p>
               </div>
               <Separator />
               <div className="flex justify-between font-bold text-lg">
