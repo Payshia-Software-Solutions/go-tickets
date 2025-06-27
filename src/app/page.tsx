@@ -259,6 +259,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Popular Events Section */}
+      {renderEventSection("Popular Events", popularEvents, isLoadingPopular, <TrendingUp className="mr-3 h-8 w-8 text-accent" />)}
+      
       {/* Categories Section */}
       <section id="categories" className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
         <h2 className="text-3xl font-bold text-center mb-10 font-headline">Explore by Category</h2>
@@ -292,9 +295,6 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Popular Events Section */}
-      {renderEventSection("Popular Events", popularEvents, isLoadingPopular, <TrendingUp className="mr-3 h-8 w-8 text-accent" />)}
-      
       {/* Upcoming Events Section */}
       {renderEventSection("Upcoming Events", upcomingEvents, isLoadingUpcoming)}
 
