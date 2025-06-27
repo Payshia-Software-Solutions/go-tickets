@@ -891,13 +891,25 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, openAddTicketTyp
                 {form.getValues(`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.ticketTypeName`)}
               </div>
             </FormItem>
-            <FormField control={form.control} name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.availableCount`} render={({ field }) => (
-              <FormItem>
-                {availIndex === 0 && <FormLabel className="text-xs">Count</FormLabel>}
-                <FormControl><Input type="number" placeholder="Count" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormField
+              control={form.control}
+              name={`showTimes.${showtimeIndex}.ticketAvailabilities.${availIndex}.availableCount`}
+              render={({ field }) => (
+                <FormItem>
+                  {availIndex === 0 && <FormLabel className="text-xs">Available Count</FormLabel>}
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="Count"
+                      {...field}
+                      readOnly
+                      className="bg-muted/70 cursor-default"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-destructive/70 hover:text-destructive" onClick={() => remove(availIndex)}><Trash2 className="h-4 w-4"/></Button>
           </div>
         ))}
@@ -906,3 +918,5 @@ function ShowTimeSubForm({ form, showtimeIndex, removeShowTime, openAddTicketTyp
     </div>
   );
 }
+
+    
