@@ -1,4 +1,5 @@
 
+
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -188,7 +189,7 @@ export const createBooking = async (
       updateUrl.searchParams.append('eventid', item.eventId);
       updateUrl.searchParams.append('showtimeid', item.showTimeId);
       updateUrl.searchParams.append('tickettypeid', item.ticketTypeId);
-      updateUrl.searchParams.append('ticketCount', String(item.quantity));
+      updateUrl.searchParams.append('ticket_count', String(item.quantity));
       
       try {
           console.log(`Updating availability via GET: ${updateUrl.toString()}`);
@@ -438,3 +439,4 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
+
