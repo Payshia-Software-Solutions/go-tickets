@@ -33,9 +33,9 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   return (
     <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-[25px] border-none">
       <Link href={`/events/${event.slug}`} aria-label={`View details for ${event.name}`}>
-        <div className="relative w-full h-60 md:h-56"> {/* Adjusted height */}
+        <div className="relative w-full aspect-square">
           <Image
-            src={event.imageUrl || "https://placehold.co/400x300.png"} // Fallback image
+            src={event.imageUrl || "https://placehold.co/400x400.png"} // Fallback image
             alt={event.name}
             fill
             style={{objectFit: 'cover'}}
