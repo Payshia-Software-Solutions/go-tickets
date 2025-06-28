@@ -12,9 +12,11 @@ import { useToast } from '@/hooks/use-toast';
 
 interface DownloadTicketActionsProps {
     booking: Booking;
+    formattedDate: string;
+    formattedTime: string;
 }
 
-const DownloadTicketActions: React.FC<DownloadTicketActionsProps> = ({ booking }) => {
+const DownloadTicketActions: React.FC<DownloadTicketActionsProps> = ({ booking, formattedDate, formattedTime }) => {
     const ticketRef = useRef<HTMLDivElement>(null);
     const [isPngLoading, setIsPngLoading] = useState(false);
     const [isPdfLoading, setIsPdfLoading] = useState(false);
@@ -135,7 +137,7 @@ const DownloadTicketActions: React.FC<DownloadTicketActionsProps> = ({ booking }
 
             {/* Hidden component that will be rendered off-screen for capturing */}
             <div className="absolute -left-[9999px] top-0">
-                <PrintableTicket ref={ticketRef} booking={booking} />
+                <PrintableTicket ref={ticketRef} booking={booking} formattedDate={formattedDate} formattedTime={formattedTime} />
             </div>
         </>
     );

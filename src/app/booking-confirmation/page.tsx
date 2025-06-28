@@ -198,7 +198,7 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-            <DownloadTicketActions booking={booking} />
+            <DownloadTicketActions booking={booking} formattedDate={formattedEventDate} formattedTime={formattedEventTime} />
           </div>
 
           <Separator className="my-6" />

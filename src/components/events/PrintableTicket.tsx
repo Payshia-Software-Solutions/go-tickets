@@ -7,27 +7,7 @@ import QRCode from '@/components/QRCode';
 import { Ticket, Calendar, Clock, MapPin, User, Hash } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
-interface PrintableTicketProps {
-  booking: Booking;
-  ref: React.ForwardedRef<HTMLDivElement>;
-}
-
-const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking }>(({ booking }, ref) => {
-    const eventDate = new Date(booking.eventDate);
-
-    // Aligning date/time formatting with the booking confirmation page
-    const formattedDate = eventDate.toLocaleDateString(undefined, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-    const formattedTime = eventDate.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-
+const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, formattedDate: string, formattedTime: string }>(({ booking, formattedDate, formattedTime }, ref) => {
     const totalTickets = booking.bookedTickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
 
     return (
