@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 // --- User Related ---
 export const BillingAddressSchema = z.object({
+  email: z.string().email("A valid email is required for the booking."),
+  phone_number: z.string().min(7, "A valid phone number is required."),
   street: z.string().min(3, "Street address is required."),
   city: z.string().min(2, "City is required."),
   state: z.string().min(2, "State/Province is required."),

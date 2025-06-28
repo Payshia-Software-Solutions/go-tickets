@@ -22,6 +22,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from 'next/link';
 
 const defaultBillingValues: BillingAddress = {
+  email: "",
+  phone_number: "",
   street: "",
   city: "",
   state: "",
@@ -63,9 +65,12 @@ const CheckoutPage = () => {
 
   // Effect 2: Update the form content when `useDefaultAddress` state changes, or when user data (and thus potentially the default address) changes.
   useEffect(() => {
-    if (useDefaultAddress && hasSavedBillingAddress && user && user.billingAddress) {
+    if (useDefaultAddress && hasSavedBillingAddress && user?.billingAddress) {
       // User wants to use default, and a valid default address exists
       billingForm.reset({
+        // Use saved billing address values if they exist, otherwise fallback to user's main profile info.
+        email: user.billingAddress.email || user.email || "",
+        phone_number: user.billingAddress.phone_number || user.phoneNumber || "",
         street: user.billingAddress.street || "",
         city: user.billingAddress.city || "",
         state: user.billingAddress.state || "",
@@ -73,14 +78,22 @@ const CheckoutPage = () => {
         country: user.billingAddress.country || "",
       });
     } else {
-      // User does not want to use default, or no valid default address exists
-      // Clear form for manual input.
-      billingForm.reset(defaultBillingValues);
+      // User does not want to use default, or no valid default address exists.
+      // Pre-populate only email/phone from user profile, leave rest blank for manual input.
+      billingForm.reset({
+        email: user?.email || "",
+        phone_number: user?.phoneNumber || "",
+        street: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+      });
       if (!useDefaultAddress) { // Only manage saveNewAddress if explicitly entering new
           setSaveNewAddress(true); // Default to wanting to save a newly entered address
       }
     }
-  }, [useDefaultAddress, user, billingForm, hasSavedBillingAddress]); // React to user, checkbox, and form instance
+  }, [useDefaultAddress, user, billingForm, hasSavedBillingAddress]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -259,8 +272,8 @@ const CheckoutPage = () => {
             <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Billing Address</CardTitle>
-                  <CardDescription>Enter your billing information.</CardDescription>
+                  <CardTitle>Billing & Contact Information</CardTitle>
+                  <CardDescription>Enter your billing and contact details.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {user && hasSavedBillingAddress && (
@@ -276,6 +289,33 @@ const CheckoutPage = () => {
                       </FormLabel>
                     </div>
                   )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={billingForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contact Email</FormLabel>
+                          <FormControl><Input type="email" placeholder="you@example.com" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.email} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                      control={billingForm.control}
+                      name="phone_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contact Phone Number</FormLabel>
+                          <FormControl><Input type="tel" placeholder="+94 77 123 4567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <Separator className="!my-6"/>
 
                   <FormField
                     control={billingForm.control}

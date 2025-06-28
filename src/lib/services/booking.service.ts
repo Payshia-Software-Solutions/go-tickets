@@ -66,7 +66,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
       parsedBillingAddress = JSON.parse(apiBooking.billing_address);
     } catch {
       console.error("Failed to parse billing_address string:", "Raw:", apiBooking.billing_address);
-      parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+      parsedBillingAddress = { email: "", phone_number: "", street: "", city: "", state: "", postalCode: "", country: "" };
     }
   } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
     parsedBillingAddress = apiBooking.billing_address;
@@ -74,6 +74,10 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
     if (apiBooking.billing_street || apiBooking.billing_city) {
         parsedBillingAddress = {
+            // @ts-expect-error Property 'billing_email' does not exist on type 'RawApiBooking'.
+            email: apiBooking.billing_email || "",
+            // @ts-expect-error Property 'billing_phone_number' does not exist on type 'RawApiBooking'.
+            phone_number: apiBooking.billing_phone_number || "",
             // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
             street: apiBooking.billing_street || "",
             // @ts-expect-error Property 'billing_city' does not exist on type 'RawApiBooking'.
@@ -86,7 +90,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
             country: apiBooking.billing_country || "",
         };
     } else {
-        parsedBillingAddress = { street: "", city: "", state: "", postalCode: "", country: "" };
+        parsedBillingAddress = { email: "", phone_number: "", street: "", city: "", state: "", postalCode: "", country: "" };
     }
   }
 
@@ -155,6 +159,8 @@ export const createBooking = async (
     eventLocation: (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
     qrCodeValue: `BOOK-${new Date().getFullYear()}-MULTI-${generateId()}`,
     payment_status: "pending",
+    billing_email: billingAddress.email,
+    billing_phone_number: billingAddress.phone_number,
     billing_street: billingAddress.street,
     billing_city: billingAddress.city,
     billing_state: billingAddress.state,
@@ -268,6 +274,8 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         
         const billingInfo = apiBooking.user_billing_info || {};
         const billingAddress: BillingAddress = {
+            email: billingInfo.billing_email || "",
+            phone_number: billingInfo.billing_phone_number || "",
             street: billingInfo.billing_street || "",
             city: billingInfo.billing_city || "",
             state: billingInfo.billing_state || "",
