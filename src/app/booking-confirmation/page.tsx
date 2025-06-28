@@ -8,7 +8,7 @@ import type { Metadata } from 'next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import PayNowButton from '@/components/PayNowButton';
-import DownloadTicketButton from '@/components/events/DownloadTicketButton';
+import DownloadTicketActions from '@/components/events/DownloadTicketButton';
 import QRCode from '@/components/QRCode';
 
 interface BookingConfirmationPageProps {
@@ -198,7 +198,7 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-            <DownloadTicketButton booking={booking} />
+            <DownloadTicketActions booking={booking} />
           </div>
 
           <Separator className="my-6" />
