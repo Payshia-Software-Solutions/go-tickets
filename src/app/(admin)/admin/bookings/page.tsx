@@ -118,7 +118,7 @@ export default function AdminBookingsPage() {
   const filteredBookings = useMemo(() => {
     return bookings.filter(booking => {
       if (statusFilter === 'all') return true;
-      return (booking.payment_status || 'pending') === statusFilter;
+      return (booking.payment_status || 'pending').toLowerCase() === statusFilter;
     });
   }, [bookings, statusFilter]);
 
@@ -173,8 +173,8 @@ export default function AdminBookingsPage() {
       <Tabs value={statusFilter} onValueChange={handleFilterChange}>
         <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-[auto,auto,auto]">
           <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
-          <TabsTrigger value="paid">Paid ({bookings.filter(b => (b.payment_status || 'pending') === 'paid').length})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({bookings.filter(b => (b.payment_status || 'pending') === 'pending').length})</TabsTrigger>
+          <TabsTrigger value="paid">Paid ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'pending').length})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -212,7 +212,7 @@ export default function AdminBookingsPage() {
                     const totalTickets = (booking.bookedTickets && Array.isArray(booking.bookedTickets))
                       ? booking.bookedTickets.reduce((sum, ticket) => sum + (ticket.quantity || 0), 0)
                       : 0;
-                    const paymentStatus = booking.payment_status || 'pending';
+                    const paymentStatus = (booking.payment_status || 'pending').toLowerCase();
                     return (
                       <TableRow key={booking.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
