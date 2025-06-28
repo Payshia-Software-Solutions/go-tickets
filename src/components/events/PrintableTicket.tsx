@@ -27,22 +27,22 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
 
             {/* Main Content */}
             <div className="p-4 flex-grow">
-                <h3 className="text-2xl font-bold text-primary mb-1">{booking.eventName}</h3>
+                <h3 className="text-2xl font-bold text-primary mb-1 break-words">{booking.eventName}</h3>
                 <p className="text-sm text-muted-foreground mb-4">Official Event Ticket</p>
 
                 <div className="space-y-3 text-sm mb-4">
                      <div className="flex items-start">
                         <Calendar className="h-4 w-4 mr-2 mt-0.5 text-accent shrink-0" />
-                        <div>
+                        <div className="flex-grow min-w-0">
                             <p className="font-semibold">Date & Time</p>
-                            <p className="text-muted-foreground">{formattedDate} at {formattedTime}</p>
+                            <p className="text-muted-foreground break-words">{formattedDate} at {formattedTime}</p>
                         </div>
                     </div>
                     <div className="flex items-start">
                         <MapPin className="h-4 w-4 mr-2 mt-0.5 text-accent shrink-0" />
-                        <div>
+                        <div className="flex-grow min-w-0">
                             <p className="font-semibold">Venue</p>
-                            <p className="text-muted-foreground">{booking.eventLocation}</p>
+                            <p className="text-muted-foreground break-words">{booking.eventLocation}</p>
                         </div>
                     </div>
                 </div>
@@ -51,18 +51,18 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
 
                 {/* Attendee and Ticket Info */}
                 <div className="space-y-3 text-sm">
-                    <div className="flex items-center">
-                        <User className="h-4 w-4 mr-2 text-accent" />
-                        <div>
+                    <div className="flex items-start">
+                        <User className="h-4 w-4 mr-2 text-accent shrink-0" />
+                        <div className="flex-grow min-w-0">
                             <p className="font-semibold">Attendee</p>
-                            <p className="text-muted-foreground">{booking.userName || 'Guest'}</p>
+                            <p className="text-muted-foreground break-words">{booking.userName || 'Guest'}</p>
                         </div>
                     </div>
-                    <div className="flex items-center">
-                        <Hash className="h-4 w-4 mr-2 text-accent" />
-                        <div>
+                    <div className="flex items-start">
+                        <Hash className="h-4 w-4 mr-2 text-accent shrink-0" />
+                        <div className="flex-grow min-w-0">
                             <p className="font-semibold">Booking ID</p>
-                            <p className="text-muted-foreground font-mono text-xs">{booking.id}</p>
+                            <p className="text-muted-foreground font-mono text-xs break-words">{booking.id}</p>
                         </div>
                     </div>
                 </div>
@@ -73,11 +73,11 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
                  <div className="shrink-0">
                     <QRCode data={booking.qrCodeValue} size={100} />
                 </div>
-                <div className="flex-grow overflow-hidden">
+                <div className="flex-grow min-w-0 overflow-hidden">
                     <p className="font-bold text-sm mb-1">{totalTickets} Ticket{totalTickets > 1 ? 's' : ''}</p>
                     <ul className="text-xs space-y-0.5 text-muted-foreground list-disc list-inside">
                         {booking.bookedTickets.map(ticket => (
-                            <li key={ticket.id}>
+                            <li key={ticket.id} className="break-words">
                                 {ticket.quantity} x {ticket.ticketTypeName}
                             </li>
                         ))}
