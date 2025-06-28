@@ -1,32 +1,9 @@
 
-
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
 import { format, parseISO } from 'date-fns';
 import { getEventBySlug, fetchEventByIdFromApi } from './event.service';
-
-interface RawApiBookedTicket {
-  id: string | number;
-  booking_id?: string | number;
-  bookingId?: string | number;
-  ticket_type_id?: string | number;
-  ticketTypeId?: string | number;
-  ticket_type_name?: string;
-  ticketTypeName?: string;
-  show_time_id?: string | number;
-  showTimeId?: string | number;
-  quantity: string | number;
-  price_per_ticket?: string | number;
-  pricePerTicket?: string | number;
-  event_nsid?: string;
-  event_slug?: string;
-  eventId?: string;
-  created_at?: string;
-  createdAt?: string;
-  updated_at?: string;
-  updatedAt?: string;
-}
 
 interface RawApiBooking {
   id: string | number;
@@ -50,12 +27,35 @@ interface RawApiBooking {
   booked_tickets?: RawApiBookedTicket[];
   bookedTickets?: RawApiBookedTicket[];
   event_slug?: string;
+  payment_status?: string;
   created_at?: string;
   createdAt?: string;
   updated_at?: string;
   updatedAt?: string;
   showtime?: string;
   tickettype?: string;
+}
+
+interface RawApiBookedTicket {
+  id: string | number;
+  booking_id?: string | number;
+  bookingId?: string | number;
+  ticket_type_id?: string | number;
+  ticketTypeId?: string | number;
+  ticket_type_name?: string;
+  ticketTypeName?: string;
+  show_time_id?: string | number;
+  showTimeId?: string | number;
+  quantity: string | number;
+  price_per_ticket?: string | number;
+  pricePerTicket?: string | number;
+  event_nsid?: string;
+  event_slug?: string;
+  eventId?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
 }
 
 export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Booking => {
@@ -111,6 +111,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`,
     totalPrice: parsedPrice,
     billingAddress: parsedBillingAddress,
+    payment_status: apiBooking.payment_status || 'pending',
     bookedTickets: rawBookedTicketsArray.map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
       bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id),
@@ -201,6 +202,40 @@ export const createBooking = async (
   }
 };
 
+export const reInitiatePayment = async (bookingId: string): Promise<string> => {
+  if (!BOOKINGS_API_URL) {
+    throw new Error("BOOKINGS_API_URL is not configured.");
+  }
+  const url = `${BOOKINGS_API_URL}/${bookingId}/paynow`;
+  console.log(`[reInitiatePayment] Attempting to re-initiate payment for booking ${bookingId} at: ${url}`);
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // No body is sent, as the backend should look up the booking by its ID from the URL.
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({ message: 'Failed to re-initiate payment and could not parse error response.' }));
+      throw new Error(errorBody.message || `API Error re-initiating payment: ${response.status}`);
+    }
+
+    const html = await response.text();
+    if (!html.toLowerCase().includes('<form')) {
+      console.warn("[reInitiatePayment] Response did not contain a form. It might be an error page from the payment gateway.");
+    }
+    return html;
+
+  } catch (error) {
+    console.error(`Error re-initiating payment for booking ${bookingId}:`, error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("An unexpected error occurred while re-initiating payment.");
+  }
+};
+
 export const getBookingById = async (id: string): Promise<Booking | undefined> => {
     if (!id || id === "undefined" || id === "null" || typeof id !== 'string' || id.trim() === '') {
         console.warn(`[getBookingById] Attempt to fetch booking with invalid ID: "${id}". Aborting fetch.`);
@@ -244,7 +279,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
             for (const event of apiBooking.booking_event) {
                 if(Array.isArray(event.booking_showtime)) {
                     for (const ticket of event.booking_showtime) {
-                        const eventDetails = await fetchEventByIdFromApi(event.eventId);
+                        const eventDetails = await fetchEventByIdFromApi(String(event.eventId));
                         bookedTickets.push({
                             id: String(ticket.id),
                             bookingId: String(ticket.booking_id),
@@ -265,7 +300,6 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const firstEventId = apiBooking.booking_event?.[0]?.eventId || 'N/A';
         const eventDetailsForBooking = await fetchEventByIdFromApi(String(firstEventId));
 
-
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
@@ -275,6 +309,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
             eventDate: parseApiDateString(apiBooking.eventDate) || new Date().toISOString(),
             eventLocation: eventDetailsForBooking?.location || apiBooking.eventLocation,
             qrCodeValue: apiBooking.qrCodeValue,
+            payment_status: apiBooking.payment_status || 'pending',
             createdAt: parseApiDateString(apiBooking.createdAt),
             updatedAt: parseApiDateString(apiBooking.updatedAt),
             billingAddress: billingAddress,
@@ -421,7 +456,3 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
-
-
-
-

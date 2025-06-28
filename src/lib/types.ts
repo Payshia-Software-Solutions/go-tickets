@@ -1,5 +1,4 @@
 
-
 import { z } from 'zod';
 
 // --- User Related ---
@@ -267,6 +266,7 @@ export interface Booking {
   bookedTickets: BookedTicket[]; // May be empty if summary view
   showtime?: string; // From API, e.g., "14:00:00"
   tickettype?: string; // From API, e.g., "Early Bird, Regular"
+  payment_status?: string; // e.g. 'paid', 'pending', 'failed'
   scannedAt?: string | null; // ISO string when the ticket was scanned
   createdAt?: string;
   updatedAt?: string;
