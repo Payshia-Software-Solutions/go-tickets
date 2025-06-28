@@ -206,7 +206,7 @@ export const reInitiatePayment = async (bookingId: string): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const url = `${BOOKINGS_API_URL}/${bookingId}/paynow`;
+  const url = `${BOOKINGS_API_URL}/initiatePayment/${bookingId}/`;
   console.log(`[reInitiatePayment] Attempting to re-initiate payment for booking ${bookingId} at: ${url}`);
   
   try {
