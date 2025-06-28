@@ -183,18 +183,8 @@ export default function HomePage() {
   return (
     <div className="">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-r from-primary to-accent text-primary-foreground py-20 md:py-32">
-        <div className="absolute inset-0">
-            <Image
-                src="https://images.unsplash.com/photo-1687317587523-d3e2eb5289e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxOXx8dGlja2V0JTIwYm9va2luZ3xlbnwwfHx8fDE3NDkyODU0MDN8MA&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Hero Background"
-                fill={true}
-                style={{objectFit: 'cover'}}
-                className="opacity-20"
-                data-ai-hint="ticket booking"
-            />
-        </div>
-        <div className="container mx-auto text-center relative z-10">
+      <section className="bg-primary text-primary-foreground py-20 md:py-32">
+        <div className="container mx-auto text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-headline mb-6">
             Discover Your Next Event
           </h1>
