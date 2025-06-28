@@ -27,7 +27,7 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
 
             {/* Main Content */}
             <div className="p-4 flex-grow">
-                <h3 className="text-2xl font-bold text-primary truncate mb-1">{booking.eventName}</h3>
+                <h3 className="text-2xl font-bold text-primary mb-1">{booking.eventName}</h3>
                 <p className="text-sm text-muted-foreground mb-4">Official Event Ticket</p>
 
                 <div className="space-y-3 text-sm mb-4">
@@ -69,7 +69,7 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
             </div>
             
             {/* QR Code and Ticket List Section */}
-            <div className="bg-muted/30 p-4 border-t border-dashed flex items-center gap-4">
+            <div className="bg-muted/30 p-4 border-t border-dashed flex items-start gap-4">
                  <div className="shrink-0">
                     <QRCode data={booking.qrCodeValue} size={100} />
                 </div>
@@ -77,7 +77,7 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking, for
                     <p className="font-bold text-sm mb-1">{totalTickets} Ticket{totalTickets > 1 ? 's' : ''}</p>
                     <ul className="text-xs space-y-0.5 text-muted-foreground list-disc list-inside">
                         {booking.bookedTickets.map(ticket => (
-                            <li key={ticket.id} className="truncate">
+                            <li key={ticket.id}>
                                 {ticket.quantity} x {ticket.ticketTypeName}
                             </li>
                         ))}
