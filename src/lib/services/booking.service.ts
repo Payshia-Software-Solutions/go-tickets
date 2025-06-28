@@ -4,6 +4,7 @@ import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
 import { format, parseISO } from 'date-fns';
 import { getEventBySlug, fetchEventByIdFromApi } from './event.service';
+import { getUserById } from './user.service';
 
 interface RawApiBooking {
   id: string | number;
@@ -206,7 +207,7 @@ export const reInitiatePayment = async (bookingId: string): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const url = `${BOOKINGS_API_URL}/initiatePayment/${bookingId}/`;
+  const url = `https://gotickets-server.payshia.com/bookings/initiatePayment/${bookingId}/`;
   console.log(`[reInitiatePayment] Attempting to re-initiate payment for booking ${bookingId} at: ${url}`);
   
   try {
@@ -299,10 +300,12 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         
         const firstEventId = apiBooking.booking_event?.[0]?.eventId || 'N/A';
         const eventDetailsForBooking = await fetchEventByIdFromApi(String(firstEventId));
+        const userDetails = await getUserById(String(apiBooking.userId));
 
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
+            userName: userDetails?.name,
             totalPrice: parseFloat(apiBooking.totalPrice) || 0,
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
             eventName: eventDetailsForBooking?.name || apiBooking.eventName,

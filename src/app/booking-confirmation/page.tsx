@@ -1,14 +1,15 @@
 
 import { getBookingById } from '@/lib/mockData';
-import QRCode from '@/components/QRCode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle, CreditCard, Clock } from 'lucide-react';
+import { CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle, CreditCard, Clock, User } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import PayNowButton from '@/components/PayNowButton';
+import DownloadTicketButton from '@/components/events/DownloadTicketButton';
+import QRCode from '@/components/QRCode';
 
 interface BookingConfirmationPageProps {
   searchParams: { order_id?: string };
@@ -172,12 +173,13 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
             <div className="text-sm text-muted-foreground space-y-1">
               <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4" /> {formattedEventDate} at {formattedEventTime}</p>
               <p className="flex items-center"><MapPin className="mr-2 h-4 w-4" /> {booking.eventLocation}</p>
+              <p className="flex items-center"><User className="mr-2 h-4 w-4" /> Attendee: {booking.userName || 'Guest'}</p>
             </div>
           </div>
 
           <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
             <h3 className="text-lg font-semibold text-foreground mb-1">Your Tickets</h3>
-             <p className="text-sm font-medium text-muted-foreground -mt-1 mb-3">{booking.eventName}</p>
+            <p className="text-sm font-medium text-muted-foreground -mt-1 mb-3">{booking.eventName}</p>
             {booking.bookedTickets.map((ticket, index) => (
               <div key={index} className="flex justify-between items-center text-sm border-b last:border-b-0 py-2">
                 <span>{ticket.quantity} x {ticket.ticketTypeName}</span>
@@ -193,6 +195,10 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
           <div className="text-center space-y-4">
             <p className="font-semibold">Scan this QR code for entry:</p>
             <QRCode data={booking.qrCodeValue} size={200} className="mx-auto" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
+            <DownloadTicketButton booking={booking} />
           </div>
 
           <Separator className="my-6" />

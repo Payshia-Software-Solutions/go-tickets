@@ -167,6 +167,24 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
   }
 };
 
+export const getUserById = async (id: string): Promise<User | null> => {
+  if (!USERS_API_URL) {
+    console.error("USERS_API_URL is not configured.");
+    return null;
+  }
+  try {
+    const response = await fetch(`${USERS_API_URL}/${id}`);
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`Failed to fetch user ${id}: ${response.status}`);
+    }
+    const apiUser: RawApiUser = await response.json();
+    return mapApiUserToAppUser(apiUser);
+  } catch (error) {
+    console.error(`Error fetching user by ID ${id}:`, error);
+    return null;
+  }
+};
 
 export const createUser = async (data: SignupFormData): Promise<User> => {
   if (API_BASE_URL && USERS_API_URL) {
