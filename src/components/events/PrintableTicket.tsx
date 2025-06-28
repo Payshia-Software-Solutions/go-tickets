@@ -1,21 +1,32 @@
 
+"use client";
+
 import React from 'react';
 import type { Booking } from '@/lib/types';
 import QRCode from '@/components/QRCode';
-import { format } from 'date-fns';
 import { Ticket, Calendar, Clock, MapPin, User, Hash } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface PrintableTicketProps {
   booking: Booking;
-  // This ref is passed from the parent to be attached to the root div
   ref: React.ForwardedRef<HTMLDivElement>;
 }
 
 const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking }>(({ booking }, ref) => {
     const eventDate = new Date(booking.eventDate);
-    const formattedDate = format(eventDate, 'eee, MMM dd, yyyy');
-    const formattedTime = format(eventDate, 'p');
+
+    // Aligning date/time formatting with the booking confirmation page
+    const formattedDate = eventDate.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const formattedTime = eventDate.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
 
     const totalTickets = booking.bookedTickets.reduce((sum, ticket) => sum + ticket.quantity, 0);
 
@@ -39,22 +50,15 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking }>((
                 <h3 className="text-2xl font-bold text-primary truncate mb-1">{booking.eventName}</h3>
                 <p className="text-sm text-muted-foreground mb-4">Official Event Ticket</p>
 
-                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                    <div className="flex items-start">
+                <div className="space-y-3 text-sm mb-4">
+                     <div className="flex items-start">
                         <Calendar className="h-4 w-4 mr-2 mt-0.5 text-accent shrink-0" />
                         <div>
-                            <p className="font-semibold">Date</p>
-                            <p className="text-muted-foreground">{formattedDate}</p>
+                            <p className="font-semibold">Date & Time</p>
+                            <p className="text-muted-foreground">{formattedDate} at {formattedTime}</p>
                         </div>
                     </div>
                     <div className="flex items-start">
-                        <Clock className="h-4 w-4 mr-2 mt-0.5 text-accent shrink-0" />
-                        <div>
-                            <p className="font-semibold">Time</p>
-                            <p className="text-muted-foreground">{formattedTime}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-start col-span-2">
                         <MapPin className="h-4 w-4 mr-2 mt-0.5 text-accent shrink-0" />
                         <div>
                             <p className="font-semibold">Venue</p>
@@ -62,7 +66,7 @@ const PrintableTicket = React.forwardRef<HTMLDivElement, { booking: Booking }>((
                         </div>
                     </div>
                 </div>
-
+                
                 <Separator className="my-4"/>
 
                 {/* Attendee and Ticket Info */}
