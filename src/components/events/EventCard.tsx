@@ -27,8 +27,8 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
     ? Math.min(...event.ticketTypes.map(t => t.price))
     : null;
 
-  // Use venue.name if available, otherwise fallback to location
-  const displayLocation = event.venue?.name || event.location;
+  // Use venueName if available, otherwise fallback to location
+  const displayLocation = event.venueName || event.location;
 
   return (
     <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-[25px] border-none">
