@@ -6,6 +6,7 @@ import { parseApiDateString } from './api.service';
 import { getOrganizerById } from './organizer.service';
 import { createTicketType, deleteTicketType, fetchTicketTypesForEvent, getTicketAvailabilityCount, updateTicketType } from './ticket.service';
 import { createShowTime, deleteShowTime, getShowTimesForEvent, updateShowTime } from './showtime.service';
+import { format } from 'date-fns';
 
 interface ApiEventFlat {
   id: string;
@@ -308,7 +309,7 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   const formData = new FormData();
   formData.append('name', data.name);
   formData.append('slug', data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''));
-  formData.append('date', data.date.toISOString());
+  formData.append('date', format(data.date, "yyyy-MM-dd HH:mm:ss"));
   formData.append('location', data.location);
   formData.append('description', data.description);
   formData.append('category', data.category);
@@ -378,7 +379,7 @@ export const updateEvent = async (
   const coreFormData = new FormData();
   coreFormData.append('name', data.name);
   coreFormData.append('slug', data.slug);
-  coreFormData.append('date', data.date.toISOString());
+  coreFormData.append('date', format(data.date, "yyyy-MM-dd HH:mm:ss"));
   coreFormData.append('location', data.location);
   coreFormData.append('description', data.description);
   coreFormData.append('category', data.category);
