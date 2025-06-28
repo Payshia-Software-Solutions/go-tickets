@@ -237,7 +237,7 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
                                 <p className="font-medium text-foreground">{availability.ticketType.name}</p>
                                 <p className="text-xs text-muted-foreground">LKR {availability.ticketType.price.toFixed(2)}</p>
                               </div>
-                              <Badge variant={availability.availableCount > 0 ? "default" : "destructive"} className="font-mono">
+                              <Badge variant={availability.availableCount > 0 ? "default" : "destructive"} className="font-mono hidden">
                                 {availability.availableCount > 0 ? `${availability.availableCount} available` : "Sold Out"}
                               </Badge>
                             </div>
