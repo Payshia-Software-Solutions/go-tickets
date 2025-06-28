@@ -28,6 +28,7 @@ const SignupFormContent = () => {
     defaultValues: {
       name: "",
       email: "",
+      phone_number: "",
       password: "",
       confirmPassword: "",
       billing_street: "",
@@ -83,6 +84,17 @@ const SignupFormContent = () => {
                 <FormItem>
                   <FormLabel>Email address</FormLabel>
                   <FormControl><Input type="email" placeholder="you@example.com" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="phone_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number (Optional)</FormLabel>
+                  <FormControl><Input type="tel" placeholder="+94771234567" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}

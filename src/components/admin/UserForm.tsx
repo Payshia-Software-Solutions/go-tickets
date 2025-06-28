@@ -31,6 +31,7 @@ export default function UserForm({
       id: initialData?.id || undefined,
       name: initialData?.name || "",
       email: initialData?.email || "",
+      phone_number: initialData?.phoneNumber || "",
       password: "",
       confirmPassword: "",
       isAdmin: initialData?.isAdmin || false,
@@ -42,6 +43,7 @@ export default function UserForm({
       id: initialData?.id || undefined,
       name: initialData?.name || "",
       email: initialData?.email || "",
+      phone_number: initialData?.phoneNumber || "",
       password: "",
       confirmPassword: "",
       isAdmin: initialData?.isAdmin || false,
@@ -72,6 +74,19 @@ export default function UserForm({
               <FormLabel>Email Address</FormLabel>
               <FormControl>
                 <Input type="email" placeholder="you@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone_number"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone Number (Optional)</FormLabel>
+              <FormControl>
+                <Input type="tel" placeholder="+1234567890" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

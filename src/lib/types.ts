@@ -16,6 +16,7 @@ export interface User {
   email: string;
   password?: string; // Added password
   name?: string | null;
+  phoneNumber?: string | null;
   isAdmin?: boolean;
   billingAddress?: BillingAddress | null;
   createdAt?: string;
@@ -26,6 +27,7 @@ export interface User {
 export const SignupFormSchema = z.object({
   name: z.string().min(2, "Full name must be at least 2 characters."),
   email: z.string().email("Invalid email address."),
+  phone_number: z.string().optional().or(z.literal('')),
   password: z.string().min(8, "Password must be at least 8 characters long."),
   confirmPassword: z.string(),
   billing_street: z.string().optional().or(z.literal('')),
@@ -51,6 +53,7 @@ export const AdminUserFormSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, "Full name must be at least 2 characters."),
   email: z.string().email("Invalid email address."),
+  phone_number: z.string().optional().or(z.literal('')),
   password: z.string().optional().or(z.literal('')),
   confirmPassword: z.string().optional().or(z.literal('')),
   isAdmin: z.boolean().default(false),

@@ -124,9 +124,10 @@ export default function AdminUsersPage() {
     if (!currentUserForEdit) return;
     setIsSubmitting(true);
     
-    const dataToUpdate: Partial<User> & { password?: string } = {
+    const dataToUpdate: Partial<AdminUserFormData> = {
         name: data.name,
         email: data.email,
+        phone_number: data.phone_number,
         isAdmin: data.isAdmin,
     };
     if (data.password) {
