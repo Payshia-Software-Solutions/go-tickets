@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -201,7 +202,7 @@ export default function HomePage() {
             Find tickets for concerts, sports, theater, festivals, and more. Your unforgettable experience starts here.
           </p>
           <div ref={searchContainerRef} className="max-w-xl mx-auto mt-10 relative px-4 sm:px-0">
-            <form onSubmit={handleHeroSearch} className="flex gap-2">
+            <form onSubmit={handleHeroSearch} className="flex flex-col md:flex-row gap-2">
               <Input
                 type="search"
                 placeholder="Search events, artists, or venues..."
@@ -212,12 +213,12 @@ export default function HomePage() {
                     setShowSuggestions(true);
                   }
                 }}
-                className="flex-grow h-12 text-base bg-background/90 text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-accent"
+                className="flex-grow w-full h-12 text-base bg-background/90 text-foreground placeholder:text-muted-foreground/80 focus-visible:ring-accent"
                 aria-label="Search for events"
                 aria-autocomplete="list"
                 aria-expanded={showSuggestions && suggestedEvents.length > 0}
               />
-              <Button type="submit" size="lg" className="h-12 !text-accent-foreground hover:!bg-accent/90 !bg-accent">
+              <Button type="submit" size="lg" className="w-full md:w-auto h-12 !text-accent-foreground hover:!bg-accent/90 !bg-accent">
                 <Search className="mr-2 h-5 w-5" />
                 Search
               </Button>
@@ -295,7 +296,9 @@ export default function HomePage() {
       </section>
 
       {/* Upcoming Events Section */}
-      {renderEventSection("Upcoming Events", upcomingEvents, isLoadingUpcoming)}
+      <section className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20 mb-10">
+        {renderEventSection("Upcoming Events", upcomingEvents, isLoadingUpcoming)}
+      </section>
 
       <div className="text-center my-10">
         <Button asChild size="lg">
