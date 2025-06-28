@@ -40,7 +40,7 @@ export async function generateMetadata(
     };
   }
 
-  const isPaid = booking.payment_status === 'paid';
+  const isPaid = (booking.payment_status || 'pending').toLowerCase() === 'paid';
 
   return {
     title: isPaid ? `Booking Confirmed: ${booking.eventName}` : `Payment Pending: ${booking.eventName}`,
@@ -89,7 +89,7 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
     );
   }
 
-  const isPaid = booking.payment_status === 'paid';
+  const isPaid = (booking.payment_status || 'pending').toLowerCase() === 'paid';
 
   const eventDate = new Date(booking.eventDate);
   const formattedEventDate = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
