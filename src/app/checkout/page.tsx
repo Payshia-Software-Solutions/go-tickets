@@ -308,7 +308,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Contact Phone Number</FormLabel>
-                          <FormControl><Input type="tel" placeholder="+94 77 123 4567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
+                          <FormControl><Input type="tel" placeholder="0771234567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

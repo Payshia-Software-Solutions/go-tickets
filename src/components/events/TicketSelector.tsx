@@ -159,7 +159,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
                 <p className="text-sm text-muted-foreground">LKR {availability.ticketType.price.toFixed(2)} each</p>
                 {/* Find full description from event.ticketTypes if needed */}
                 {/* <p className="text-xs text-muted-foreground mt-1">{event.ticketTypes?.find(tt => tt.id === availability.ticketType.id)?.description}</p> */}
-                <p className="text-xs text-primary mt-1">{availability.availableCount} available for this showtime</p>
+                <p className="text-xs text-primary mt-1 hidden">{availability.availableCount} available for this showtime</p>
               </div>
               <div className="flex items-center space-x-2">
                 <Button
