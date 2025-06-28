@@ -3,7 +3,7 @@ import { getBookingById } from '@/lib/mockData';
 import QRCode from '@/components/QRCode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Download, CalendarPlus, Ticket, MapPin, CalendarDays, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -140,16 +140,7 @@ export default async function BookingConfirmationPage({ searchParams }: BookingC
             <QRCode data={booking.qrCodeValue} size={200} className="mx-auto" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-            <Button variant="outline" size="lg" disabled>
-              <Download className="mr-2 h-5 w-5" /> Download Ticket (Mock)
-            </Button>
-            <Button variant="outline" size="lg" disabled>
-              <CalendarPlus className="mr-2 h-5 w-5" /> Add to Calendar (Mock)
-            </Button>
-          </div>
-
-          <div className="text-center mt-6">
+          <div className="text-center mt-6 pt-6 border-t">
             <Link href="/account_dashboard" className="text-primary hover:underline">
               View all your bookings
             </Link>
