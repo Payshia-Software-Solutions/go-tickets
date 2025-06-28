@@ -73,7 +73,7 @@ next/font and Tailwind will handle this. */
     --popover-foreground: 330 43% 90%;
 
     --primary: 262 62% 57%; /* Lighter deep purple */
-    --primary-foreground: 262 20% 10%; /* Dark text on primary */
+    --primary-foreground: 0 0% 98%; /* Almost white */
 
     --secondary: 262 30% 25%; /* Darker muted purple */
     --secondary-foreground: 330 43% 80%; /* Lighter purple text */
@@ -100,7 +100,7 @@ next/font and Tailwind will handle this. */
     --sidebar-background: 262 30% 12%;
     --sidebar-foreground: 330 43% 90%;
     --sidebar-primary: 262 62% 57%;
-    --sidebar-primary-foreground: 262 20% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 340 92% 62%;
     --sidebar-accent-foreground: 340 30% 10%;
     --sidebar-border: 262 30% 25%;
