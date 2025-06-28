@@ -297,7 +297,7 @@ export default function HomePage() {
       {/* Upcoming Events Section */}
       {renderEventSection("Upcoming Events", upcomingEvents, isLoadingUpcoming)}
 
-      <div className="text-center mt-10">
+      <div className="text-center my-10">
         <Button asChild size="lg">
           <Link href="/search">Browse All Events</Link>
         </Button>

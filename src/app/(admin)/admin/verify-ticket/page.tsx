@@ -11,6 +11,8 @@ import type { Booking, BookedTicket } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from "@/components/ui/badge";
+import { cn } from '@/lib/utils';
 
 interface VerificationResponse {
   success: boolean;
@@ -180,6 +182,8 @@ const TicketVerificationPage = () => {
   const renderBookingDetails = () => {
     if (!scannedBooking) return null;
     const totalTicketsToCheckIn = Object.values(checkInQuantities).reduce((sum, q) => sum + q, 0);
+    const paymentStatus = (scannedBooking.payment_status || 'pending').toLowerCase();
+    const isPaid = paymentStatus === 'paid';
 
     return (
       <div className="w-full space-y-4">
@@ -190,9 +194,31 @@ const TicketVerificationPage = () => {
             <CardDescription>Booking ID: {scannedBooking.id}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
-            <div className="text-center">
+            {!isPaid && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Payment Not Confirmed</AlertTitle>
+                <AlertDescription>
+                  This booking status is <span className="font-semibold capitalize">{paymentStatus}</span>. Proceed with check-in at your own risk.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="text-center space-y-2">
               <p className="font-bold text-lg">{scannedBooking.eventName}</p>
               <p className="text-sm text-muted-foreground">{new Date(scannedBooking.eventDate).toLocaleString()}</p>
+              <div className="flex justify-center">
+                 <Badge 
+                    variant="secondary"
+                    className={cn('capitalize', {
+                      'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800': paymentStatus === 'paid',
+                      'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800': paymentStatus === 'pending',
+                      'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-800': paymentStatus === 'failed',
+                    })}
+                  >
+                    Payment Status: {paymentStatus}
+                  </Badge>
+              </div>
             </div>
             
             <div className="space-y-3">
