@@ -435,45 +435,61 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
                 <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
                     <FormItem className="flex flex-col">
-                        <FormLabel>Main Event Date</FormLabel>
-                        <Popover>
+                      <FormLabel>Main Event Date & Time</FormLabel>
+                      <Popover>
                         <PopoverTrigger asChild>
-                            <FormControl>
+                          <FormControl>
                             <Button
-                                variant={"outline"}
-                                className={cn(
+                              variant={"outline"}
+                              className={cn(
                                 "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
-                                )}
+                              )}
                             >
-                                {field.value ? (
-                                format(field.value, "PPP") 
-                                ) : (
-                                <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              {field.value ? (
+                                format(field.value, "PPP p")
+                              ) : (
+                                <span>Pick a date and time</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
-                            </FormControl>
+                          </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
+                          <Calendar
                             mode="single"
                             selected={field.value}
                             onSelect={field.onChange}
-                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) }
+                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() - 1))}
                             initialFocus
+                          />
+                          <div className="p-2 border-t border-border">
+                            <Input
+                              type="time"
+                              value={field.value ? format(new Date(field.value), "HH:mm") : ""}
+                              onChange={(e) => {
+                                const newTime = e.target.value;
+                                const currentDate = field.value ? new Date(field.value) : new Date();
+                                const [hours, minutes] = newTime.split(':').map(Number);
+                                const newDate = new Date(currentDate);
+                                newDate.setHours(hours, minutes, 0, 0); // Set hours and minutes
+                                field.onChange(newDate);
+                              }}
+                              className="w-full"
                             />
+                          </div>
                         </PopoverContent>
-                        </Popover>
-                        <FormDescription className="text-xs">The primary date for the event listing.</FormDescription>
-                        <FormMessage />
+                      </Popover>
+                      <FormDescription className="text-xs">The primary date and time for the event listing.</FormDescription>
+                      <FormMessage />
                     </FormItem>
-                    )}
+                  )}
                 />
+
 
                 <FormField
                     control={form.control}
