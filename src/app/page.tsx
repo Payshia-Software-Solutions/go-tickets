@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -304,7 +303,7 @@ export default function HomePage() {
         </Button>
       </div>
 
-      {/* Guest Reviews Section */}
+      {/*
       <section className="bg-secondary/30 py-16 mt-12 md:mt-16 lg:mt-20">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12 font-headline flex items-center justify-center">
@@ -346,6 +345,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      */}
 
       {/* Why Choose Us Section */}
       <section className="bg-muted">
