@@ -2,15 +2,18 @@
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Ticket, CalendarDays, MapPin, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Ticket, CalendarDays, MapPin, Loader2, AlertCircle, RefreshCw, Filter } from 'lucide-react';
 import type { Booking } from '@/lib/types';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { getUserBookings } from '@/lib/mockData';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 
 const AccountDashboardPage = () => {
@@ -19,6 +22,7 @@ const AccountDashboardPage = () => {
   const { toast } = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -59,6 +63,19 @@ const AccountDashboardPage = () => {
     }
   }, [user, authLoading, router, fetchUserBookings]);
 
+  const filteredBookings = useMemo(() => {
+    return bookings.filter(booking => {
+      const status = (booking.payment_status || 'pending').toLowerCase();
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'paid') return status === 'paid';
+      if (statusFilter === 'pending') return status !== 'paid'; // Treat anything not 'paid' as pending/other
+      return true;
+    });
+  }, [bookings, statusFilter]);
+
+  const paidCount = useMemo(() => bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length, [bookings]);
+  const pendingCount = useMemo(() => bookings.length - paidCount, [bookings, paidCount]);
+
 
   if (authLoading || (!user && !authLoading)) { // Show loader if auth is loading or if redirecting (user is null post-auth check)
     return (
@@ -98,6 +115,14 @@ const AccountDashboardPage = () => {
           <CardDescription>Here are the events you&apos;ve booked tickets for.</CardDescription>
         </CardHeader>
         <CardContent>
+          <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">
+            <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-[auto,auto,auto]">
+              <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
+              <TabsTrigger value="paid">Paid ({paidCount})</TabsTrigger>
+              <TabsTrigger value="pending">Pending/Other ({pendingCount})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
           {isLoadingBookings && (
             <div className="flex justify-center items-center py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -113,19 +138,38 @@ const AccountDashboardPage = () => {
               </Button>
             </div>
           )}
-          {!isLoadingBookings && bookings.length > 0 && (
+          {!isLoadingBookings && bookings.length > 0 && filteredBookings.length === 0 && (
+             <div className="text-center py-10">
+              <Filter className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-4">No bookings found for the selected filter.</p>
+            </div>
+          )}
+          {!isLoadingBookings && filteredBookings.length > 0 && (
             <div className="space-y-6">
-              {bookings.map((booking) => {
+              {filteredBookings.map((booking) => {
                 const eventDate = new Date(booking.eventDate);
                 const formattedEventDate = eventDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-                // Use booking.showtime if available, otherwise format from eventDate
                 const formattedEventTime = booking.showtime || eventDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                const paymentStatus = (booking.payment_status || 'pending').toLowerCase();
 
                 return (
                   <Card key={booking.id} className="hover:shadow-xl transition-shadow rounded-xl overflow-hidden">
                     <CardHeader>
-                      <CardTitle className="text-xl">{booking.eventName}</CardTitle>
-                       <CardDescription>Booking ID: {booking.id}</CardDescription>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-xl">{booking.eventName}</CardTitle>
+                          <CardDescription>Booking ID: {booking.id}</CardDescription>
+                        </div>
+                        <Badge 
+                          variant="secondary"
+                          className={cn('capitalize', {
+                            'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800': paymentStatus === 'paid',
+                            'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800': paymentStatus !== 'paid',
+                          })}
+                        >
+                          {paymentStatus}
+                        </Badge>
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                       <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-accent" /> {formattedEventDate} at {formattedEventTime}</p>
@@ -135,7 +179,6 @@ const AccountDashboardPage = () => {
                           <span className="font-semibold">Tickets:</span> {booking.tickettype}
                         </div>
                       )}
-                       {/* Fallback if booking.tickettype is not present but bookedTickets array is (e.g., from other flows) */}
                        {(!booking.tickettype && booking.bookedTickets && booking.bookedTickets.length > 0) && (
                           <div>
                             <span className="font-semibold">Tickets:</span>
