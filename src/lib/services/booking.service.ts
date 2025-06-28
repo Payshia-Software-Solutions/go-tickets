@@ -4,7 +4,6 @@ import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
 import { format, parseISO } from 'date-fns';
 import { getEventBySlug, fetchEventByIdFromApi } from './event.service';
-import { getUserById } from './user.service';
 
 interface RawApiBooking {
   id: string | number;
@@ -274,8 +273,8 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         
         const billingInfo = apiBooking.user_billing_info || {};
         const billingAddress: BillingAddress = {
-            email: billingInfo.billing_email || "",
-            phone_number: billingInfo.billing_phone_number || "",
+            email: billingInfo.email || "",
+            phone_number: billingInfo.phone_number || "",
             street: billingInfo.billing_street || "",
             city: billingInfo.billing_city || "",
             state: billingInfo.billing_state || "",
@@ -284,10 +283,17 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         };
 
         const bookedTickets: BookedTicket[] = [];
+        let eventDateForBooking: string | null = null;
+        let mainEventId: string | null = null;
+        
         if (Array.isArray(apiBooking.booking_event)) {
             for (const event of apiBooking.booking_event) {
+                if (!mainEventId) mainEventId = String(event.eventId);
                 if(Array.isArray(event.booking_showtime)) {
                     for (const ticket of event.booking_showtime) {
+                        if (!eventDateForBooking) {
+                             eventDateForBooking = ticket.showtime;
+                        }
                         const eventDetails = await fetchEventByIdFromApi(String(event.eventId));
                         bookedTickets.push({
                             id: String(ticket.id),
@@ -296,7 +302,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
                             ticketTypeName: ticket.ticket_type,
                             showTimeId: String(ticket.showtime_id),
                             quantity: parseInt(ticket.ticket_count, 10) || 0,
-                            pricePerTicket: 0,
+                            pricePerTicket: 0, // This info isn't in the new structure, defaulting to 0
                             eventNsid: eventDetails?.slug || '',
                             createdAt: parseApiDateString(ticket.created_at),
                             updatedAt: parseApiDateString(ticket.updated_at),
@@ -305,27 +311,23 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
                 }
             }
         }
-        
-        const firstEventId = apiBooking.booking_event?.[0]?.eventId || 'N/A';
-        const eventDetailsForBooking = await fetchEventByIdFromApi(String(firstEventId));
-        const userDetails = await getUserById(String(apiBooking.userId));
 
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
-            userName: userDetails?.name,
+            userName: billingInfo.name || 'Guest',
             totalPrice: parseFloat(apiBooking.totalPrice) || 0,
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
-            eventName: eventDetailsForBooking?.name || apiBooking.eventName,
-            eventDate: parseApiDateString(apiBooking.eventDate) || new Date().toISOString(),
-            eventLocation: eventDetailsForBooking?.location || apiBooking.eventLocation,
+            eventName: apiBooking.eventName,
+            eventDate: parseApiDateString(eventDateForBooking || apiBooking.eventDate) || new Date().toISOString(),
+            eventLocation: apiBooking.eventLocation,
             qrCodeValue: apiBooking.qrCodeValue,
             payment_status: apiBooking.payment_status || 'pending',
             createdAt: parseApiDateString(apiBooking.createdAt),
             updatedAt: parseApiDateString(apiBooking.updatedAt),
             billingAddress: billingAddress,
             bookedTickets: bookedTickets,
-            eventId: String(firstEventId),
+            eventId: mainEventId || 'N/A',
         };
 
         return appBooking;
