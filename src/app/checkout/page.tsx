@@ -21,8 +21,11 @@ import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogI
 import Link from 'next/link';
 
 const defaultBillingValues: BillingAddress = {
+  firstName: "",
+  lastName: "",
   email: "",
   phone_number: "",
+  nic: "",
   street: "",
   city: "",
   state: "",
@@ -63,10 +66,16 @@ const CheckoutPage = () => {
   }, [user, hasSavedBillingAddress]);
 
   useEffect(() => {
+    const [firstName = '', ...lastNameParts] = (user?.name || "").split(" ");
+    const lastName = lastNameParts.join(" ");
+
     if (useDefaultAddress && hasSavedBillingAddress && user?.billingAddress) {
       billingForm.reset({
-        email: user.billingAddress.email || user.email || "",
-        phone_number: user.billingAddress.phone_number || user.phoneNumber || "",
+        firstName: firstName,
+        lastName: lastName,
+        email: user.email || "",
+        phone_number: user.phoneNumber || "",
+        nic: user.billingAddress.nic || "",
         street: user.billingAddress.street || "",
         city: user.billingAddress.city || "",
         state: user.billingAddress.state || "",
@@ -75,8 +84,11 @@ const CheckoutPage = () => {
       });
     } else {
       billingForm.reset({
+        firstName: user ? firstName : "",
+        lastName: user ? lastName : "",
         email: user?.email || "",
         phone_number: user?.phoneNumber || "",
+        nic: "",
         street: "",
         city: "",
         state: "",
@@ -104,6 +116,7 @@ const CheckoutPage = () => {
     setIsProcessing(true);
 
     let finalUserId: string;
+    let finalIsGuest = isGuestCheckout;
 
     if (user) {
       finalUserId = user.id;
@@ -124,7 +137,7 @@ const CheckoutPage = () => {
       try {
         const guestPassword = `guest-${Date.now()}${Math.random().toString(36).substring(2, 8)}`;
         const newGuestUser = await apiCreateUser({
-          name: formBillingData.email.split('@')[0],
+          name: `${formBillingData.firstName} ${formBillingData.lastName}`,
           email: guestEmail,
           password: guestPassword,
           confirmPassword: guestPassword,
@@ -156,9 +169,23 @@ const CheckoutPage = () => {
       return;
     }
 
-    const billingDataForBooking = (user && useDefaultAddress && hasSavedBillingAddress && user.billingAddress)
-      ? user.billingAddress
-      : formBillingData;
+    let billingDataForBooking: BillingAddress;
+
+    if (user && useDefaultAddress && hasSavedBillingAddress && user.billingAddress) {
+        const [firstName = '', ...lastNameParts] = (user.name || "").split(" ");
+        const lastName = lastNameParts.join(" ");
+
+        billingDataForBooking = {
+            ...defaultBillingValues,
+            ...user.billingAddress,
+            firstName,
+            lastName,
+            email: user.email || '',
+            phone_number: user.phoneNumber || '',
+        };
+    } else {
+        billingDataForBooking = formBillingData;
+    }
 
     try {
       const paymentHtml = await createBooking({
@@ -166,6 +193,7 @@ const CheckoutPage = () => {
         cart,
         totalPrice,
         billingAddress: billingDataForBooking,
+        isGuest: finalIsGuest
       });
 
       clearCart();
@@ -312,6 +340,31 @@ const CheckoutPage = () => {
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={billingForm.control}
+                            name="firstName"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>First Name</FormLabel>
+                                <FormControl><Input placeholder="John" {...field} readOnly={isFormReadOnly} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={billingForm.control}
+                            name="lastName"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Last Name</FormLabel>
+                                <FormControl><Input placeholder="Doe" {...field} readOnly={isFormReadOnly} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={billingForm.control}
                         name="email"
@@ -335,6 +388,18 @@ const CheckoutPage = () => {
                         )}
                       />
                     </div>
+                    
+                    <FormField
+                        control={billingForm.control}
+                        name="nic"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>NIC (Optional)</FormLabel>
+                            <FormControl><Input placeholder="e.g., 952345678V" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
                     
                     <Separator className="!my-6"/>
 

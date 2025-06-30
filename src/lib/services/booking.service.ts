@@ -23,7 +23,7 @@ interface RawApiBooking {
   qrCodeValue?: string;
   total_price?: string | number;
   totalPrice?: string | number;
-  billing_address?: string | BillingAddress;
+  billing_address?: string | Partial<BillingAddress>;
   booked_tickets?: RawApiBookedTicket[];
   bookedTickets?: RawApiBookedTicket[];
   event_slug?: string;
@@ -59,7 +59,7 @@ interface RawApiBookedTicket {
 }
 
 export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Booking => {
-  let parsedBillingAddress: BillingAddress;
+  let parsedBillingAddress: Partial<BillingAddress>;
   if (typeof apiBooking.billing_address === 'string') {
     try {
       parsedBillingAddress = JSON.parse(apiBooking.billing_address);
@@ -141,36 +141,41 @@ export const createBooking = async (
     cart: CartItem[];
     totalPrice: number;
     billingAddress: BillingAddress;
+    isGuest: boolean;
   }
 ): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const { userId, cart, totalPrice, billingAddress } = bookingData;
+  const { userId, cart, totalPrice, billingAddress, isGuest } = bookingData;
 
-  const uniqueEventIds = [...new Set(cart.map(item => item.eventId))];
+  const booking_event_payload = cart.map(item => ({
+      eventId: parseInt(item.eventId, 10),
+      ticket_count: item.quantity,
+      tickettype_id: parseInt(item.ticketTypeId, 10),
+  }));
 
   const apiPayload = {
     userId: parseInt(userId, 10),
+    first_name: billingAddress.firstName,
+    last_name: billingAddress.lastName,
+    nic: billingAddress.nic,
+    contact_number: billingAddress.phone_number,
+    email: billingAddress.email,
     totalPrice: totalPrice,
     eventName: cart.length > 1 ? `Multi-Event Package (${new Date().toLocaleDateString()})` : cart[0].eventName,
-    eventDate: format(new Date(), "yyyy-MM-dd"),
+    eventDate: format(parseISO(cart[0].showTimeDateTime), "yyyy-MM-dd"),
     eventLocation: (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
-    qrCodeValue: `BOOK-${new Date().getFullYear()}-MULTI-${generateId()}`,
-    payment_status: "pending",
-    billing_email: billingAddress.email,
-    billing_phone_number: billingAddress.phone_number,
+    qrCodeValue: `BOOK-${new Date().getFullYear()}-${isGuest ? 'GUEST' : 'USER'}-${generateId()}`,
     billing_street: billingAddress.street,
     billing_city: billingAddress.city,
     billing_state: billingAddress.state,
     billing_postal_code: billingAddress.postalCode,
     billing_country: billingAddress.country,
-    booking_event: uniqueEventIds.map(id => ({
-      eventId: parseInt(id, 10)
-    })),
+    guest: isGuest ? 1 : 0,
+    booking_event: booking_event_payload,
     booking_showtime: cart.map(item => {
       if (!item.showTimeDateTime || typeof item.showTimeDateTime !== 'string') {
-        console.error("Cart item is missing or has an invalid showTimeDateTime:", item);
         throw new Error(`A ticket in your cart (${item.eventName} - ${item.ticketTypeName}) is invalid. Please remove it and add it to your cart again.`);
       }
       return {
@@ -178,7 +183,7 @@ export const createBooking = async (
         showtime_id: parseInt(item.showTimeId, 10),
         ticket_type: item.ticketTypeName,
         tickettype_id: parseInt(item.ticketTypeId, 10),
-        showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm:ss"),
+        showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm"),
         ticket_count: item.quantity
       };
     })
@@ -219,7 +224,6 @@ export const reInitiatePayment = async (bookingId: string): Promise<string> => {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // No body is sent, as the backend should look up the booking by its ID from the URL.
     });
 
     if (!response.ok) {
@@ -272,7 +276,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const apiBooking = responseData.booking;
         
         const billingInfo = apiBooking.user_billing_info || {};
-        const billingAddress: BillingAddress = {
+        const billingAddress: Partial<BillingAddress> = {
             email: billingInfo.email || "",
             phone_number: billingInfo.phone_number || "",
             street: billingInfo.billing_street || "",

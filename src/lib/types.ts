@@ -3,8 +3,11 @@ import { z } from 'zod';
 
 // --- User Related ---
 export const BillingAddressSchema = z.object({
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
   email: z.string().email("A valid email is required for the booking."),
   phone_number: z.string().min(7, "A valid phone number is required."),
+  nic: z.string().optional().or(z.literal('')),
   street: z.string().min(3, "Street address is required."),
   city: z.string().min(2, "City is required."),
   state: z.string().min(2, "State/Province is required."),
@@ -20,7 +23,7 @@ export interface User {
   name?: string | null;
   phoneNumber?: string | null;
   isAdmin?: boolean;
-  billingAddress?: BillingAddress | null;
+  billingAddress?: Partial<BillingAddress> | null; // Use Partial to accommodate incomplete saved addresses
   createdAt?: string;
   updatedAt?: string;
 }
@@ -268,7 +271,7 @@ export interface Booking {
   eventLocation: string;
   qrCodeValue: string;
   totalPrice: number;
-  billingAddress: BillingAddress;
+  billingAddress: Partial<BillingAddress>;
   bookedTickets: BookedTicket[]; // May be empty if summary view
   showtime?: string; // From API, e.g., "14:00:00"
   tickettype?: string; // From API, e.g., "Early Bird, Regular"
