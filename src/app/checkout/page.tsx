@@ -11,14 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking } from '@/lib/mockData';
+import { createBooking, createUser as apiCreateUser, getUserByEmail } from '@/lib/mockData';
 import type { BillingAddress, CartItem } from '@/lib/types';
 import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 
 const defaultBillingValues: BillingAddress = {
@@ -39,18 +38,18 @@ const CheckoutPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
-  const [saveNewAddress, setSaveNewAddress] = useState(true); // Default to true when entering new
+  const [saveNewAddress, setSaveNewAddress] = useState(true);
+
+  // New state for guest checkout flow
+  const [isGuestCheckout, setIsGuestCheckout] = useState(false);
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
     defaultValues: defaultBillingValues,
   });
 
-  // Helper to determine if the user has a non-empty saved billing address
   const hasSavedBillingAddress = user && user.billingAddress && Object.values(user.billingAddress).some(v => typeof v === 'string' && v.trim() !== '');
 
-  // Effect 1: Initialize `useDefaultAddress` state when user data loads or changes.
-  // This effect primarily decides if the "Use default address" checkbox should be initially checked.
   useEffect(() => {
     if (user) {
       if (hasSavedBillingAddress) {
@@ -59,16 +58,13 @@ const CheckoutPage = () => {
         setUseDefaultAddress(false);
       }
     } else {
-      setUseDefaultAddress(false); // No user, so can't use default
+      setUseDefaultAddress(false);
     }
-  }, [user, hasSavedBillingAddress]); // Re-run if user or their address status changes
+  }, [user, hasSavedBillingAddress]);
 
-  // Effect 2: Update the form content when `useDefaultAddress` state changes, or when user data (and thus potentially the default address) changes.
   useEffect(() => {
     if (useDefaultAddress && hasSavedBillingAddress && user?.billingAddress) {
-      // User wants to use default, and a valid default address exists
       billingForm.reset({
-        // Use saved billing address values if they exist, otherwise fallback to user's main profile info.
         email: user.billingAddress.email || user.email || "",
         phone_number: user.billingAddress.phone_number || user.phoneNumber || "",
         street: user.billingAddress.street || "",
@@ -78,8 +74,6 @@ const CheckoutPage = () => {
         country: user.billingAddress.country || "",
       });
     } else {
-      // User does not want to use default, or no valid default address exists.
-      // Pre-populate only email/phone from user profile, leave rest blank for manual input.
       billingForm.reset({
         email: user?.email || "",
         phone_number: user?.phoneNumber || "",
@@ -89,8 +83,8 @@ const CheckoutPage = () => {
         postalCode: "",
         country: "",
       });
-      if (!useDefaultAddress) { // Only manage saveNewAddress if explicitly entering new
-          setSaveNewAddress(true); // Default to wanting to save a newly entered address
+      if (!useDefaultAddress) {
+          setSaveNewAddress(true);
       }
     }
   }, [useDefaultAddress, user, billingForm, hasSavedBillingAddress]);
@@ -101,18 +95,7 @@ const CheckoutPage = () => {
     }
   }, []);
 
-
   const handleConfirmBooking = async (formBillingData: BillingAddress) => {
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please log in to complete your booking.",
-        variant: "destructive",
-        action: <Button onClick={() => router.push('/login?redirect=/checkout')}>Login</Button>
-      });
-      return;
-    }
-
     if (cart.length === 0) {
       toast({ title: "Empty Cart", description: "Your cart is empty.", variant: "destructive" });
       return;
@@ -120,40 +103,71 @@ const CheckoutPage = () => {
 
     setIsProcessing(true);
 
-    const billingDataForBooking = (useDefaultAddress && hasSavedBillingAddress && user?.billingAddress)
+    let finalUserId: string;
+
+    if (user) {
+      finalUserId = user.id;
+    } else if (isGuestCheckout) {
+      const guestEmail = formBillingData.email.toLowerCase();
+      const existingUser = await getUserByEmail(guestEmail);
+      if (existingUser) {
+        toast({
+          title: "Account Exists",
+          description: "An account with this email already exists. Please log in to continue.",
+          variant: "destructive",
+          action: <Button onClick={() => { setIsGuestCheckout(false); router.push('/login?redirect=/checkout'); }}>Login</Button>
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      try {
+        const guestPassword = `guest-${Date.now()}${Math.random().toString(36).substring(2, 8)}`;
+        const newGuestUser = await apiCreateUser({
+          name: formBillingData.email.split('@')[0],
+          email: guestEmail,
+          password: guestPassword,
+          confirmPassword: guestPassword,
+          phone_number: formBillingData.phone_number,
+          billing_street: formBillingData.street,
+          billing_city: formBillingData.city,
+          billing_state: formBillingData.state,
+          billing_postal_code: formBillingData.postalCode,
+          billing_country: formBillingData.country,
+        });
+        finalUserId = newGuestUser.id;
+      } catch (error) {
+        console.error("Guest user creation failed:", error);
+        toast({
+          title: "Guest Checkout Failed",
+          description: error instanceof Error ? error.message : "Could not create a temporary guest account.",
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+    } else {
+      toast({
+        title: "Action Required",
+        description: "Please log in, sign up, or continue as a guest.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    const billingDataForBooking = (user && useDefaultAddress && hasSavedBillingAddress && user.billingAddress)
       ? user.billingAddress
       : formBillingData;
 
-    const finalTotal = totalPrice;
-
     try {
-      // If a new address was entered (not using default) AND the user wants to save it
-      // if (!useDefaultAddress && saveNewAddress && user && updateUser) {
-      //   const isNewAddressMeaningful = Object.values(formBillingData).some(v => typeof v === 'string' && v.trim() !== '');
-      //   if (isNewAddressMeaningful) {
-      //       try {
-      //       await updateUser(user.id, { billingAddress: formBillingData });
-      //       toast({ title: "Billing Address Saved", description: "Your new billing address has been saved to your profile." });
-      //       } catch (updateError: unknown) {
-      //       console.error("Failed to update user billing address:", updateError);
-      //       toast({
-      //           title: "Profile Update Failed",
-      //           description: (updateError instanceof Error ? updateError.message : "Could not save the new billing address to your profile, but booking will proceed."),
-      //           variant: "default" // Changed to default as it's not a critical booking error
-      //       });
-      //       }
-      //   }
-      // }
-      
       const paymentHtml = await createBooking({
-        userId: user.id,
-        cart: cart,
-        totalPrice: finalTotal,
+        userId: finalUserId,
+        cart,
+        totalPrice,
         billingAddress: billingDataForBooking,
       });
 
-      // Cart is cleared as the user is handed off to the payment gateway.
-      // If payment fails, they can return to an empty cart, which is a common pattern.
       clearCart();
 
       const formContainer = document.createElement('div');
@@ -163,17 +177,9 @@ const CheckoutPage = () => {
       if (paymentForm) {
         document.body.appendChild(paymentForm);
         paymentForm.submit();
-        // Do not set isProcessing to false; the page will redirect.
       } else {
-        console.error("Payment initiation failed: No form found in the API response.");
-        toast({
-          title: "Payment Initiation Failed",
-          description: "Could not find the payment form in the server's response. Please try again.",
-          variant: "destructive"
-        });
-        setIsProcessing(false); // Allow user to try again
+        throw new Error("Payment initiation failed: No form found in the API response.");
       }
-
     } catch (error: unknown) {
       console.error("Booking/Payment error:", error);
       toast({
@@ -186,10 +192,8 @@ const CheckoutPage = () => {
   };
   
   const isFormReadOnly = useDefaultAddress && hasSavedBillingAddress;
-
-  // Determine if the submit button should be disabled
-  const isManualBillingAddressInvalid = !useDefaultAddress && !billingForm.formState.isValid && billingForm.formState.isSubmitted;
-  const submitButtonDisabled = !user || isProcessing || cart.length === 0 || isManualBillingAddressInvalid;
+  const isBillingFormVisible = user || isGuestCheckout;
+  const submitButtonDisabled = isProcessing || cart.length === 0 || !isBillingFormVisible;
 
   if (authLoading) {
     return (
@@ -258,153 +262,170 @@ const CheckoutPage = () => {
             </CardContent>
           </Card>
 
-          {!user && (
-            <Alert variant="default" className="bg-primary/10 border-primary/50">
-              <AlertCircle className="h-4 w-4 !text-primary" />
-              <AlertTitle className="text-primary">Account Required</AlertTitle>
-              <AlertDescription>
-                Please <Link href="/login?redirect=/checkout" className="font-semibold underline hover:text-accent">login</Link> or <Link href="/signup?redirect=/checkout" className="font-semibold underline hover:text-accent">create an account</Link> to complete your purchase.
-              </AlertDescription>
-            </Alert>
+          {!user && !isGuestCheckout && (
+            <Card>
+              <CardHeader>
+                <CardTitle>How would you like to proceed?</CardTitle>
+                <CardDescription>Log in for a faster experience or continue as a guest.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button variant="outline" className="h-full flex flex-col p-4 gap-2" onClick={() => router.push('/login?redirect=/checkout')}>
+                  <LogIn className="h-6 w-6"/>
+                  <span className="text-base">Login</span>
+                  <span className="text-xs font-normal text-muted-foreground">For existing customers</span>
+                </Button>
+                <Button variant="outline" className="h-full flex flex-col p-4 gap-2" onClick={() => router.push('/signup?redirect=/checkout')}>
+                  <UserPlus className="h-6 w-6"/>
+                  <span className="text-base">Sign Up</span>
+                  <span className="text-xs font-normal text-muted-foreground">Create a new account</span>
+                </Button>
+                 <Button variant="secondary" className="h-full flex flex-col p-4 gap-2" onClick={() => setIsGuestCheckout(true)}>
+                  <UserCheck className="h-6 w-6"/>
+                  <span className="text-base">Pay as Guest</span>
+                  <span className="text-xs font-normal text-muted-foreground">No account needed</span>
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
-          <Form {...billingForm}>
-            <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Billing & Contact Information</CardTitle>
-                  <CardDescription>Enter your billing and contact details.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {user && hasSavedBillingAddress && (
-                    <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md bg-muted/30">
-                      <Checkbox
-                        id="useDefaultAddress"
-                        checked={useDefaultAddress}
-                        onCheckedChange={(checked) => setUseDefaultAddress(Boolean(checked))}
-                        disabled={!hasSavedBillingAddress} // Should always be enabled if visible
-                      />
-                      <FormLabel htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                        Use my saved billing address
-                      </FormLabel>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={billingForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Email</FormLabel>
-                          <FormControl><Input type="email" placeholder="you@example.com" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.email} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                     <FormField
-                      control={billingForm.control}
-                      name="phone_number"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Phone Number</FormLabel>
-                          <FormControl><Input type="tel" placeholder="0771234567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <Separator className="!my-6"/>
-
-                  <FormField
-                    control={billingForm.control}
-                    name="street"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Street Address</FormLabel>
-                        <FormControl><Input placeholder="123 Main St" {...field} readOnly={isFormReadOnly} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={billingForm.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>City</FormLabel>
-                          <FormControl><Input placeholder="Anytown" {...field} readOnly={isFormReadOnly} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={billingForm.control}
-                      name="state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>State / Province</FormLabel>
-                          <FormControl><Input placeholder="CA" {...field} readOnly={isFormReadOnly} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={billingForm.control}
-                      name="postalCode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Postal / Zip Code</FormLabel>
-                          <FormControl><Input placeholder="90210" {...field} readOnly={isFormReadOnly} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={billingForm.control}
-                      name="country"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Country</FormLabel>
-                          <FormControl><Input placeholder="United States" {...field} readOnly={isFormReadOnly} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {user && !useDefaultAddress && ( // Only show if manually entering address
-                     <div className="flex items-center space-x-2 pt-4">
+          {isBillingFormVisible && (
+            <Form {...billingForm}>
+              <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Billing & Contact Information</CardTitle>
+                    <CardDescription>{isGuestCheckout ? "Please provide your details for this booking." : "Confirm your billing and contact details."}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {user && hasSavedBillingAddress && (
+                      <div className="flex items-center space-x-2 mb-4 p-3 border rounded-md bg-muted/30">
                         <Checkbox
-                            id="saveNewAddress"
-                            checked={saveNewAddress}
-                            onCheckedChange={(checked) => setSaveNewAddress(Boolean(checked))}
+                          id="useDefaultAddress"
+                          checked={useDefaultAddress}
+                          onCheckedChange={(checked) => setUseDefaultAddress(Boolean(checked))}
+                          disabled={!hasSavedBillingAddress}
                         />
-                        <FormLabel htmlFor="saveNewAddress" className="text-sm font-medium leading-none">
-                            Save this address to my profile for future payments
+                        <FormLabel htmlFor="useDefaultAddress" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Use my saved billing address
                         </FormLabel>
-                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                      </div>
+                    )}
 
-              <Card>
-                <CardHeader>
-                    <CardTitle>Payment Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                        You will be redirected to our secure payment partner to complete your purchase.
-                    </p>
-                </CardContent>
-              </Card>
-              {/* Submit button moved to sticky summary card */}
-            </form>
-          </Form>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={billingForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Contact Email</FormLabel>
+                            <FormControl><Input type="email" placeholder="you@example.com" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.email} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                       <FormField
+                        control={billingForm.control}
+                        name="phone_number"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Contact Phone Number</FormLabel>
+                            <FormControl><Input type="tel" placeholder="0771234567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <Separator className="!my-6"/>
+
+                    <FormField
+                      control={billingForm.control}
+                      name="street"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Street Address</FormLabel>
+                          <FormControl><Input placeholder="123 Main St" {...field} readOnly={isFormReadOnly} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={billingForm.control}
+                        name="city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>City</FormLabel>
+                            <FormControl><Input placeholder="Anytown" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={billingForm.control}
+                        name="state"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>State / Province</FormLabel>
+                            <FormControl><Input placeholder="CA" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={billingForm.control}
+                        name="postalCode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Postal / Zip Code</FormLabel>
+                            <FormControl><Input placeholder="90210" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={billingForm.control}
+                        name="country"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Country</FormLabel>
+                            <FormControl><Input placeholder="United States" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {user && !useDefaultAddress && (
+                       <div className="flex items-center space-x-2 pt-4">
+                          <Checkbox
+                              id="saveNewAddress"
+                              checked={saveNewAddress}
+                              onCheckedChange={(checked) => setSaveNewAddress(Boolean(checked))}
+                          />
+                          <FormLabel htmlFor="saveNewAddress" className="text-sm font-medium leading-none">
+                              Save this address to my profile for future payments
+                          </FormLabel>
+                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                      <CardTitle>Payment Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                          You will be redirected to our secure payment partner to complete your purchase.
+                      </p>
+                  </CardContent>
+                </Card>
+              </form>
+            </Form>
+          )}
         </div>
 
         <div className="lg:col-span-1">
@@ -423,7 +444,7 @@ const CheckoutPage = () => {
               <Button
                 size="lg"
                 className="w-full"
-                onClick={billingForm.handleSubmit(handleConfirmBooking)} // Trigger form submission here
+                onClick={billingForm.handleSubmit(handleConfirmBooking)}
                 disabled={submitButtonDisabled}
                 suppressHydrationWarning
               >
