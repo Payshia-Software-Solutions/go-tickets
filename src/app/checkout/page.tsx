@@ -17,7 +17,7 @@ import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 const defaultBillingValues: BillingAddress = {
@@ -321,8 +321,18 @@ const CheckoutPage = () => {
               <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Billing & Contact Information</CardTitle>
-                    <CardDescription>{isGuestCheckout ? "Please provide your details for this booking." : "Confirm your billing and contact details."}</CardDescription>
+                     <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Billing & Contact Information</CardTitle>
+                            <CardDescription>{isGuestCheckout ? "Please provide your details for this booking." : "Confirm your billing and contact details."}</CardDescription>
+                        </div>
+                        {isGuestCheckout && (
+                            <Button variant="outline" type="button" onClick={() => setIsGuestCheckout(false)}>
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back
+                            </Button>
+                        )}
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {user && hasSavedBillingAddress && (
