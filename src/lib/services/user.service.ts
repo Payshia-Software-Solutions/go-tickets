@@ -25,6 +25,11 @@ interface RawApiUser {
   billing_country?: string | null;
 }
 
+interface LoginResult {
+  user: User | null;
+  error?: string;
+}
+
 const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   let billingAddress: BillingAddress | null = null;
   if (
@@ -56,7 +61,7 @@ const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
   };
 };
 
-export const loginUserWithApi = async (email: string, password_from_form: string): Promise<User> => {
+export const loginUserWithApi = async (email: string, password_from_form: string): Promise<LoginResult> => {
   console.log(`[loginUserWithApi] Attempting login for email: ${email}`);
   try {
     const response = await fetch(USER_LOGIN_API_URL, {
@@ -67,46 +72,29 @@ export const loginUserWithApi = async (email: string, password_from_form: string
       body: JSON.stringify({ email, password: password_from_form }),
     });
 
-    let responseData: any = {};
+    let responseData: any;
     try {
       responseData = await response.json();
     } catch (jsonError) {
-      console.warn(`[loginUserWithApi] Could not parse JSON response. Status: ${response.status}. Error:`, jsonError);
-      if (response.status === 401) {
-        throw new Error("Invalid email or password.");
-      }
-      if (!response.ok) {
-         const errorText = await response.text().catch(() => "Could not read error response body.");
-         throw new Error(`Login failed: ${response.status}. Server response: ${errorText.substring(0,150)}`);
-      }
-      throw new Error("Login response was not valid JSON.");
+      const errorText = await response.text().catch(() => "Unreadable server response.");
+      console.error(`[loginUserWithApi] Non-JSON response from server. Status: ${response.status}. Body: ${errorText.substring(0,200)}...`);
+      return { user: null, error: `Server error: ${response.status}. Please try again.` };
     }
 
     if (!response.ok) {
-      let errorMessage = responseData.message;
-      if (response.status === 401 && !errorMessage) {
-        errorMessage = "Invalid email or password.";
-      } else if (!errorMessage) {
-        errorMessage = `Login failed: ${response.status}. Please try again.`;
-      }
-      throw new Error(errorMessage);
+      const errorMessage = responseData.message || (response.status === 401 ? "Invalid email or password." : `Login failed: ${response.status}`);
+      return { user: null, error: errorMessage };
     }
 
     if (responseData.user) {
-      console.log("[loginUserWithApi] Login successful. Raw user data:", responseData.user);
       const appUser = mapApiUserToAppUser(responseData.user as RawApiUser);
-      console.log("[loginUserWithApi] Mapped app user:", appUser);
-      return appUser;
+      return { user: appUser };
     } else {
-      console.error("[loginUserWithApi] Login response OK, but no user object in responseData.user. Response:", responseData);
-      throw new Error("Login successful, but user data was not returned correctly by the API.");
+      return { user: null, error: "Login successful, but user data was missing from the server response." };
     }
   } catch (error) {
     console.error("[loginUserWithApi] Network or other error during login:", error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error("An unexpected error occurred during login. Please check your connection and try again.");
+    return { user: null, error: "An unexpected network error occurred. Please check your connection and try again." };
   }
 };
 

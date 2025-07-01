@@ -48,19 +48,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, passwordFromForm: string): Promise<void> => {
     setLoading(true);
-    const normalizedEmail = email.toLowerCase();
-    try {
-      const loggedInUser = await loginUserWithApi(normalizedEmail, passwordFromForm);
-      setUser(loggedInUser);
-      localStorage.setItem(localStorageKey, JSON.stringify(loggedInUser));
-    } catch (error) {
-      console.error("Login attempt failed in AuthContext:", error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error("An unexpected error occurred during login.");
-    } finally {
+    const result = await loginUserWithApi(email.toLowerCase(), passwordFromForm);
+
+    if (result.user) {
+      setUser(result.user);
+      localStorage.setItem(localStorageKey, JSON.stringify(result.user));
       setLoading(false);
+    } else {
+      setLoading(false);
+      throw new Error(result.error || "An unknown login error occurred.");
     }
   };
 
