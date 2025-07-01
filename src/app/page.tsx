@@ -250,7 +250,7 @@ export default function HomePage() {
       </section>
 
       {/* Popular Events Section */}
-      {renderEventSection("Popular Events", popularEvents, isLoadingPopular, <TrendingUp className="mr-3 h-8 w-8 text-accent" />)}
+      {renderEventSection("Popular Events", popularEvents, isLoadingPopular)}
       
       {/* Categories Section */}
       <section id="categories" className="container mx-auto px-4 mt-12 md:mt-16 lg:mt-20">
