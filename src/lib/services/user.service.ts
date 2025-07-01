@@ -1,4 +1,5 @@
 
+
 import type { User, SignupFormData, BillingAddress, AdminUserFormData } from '@/lib/types';
 import { USERS_API_URL, USER_LOGIN_API_URL, API_BASE_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -87,12 +88,6 @@ export const loginUserWithApi = async (email: string, password_from_form: string
         errorMessage = "Invalid email or password.";
       } else if (!errorMessage) {
         errorMessage = `Login failed: ${response.status}. Please try again.`;
-      }
-      
-      if (errorMessage === "Invalid email or password." && responseData && Object.keys(responseData).length === 0) {
-        console.error(`[loginUserWithApi] API Error: ${errorMessage}`);
-      } else {
-        console.error(`[loginUserWithApi] API Error: ${errorMessage}`, responseData);
       }
       throw new Error(errorMessage);
     }
