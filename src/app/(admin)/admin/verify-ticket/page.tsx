@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface VerificationResponse {
   success: boolean;
@@ -82,6 +83,7 @@ const TicketVerificationPage = () => {
     setVerificationError(null); // Reset error state on new fetch
 
     try {
+      // This local API route fetches data from the real API and augments it
       const response = await fetch('/api/admin/verify-ticket', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,9 +95,10 @@ const TicketVerificationPage = () => {
       if (result.success && result.booking) {
         audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
         setScannedBooking(result.booking);
+        // Initialize quantities to 0 for each unique booked ticket line item
         const initialQuantities: Record<string, number> = {};
         result.booking.bookedTickets.forEach(t => {
-          initialQuantities[t.ticketTypeId] = 0;
+          initialQuantities[t.id] = 0; // Use the unique booked ticket ID as the key
         });
         setCheckInQuantities(initialQuantities);
       } else {
@@ -147,35 +150,76 @@ const TicketVerificationPage = () => {
   
   const handleConfirmCheckIn = async () => {
     if (!scannedBooking) return;
-    const checkInItems = Object.entries(checkInQuantities)
-      .filter(([, quantity]) => quantity > 0)
-      .map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity }));
+
+    const checkInPayloads = [];
+    for (const ticket of scannedBooking.bookedTickets) {
+      const quantityToCheckIn = checkInQuantities[ticket.id] || 0;
+      if (quantityToCheckIn > 0) {
+        checkInPayloads.push({
+          booking_id: parseInt(scannedBooking.id, 10),
+          event_id: parseInt(scannedBooking.eventId, 10),
+          showtime_id: parseInt(ticket.showTimeId, 10),
+          tickettype_id: parseInt(ticket.ticketTypeId, 10),
+          ticket_count: quantityToCheckIn,
+          checking_time: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
+          checking_by: "Admin Verifier"
+        });
+      }
+    }
     
-    if (checkInItems.length === 0) {
+    if (checkInPayloads.length === 0) {
       toast({ title: "No Tickets Selected", description: "Please select at least one ticket to check in." });
       return;
     }
 
     setIsCommitting(true);
     try {
-      const response = await fetch('/api/admin/verify-ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: scannedBooking.id, checkInItems }),
+      const checkinPromises = checkInPayloads.map(payload =>
+        fetch('https://gotickets-server.payshia.com/tickets-verifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(async response => {
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({ message: 'Check-in failed.' }));
+            const ticket = scannedBooking.bookedTickets.find(t => t.ticketTypeId === String(payload.tickettype_id));
+            throw new Error(`Failed for ${ticket?.ticketTypeName || 'ticket'}: ${errorBody.message}`);
+          }
+          return response.json();
+        })
+      );
+
+      await Promise.all(checkinPromises);
+      
+      const totalCheckedIn = checkInPayloads.reduce((sum, p) => sum + p.ticket_count, 0);
+      toast({ 
+          title: "Check-in Successful!", 
+          description: `Successfully checked in ${totalCheckedIn} ticket(s).`
       });
-      const result = await response.json();
-      if (result.success) {
-        toast({ title: "Check-in Successful!", description: result.message });
-        audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
-        await fetchBookingDetails(scannedBooking.qrCodeValue);
-      } else {
-        throw new Error(result.message || "Check-in failed on the server.");
-      }
+      audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
+      
+      // Refresh details to show updated counts from the backend
+      await fetchBookingDetails(scannedBooking.qrCodeValue);
+      
     } catch (error) {
        audioErrorRef.current?.play().catch(e => console.warn("Could not play sound:", e));
-       toast({ variant: 'destructive', title: 'Check-in Failed', description: error instanceof Error ? error.message : "An unknown error occurred." });
+       toast({ 
+         variant: 'destructive', 
+         title: 'Check-in Failed', 
+         description: error instanceof Error ? error.message : "An unknown error occurred." 
+      });
     } finally {
       setIsCommitting(false);
+    }
+  };
+
+  const handleQuantityChange = (ticket: BookedTicket, change: number) => {
+    const currentCheckIn = checkInQuantities[ticket.id] || 0;
+    const newCheckIn = currentCheckIn + change;
+    const alreadyCheckedIn = ticket.checkedInCount || 0;
+    
+    if (newCheckIn >= 0 && (newCheckIn + alreadyCheckedIn <= ticket.quantity)) {
+      setCheckInQuantities(prev => ({...prev, [ticket.id]: newCheckIn }));
     }
   };
 
@@ -227,14 +271,14 @@ const TicketVerificationPage = () => {
                 const alreadyCheckedIn = ticket.checkedInCount || 0;
                 const availableToCheckIn = ticket.quantity - alreadyCheckedIn;
                 return (
-                  <div key={ticket.ticketTypeId} className="p-3 border rounded-md bg-muted/30">
+                  <div key={ticket.id} className="p-3 border rounded-md bg-muted/30">
                     <p className="font-medium">{ticket.ticketTypeName}</p>
                     <div className="flex justify-between items-center mt-1">
                        <p className="text-sm text-muted-foreground">{alreadyCheckedIn} / {ticket.quantity} checked in</p>
                        <div className="flex items-center space-x-2">
-                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, -1)} disabled={checkInQuantities[ticket.ticketTypeId] === 0 || isCommitting}><MinusCircle className="h-5 w-5"/></Button>
-                         <span className="font-bold text-lg w-8 text-center">{checkInQuantities[ticket.ticketTypeId] || 0}</span>
-                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, 1)} disabled={availableToCheckIn === 0 || checkInQuantities[ticket.ticketTypeId] >= availableToCheckIn || isCommitting}><PlusCircle className="h-5 w-5"/></Button>
+                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, -1)} disabled={checkInQuantities[ticket.id] === 0 || isCommitting}><MinusCircle className="h-5 w-5"/></Button>
+                         <span className="font-bold text-lg w-8 text-center">{checkInQuantities[ticket.id] || 0}</span>
+                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, 1)} disabled={availableToCheckIn === 0 || checkInQuantities[ticket.id] >= availableToCheckIn || isCommitting}><PlusCircle className="h-5 w-5"/></Button>
                        </div>
                     </div>
                      {availableToCheckIn === 0 && <p className="text-xs text-center font-bold text-green-600 mt-2">All tickets checked in.</p>}
@@ -255,16 +299,6 @@ const TicketVerificationPage = () => {
         </div>
       </div>
     );
-  };
-  
-  const handleQuantityChange = (ticket: BookedTicket, change: number) => {
-    const currentCheckIn = checkInQuantities[ticket.ticketTypeId] || 0;
-    const newCheckIn = currentCheckIn + change;
-    const alreadyCheckedIn = ticket.checkedInCount || 0;
-    
-    if (newCheckIn >= 0 && (newCheckIn + alreadyCheckedIn <= ticket.quantity)) {
-      setCheckInQuantities(prev => ({...prev, [ticket.ticketTypeId]: newCheckIn }));
-    }
   };
 
   const renderResultArea = () => {
