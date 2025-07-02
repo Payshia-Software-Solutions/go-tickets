@@ -299,6 +299,21 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
                              eventDateForBooking = ticket.showtime;
                         }
                         const eventDetails = await fetchEventByIdFromApi(String(event.eventId));
+                        
+                        const verificationUrl = `https://gotickets-server.payshia.com/tickets-verifications/total?booking_id=${ticket.booking_id}&event_id=${event.eventId}&showtime_id=${ticket.showtime_id}&tickettype_id=${ticket.tickettype_id}`;
+                        let checkedInCount = 0;
+                        try {
+                            const verificationResponse = await fetch(verificationUrl);
+                            if (verificationResponse.ok) {
+                                const verificationData = await verificationResponse.json();
+                                checkedInCount = verificationData.total_confirmed_ticket_count || 0;
+                            } else {
+                                console.warn(`Failed to fetch verification count for ticket ${ticket.tickettype_id}. Status: ${verificationResponse.status}`);
+                            }
+                        } catch(e) {
+                            console.error(`Error fetching verification count for ticket ${ticket.tickettype_id}:`, e);
+                        }
+
                         bookedTickets.push({
                             id: String(ticket.id),
                             bookingId: String(ticket.booking_id),
@@ -306,8 +321,9 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
                             ticketTypeName: ticket.ticket_type,
                             showTimeId: String(ticket.showtime_id),
                             quantity: parseInt(ticket.ticket_count, 10) || 0,
-                            pricePerTicket: 0, // This info isn't in the new structure, defaulting to 0
+                            pricePerTicket: 0,
                             eventNsid: eventDetails?.slug || '',
+                            checkedInCount: checkedInCount,
                             createdAt: parseApiDateString(ticket.created_at),
                             updatedAt: parseApiDateString(ticket.updated_at),
                         });

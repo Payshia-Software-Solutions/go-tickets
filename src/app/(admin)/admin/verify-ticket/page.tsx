@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { getBookingByQrCode } from '@/lib/mockData';
 
 interface VerificationResponse {
   success: boolean;
@@ -80,29 +81,21 @@ const TicketVerificationPage = () => {
   const fetchBookingDetails = async (qrCodeValue: string) => {
     setIsLoading(true);
     setScannedBooking(null);
-    setVerificationError(null); // Reset error state on new fetch
+    setVerificationError(null);
 
     try {
-      // This local API route fetches data from the real API and augments it
-      const response = await fetch('/api/admin/verify-ticket', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrCodeValue }),
-      });
+      const result = await getBookingByQrCode(qrCodeValue);
 
-      const result: VerificationResponse = await response.json();
-
-      if (result.success && result.booking) {
+      if (result) {
         audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
-        setScannedBooking(result.booking);
-        // Initialize quantities to 0 for each unique booked ticket line item
+        setScannedBooking(result);
         const initialQuantities: Record<string, number> = {};
-        result.booking.bookedTickets.forEach(t => {
-          initialQuantities[t.id] = 0; // Use the unique booked ticket ID as the key
+        result.bookedTickets.forEach(t => {
+          initialQuantities[t.id] = 0;
         });
         setCheckInQuantities(initialQuantities);
       } else {
-        const errorMessage = result.message || 'Ticket not found or invalid.';
+        const errorMessage = 'Ticket not found or invalid.';
         audioErrorRef.current?.play().catch(e => console.warn("Could not play sound:", e));
         setVerificationError(errorMessage);
         toast({ variant: 'destructive', title: 'Verification Failed', description: errorMessage });
@@ -115,7 +108,7 @@ const TicketVerificationPage = () => {
       toast({ variant: 'destructive', title: 'Verification Failed', description: errorMessage });
     } finally {
       setIsLoading(false);
-      setIsScanning(false); // Stop scanning after fetch attempt
+      setIsScanning(false);
     }
   };
 
@@ -198,7 +191,6 @@ const TicketVerificationPage = () => {
       });
       audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
       
-      // Refresh details to show updated counts from the backend
       await fetchBookingDetails(scannedBooking.qrCodeValue);
       
     } catch (error) {
@@ -214,12 +206,24 @@ const TicketVerificationPage = () => {
   };
 
   const handleQuantityChange = (ticket: BookedTicket, change: number) => {
-    const currentCheckIn = checkInQuantities[ticket.id] || 0;
-    const newCheckIn = currentCheckIn + change;
-    const alreadyCheckedIn = ticket.checkedInCount || 0;
+    const currentQtyToCommit = checkInQuantities[ticket.id] || 0;
+    const newQtyToCommit = currentQtyToCommit + change;
+
+    const bookedCount = ticket.quantity;
+    const checkedInCount = ticket.checkedInCount || 0;
+    const availableToCheckIn = bookedCount - checkedInCount;
     
-    if (newCheckIn >= 0 && (newCheckIn + alreadyCheckedIn <= ticket.quantity)) {
-      setCheckInQuantities(prev => ({...prev, [ticket.id]: newCheckIn }));
+    if (newQtyToCommit > availableToCheckIn) {
+      toast({
+          title: "Limit Reached",
+          description: `Only ${availableToCheckIn} tickets are available to check in.`,
+          variant: "destructive",
+      });
+      return;
+    }
+
+    if (newQtyToCommit >= 0) {
+      setCheckInQuantities(prev => ({...prev, [ticket.id]: newQtyToCommit }));
     }
   };
 
@@ -268,13 +272,14 @@ const TicketVerificationPage = () => {
             <div className="space-y-3">
               <h3 className="font-semibold text-center">Select Tickets to Check In</h3>
               {scannedBooking.bookedTickets.map(ticket => {
-                const alreadyCheckedIn = ticket.checkedInCount || 0;
-                const availableToCheckIn = ticket.quantity - alreadyCheckedIn;
+                const bookedCount = ticket.quantity;
+                const checkedInCount = ticket.checkedInCount || 0;
+                const availableToCheckIn = bookedCount - checkedInCount;
                 return (
                   <div key={ticket.id} className="p-3 border rounded-md bg-muted/30">
                     <p className="font-medium">{ticket.ticketTypeName}</p>
                     <div className="flex justify-between items-center mt-1">
-                       <p className="text-sm text-muted-foreground">{alreadyCheckedIn} / {ticket.quantity} checked in</p>
+                       <p className="text-sm text-muted-foreground">{availableToCheckIn} of {bookedCount} tickets available to check-in.</p>
                        <div className="flex items-center space-x-2">
                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleQuantityChange(ticket, -1)} disabled={checkInQuantities[ticket.id] === 0 || isCommitting}><MinusCircle className="h-5 w-5"/></Button>
                          <span className="font-bold text-lg w-8 text-center">{checkInQuantities[ticket.id] || 0}</span>
