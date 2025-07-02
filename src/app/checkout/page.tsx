@@ -121,44 +121,8 @@ const CheckoutPage = () => {
     if (user) {
       finalUserId = user.id;
     } else if (isGuestCheckout) {
-      const guestEmail = formBillingData.email.toLowerCase();
-      const existingUser = await getUserByEmail(guestEmail);
-      if (existingUser) {
-        toast({
-          title: "Account Exists",
-          description: "An account with this email already exists. Please log in to continue.",
-          variant: "destructive",
-          action: <Button onClick={() => { setIsGuestCheckout(false); router.push('/login?redirect=/checkout'); }}>Login</Button>
-        });
-        setIsProcessing(false);
-        return;
-      }
-
-      try {
-        const guestPassword = `guest-${Date.now()}${Math.random().toString(36).substring(2, 8)}`;
-        const newGuestUser = await apiCreateUser({
-          name: `${formBillingData.firstName} ${formBillingData.lastName}`,
-          email: guestEmail,
-          password: guestPassword,
-          confirmPassword: guestPassword,
-          phone_number: formBillingData.phone_number,
-          billing_street: formBillingData.street,
-          billing_city: formBillingData.city,
-          billing_state: formBillingData.state,
-          billing_postal_code: formBillingData.postalCode,
-          billing_country: formBillingData.country,
-        });
-        finalUserId = newGuestUser.id;
-      } catch (error) {
-        console.error("Guest user creation failed:", error);
-        toast({
-          title: "Guest Checkout Failed",
-          description: error instanceof Error ? error.message : "Could not create a temporary guest account.",
-          variant: "destructive"
-        });
-        setIsProcessing(false);
-        return;
-      }
+      // Use a predefined guest user ID as requested, instead of creating a new user.
+      finalUserId = '1';
     } else {
       toast({
         title: "Action Required",
