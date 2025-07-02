@@ -7,7 +7,7 @@ export const BillingAddressSchema = z.object({
   lastName: z.string().min(1, "Last name is required."),
   email: z.string().email("A valid email is required for the booking."),
   phone_number: z.string().min(7, "A valid phone number is required."),
-  nic: z.string().min(1, "NIC is required."),
+  nic: z.string().optional().or(z.literal('')),
   street: z.string().min(3, "Street address is required."),
   city: z.string().min(2, "City is required."),
   state: z.string().min(2, "State/Province is required."),

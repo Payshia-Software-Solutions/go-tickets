@@ -353,7 +353,7 @@ const CheckoutPage = () => {
                         name="nic"
                         render={({ field }) => (
                         <FormItem>
-                            <FormLabel>NIC</FormLabel>
+                            <FormLabel>NIC (Optional)</FormLabel>
                             <FormControl><Input placeholder="e.g., 952345678V" {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
