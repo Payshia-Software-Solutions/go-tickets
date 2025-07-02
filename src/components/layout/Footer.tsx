@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -45,9 +44,11 @@ const Footer = () => {
           </div>
         </div>
         <div className="text-center mt-8 pt-8 border-t border-[hsl(var(--footer-border))] opacity-70">
-          <p className="text-xs">
-            Powered by Payshia Software Solutions
-          </p>
+            <p className="text-xs">
+                <a href="https://www.payshia.com/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
+                Powered by Payshia Software Solutions
+                </a>
+            </p>
         </div>
       </div>
     </footer>
