@@ -133,23 +133,8 @@ const CheckoutPage = () => {
       return;
     }
 
-    let billingDataForBooking: BillingAddress;
-
-    if (user && useDefaultAddress && hasSavedBillingAddress && user.billingAddress) {
-        const [firstName = '', ...lastNameParts] = (user.name || "").split(" ");
-        const lastName = lastNameParts.join(" ");
-
-        billingDataForBooking = {
-            ...defaultBillingValues,
-            ...user.billingAddress,
-            firstName,
-            lastName,
-            email: user.email || '',
-            phone_number: user.phoneNumber || '',
-        };
-    } else {
-        billingDataForBooking = formBillingData;
-    }
+    // Always use the data from the form, which may have been edited by the user.
+    const billingDataForBooking = formBillingData;
 
     try {
       const paymentHtml = await createBooking({
@@ -320,7 +305,7 @@ const CheckoutPage = () => {
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>First Name</FormLabel>
-                                <FormControl><Input placeholder="John" {...field} readOnly={isFormReadOnly} /></FormControl>
+                                <FormControl><Input placeholder="John" {...field} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                             )}
@@ -331,7 +316,7 @@ const CheckoutPage = () => {
                             render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Last Name</FormLabel>
-                                <FormControl><Input placeholder="Doe" {...field} readOnly={isFormReadOnly} /></FormControl>
+                                <FormControl><Input placeholder="Doe" {...field} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                             )}
@@ -345,7 +330,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Contact Email</FormLabel>
-                            <FormControl><Input type="email" placeholder="you@example.com" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.email} /></FormControl>
+                            <FormControl><Input type="email" placeholder="you@example.com" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -356,7 +341,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Contact Phone Number</FormLabel>
-                            <FormControl><Input type="tel" placeholder="0771234567" {...field} readOnly={isFormReadOnly && !!user?.billingAddress?.phone_number} /></FormControl>
+                            <FormControl><Input type="tel" placeholder="0771234567" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -369,7 +354,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                         <FormItem>
                             <FormLabel>NIC (Optional)</FormLabel>
-                            <FormControl><Input placeholder="e.g., 952345678V" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormControl><Input placeholder="e.g., 952345678V" {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
                         )}
@@ -383,7 +368,7 @@ const CheckoutPage = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Street Address</FormLabel>
-                          <FormControl><Input placeholder="123 Main St" {...field} readOnly={isFormReadOnly} /></FormControl>
+                          <FormControl><Input placeholder="123 Main St" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -395,7 +380,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>City</FormLabel>
-                            <FormControl><Input placeholder="Anytown" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormControl><Input placeholder="Anytown" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -406,7 +391,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>State / Province</FormLabel>
-                            <FormControl><Input placeholder="CA" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormControl><Input placeholder="CA" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -419,7 +404,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Postal / Zip Code</FormLabel>
-                            <FormControl><Input placeholder="90210" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormControl><Input placeholder="90210" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -430,7 +415,7 @@ const CheckoutPage = () => {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Country</FormLabel>
-                            <FormControl><Input placeholder="United States" {...field} readOnly={isFormReadOnly} /></FormControl>
+                            <FormControl><Input placeholder="United States" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
