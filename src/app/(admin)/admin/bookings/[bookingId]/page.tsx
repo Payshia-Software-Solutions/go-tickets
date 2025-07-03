@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare } from 'lucide-react';
 import QRCode from '@/components/QRCode';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,22 @@ export default function BookingDetailsPage() {
   }
   
   const paymentStatus = (booking.payment_status || 'pending').toLowerCase();
+  
+  const rawPhoneNumber = booking.billingAddress?.phone_number;
+  
+  const formatWhatsAppNumber = (phone: string | undefined | null): string | null => {
+      if (!phone) return null;
+      let cleaned = phone.replace(/\D/g, '');
+      if (cleaned.startsWith('0') && cleaned.length === 10) {
+        return '94' + cleaned.substring(1);
+      }
+      if (cleaned.startsWith('94') && cleaned.length === 11) {
+          return cleaned;
+      }
+      return cleaned;
+  };
+
+  const whatsAppNumber = formatWhatsAppNumber(rawPhoneNumber);
 
   return (
     <div className="space-y-6">
@@ -146,13 +162,36 @@ export default function BookingDetailsPage() {
             <div className="space-y-6">
                  <Card>
                     <CardHeader><CardTitle className="text-lg">Attendee & Billing Details</CardTitle></CardHeader>
-                    <CardContent className="text-sm space-y-2 break-words">
+                    <CardContent className="text-sm space-y-4 break-words">
                         <p><strong>User ID:</strong> <span className="font-mono text-xs">{booking.userId}</span></p>
                         <p><strong>Name:</strong> {booking.userName || 'N/A'}</p>
                         <p><strong>Email:</strong> {booking.billingAddress?.email || 'N/A'}</p>
-                        <p><strong>Phone:</strong> {booking.billingAddress?.phone_number || 'N/A'}</p>
                         <p><strong>NIC:</strong> {booking.billingAddress?.nic || 'N/A'}</p>
-                        <Separator className="my-2"/>
+                        
+                        <Separator />
+
+                        <div>
+                            <p><strong>Phone:</strong> {rawPhoneNumber || 'N/A'}</p>
+                            {rawPhoneNumber && (
+                                <div className="flex items-center gap-2 mt-2">
+                                    <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
+                                    <a href={`tel:${rawPhoneNumber}`} className="flex items-center justify-center">
+                                        <Phone className="mr-2 h-4 w-4" /> Call
+                                    </a>
+                                    </Button>
+                                    {whatsAppNumber && (
+                                    <Button asChild variant="outline" size="sm" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 flex-1 sm:flex-none">
+                                        <a href={`https://wa.me/${whatsAppNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center">
+                                        <MessageSquare className="mr-2 h-4 w-4" /> WhatsApp
+                                        </a>
+                                    </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <Separator />
+                        
                         <p><strong>Address:</strong> {[booking.billingAddress?.street, booking.billingAddress?.city, booking.billingAddress?.state, booking.billingAddress?.postalCode, booking.billingAddress?.country].filter(Boolean).join(', ') || 'N/A'}</p>
                     </CardContent>
                 </Card>
@@ -167,4 +206,3 @@ export default function BookingDetailsPage() {
     </div>
   );
 }
-
