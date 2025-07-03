@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2, Ticket, ExternalLink, Mail, MessageSquare, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -134,20 +134,6 @@ export default function AdminBookingsPage() {
     setCurrentPage(1);
   };
 
-  const handleSendEmail = (bookingId: string) => {
-    toast({
-      title: "Simulate Email Sent",
-      description: `Confirmation email resent for booking ID: ${bookingId} (mock).`,
-    });
-  };
-
-  const handleSendSms = (bookingId: string) => {
-    toast({
-      title: "Simulate SMS Sent",
-      description: `Booking details SMS sent for booking ID: ${bookingId} (mock).`,
-    });
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -234,22 +220,11 @@ export default function AdminBookingsPage() {
                         <TableCell className="text-right whitespace-nowrap">{totalTickets}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
-                        <TableCell className="text-right space-x-1 whitespace-nowrap">
+                        <TableCell className="text-center">
                           <Button variant="outline" size="sm" asChild>
                             <Link href={`/admin/bookings/${booking.id}`}>
                               <FileText className="mr-2 h-3.5 w-3.5" /> Details
                             </Link>
-                          </Button>
-                          <Button variant="ghost" size="sm" asChild title="View Public Confirmation Page">
-                            <Link href={`/booking-confirmation?order_id=${booking.id}`} target="_blank">
-                              Confirmation <ExternalLink className="ml-1 h-3.5 w-3.5" />
-                            </Link>
-                          </Button>
-                           <Button variant="outline" size="icon" title="Send Email (Mock)" onClick={() => handleSendEmail(booking.id)}>
-                              <Mail className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" title="Send SMS (Mock)" onClick={() => handleSendSms(booking.id)}>
-                              <MessageSquare className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       </TableRow>

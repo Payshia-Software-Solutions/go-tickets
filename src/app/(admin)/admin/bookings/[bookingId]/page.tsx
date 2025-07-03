@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare, Mail } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare, Mail, ExternalLink } from 'lucide-react';
 import QRCode from '@/components/QRCode';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 
 export default function BookingDetailsPage() {
@@ -109,7 +110,7 @@ export default function BookingDetailsPage() {
 
   return (
     <div className="space-y-6">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
             <div>
                  <Button onClick={() => router.push('/admin/bookings')} variant="outline" size="sm">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
@@ -118,6 +119,14 @@ export default function BookingDetailsPage() {
                 <p className="text-muted-foreground">
                     Booking ID: <span className="font-mono">{booking.id}</span>
                 </p>
+            </div>
+            <div className="flex-shrink-0">
+                <Button asChild variant="outline">
+                    <Link href={`/booking-confirmation?order_id=${booking.id}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View Public Page
+                    </Link>
+                </Button>
             </div>
         </header>
         
