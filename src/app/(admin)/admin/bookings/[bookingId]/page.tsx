@@ -9,16 +9,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare } from 'lucide-react';
+import { Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare, Mail } from 'lucide-react';
 import QRCode from '@/components/QRCode';
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 
 export default function BookingDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const bookingId = params.bookingId as string;
 
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -49,6 +51,14 @@ export default function BookingDetailsPage() {
       fetchBooking();
     }
   }, [bookingId]);
+  
+  const handleResendConfirmation = () => {
+    if (!booking?.billingAddress?.email) return;
+    toast({
+      title: "Confirmation Email Sent (Mock)",
+      description: `An order confirmation email would be sent to ${booking.billingAddress.email}.`,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -165,29 +175,38 @@ export default function BookingDetailsPage() {
                     <CardContent className="text-sm space-y-4 break-words">
                         <p><strong>User ID:</strong> <span className="font-mono text-xs">{booking.userId}</span></p>
                         <p><strong>Name:</strong> {booking.userName || 'N/A'}</p>
-                        <p><strong>Email:</strong> {booking.billingAddress?.email || 'N/A'}</p>
                         <p><strong>NIC:</strong> {booking.billingAddress?.nic || 'N/A'}</p>
                         
                         <Separator />
 
                         <div>
-                            <p><strong>Phone:</strong> {rawPhoneNumber || 'N/A'}</p>
-                            {rawPhoneNumber && (
-                                <div className="flex items-center gap-2 mt-2">
+                            <h4 className="font-medium mb-2">Contact Attendee</h4>
+                            <div className="space-y-1 mb-3">
+                                <p><strong>Email:</strong> {booking.billingAddress?.email || 'N/A'}</p>
+                                <p><strong>Phone:</strong> {rawPhoneNumber || 'N/A'}</p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {rawPhoneNumber && (
                                     <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
                                     <a href={`tel:${rawPhoneNumber}`} className="flex items-center justify-center">
                                         <Phone className="mr-2 h-4 w-4" /> Call
                                     </a>
                                     </Button>
-                                    {whatsAppNumber && (
-                                    <Button asChild variant="outline" size="sm" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 flex-1 sm:flex-none">
-                                        <a href={`https://wa.me/${whatsAppNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center">
-                                        <MessageSquare className="mr-2 h-4 w-4" /> WhatsApp
-                                        </a>
+                                )}
+                                {whatsAppNumber && (
+                                <Button asChild variant="outline" size="sm" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 flex-1 sm:flex-none">
+                                    <a href={`https://wa.me/${whatsAppNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center">
+                                    <MessageSquare className="mr-2 h-4 w-4" /> WhatsApp
+                                    </a>
+                                </Button>
+                                )}
+                                {booking.billingAddress?.email && (
+                                    <Button variant="outline" size="sm" onClick={handleResendConfirmation} className="flex-1 sm:flex-none">
+                                        <Mail className="mr-2 h-4 w-4" /> Resend Email
                                     </Button>
-                                    )}
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                         
                         <Separator />
