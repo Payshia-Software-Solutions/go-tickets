@@ -71,39 +71,18 @@ interface RawApiBookedTicket {
 }
 
 export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Booking => {
-  let parsedBillingAddress: Partial<BillingAddress>;
-  if (typeof apiBooking.billing_address === 'string') {
-    try {
-      parsedBillingAddress = JSON.parse(apiBooking.billing_address);
-    } catch {
-      console.error("Failed to parse billing_address string:", "Raw:", apiBooking.billing_address);
-      parsedBillingAddress = { email: "", phone_number: "", street: "", city: "", state: "", postalCode: "", country: "" };
-    }
-  } else if (typeof apiBooking.billing_address === 'object' && apiBooking.billing_address !== null) {
-    parsedBillingAddress = apiBooking.billing_address;
-  } else {
-    // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
-    if (apiBooking.billing_street || apiBooking.billing_city) {
-        parsedBillingAddress = {
-            // @ts-expect-error Property 'billing_email' does not exist on type 'RawApiBooking'.
-            email: apiBooking.billing_email || "",
-            // @ts-expect-error Property 'billing_phone_number' does not exist on type 'RawApiBooking'.
-            phone_number: apiBooking.billing_phone_number || "",
-            // @ts-expect-error Property 'billing_street' does not exist on type 'RawApiBooking'.
-            street: apiBooking.billing_street || "",
-            // @ts-expect-error Property 'billing_city' does not exist on type 'RawApiBooking'.
-            city: apiBooking.billing_city || "",
-            // @ts-expect-error Property 'billing_state' does not exist on type 'RawApiBooking'.
-            state: apiBooking.billing_state || "",
-            // @ts-expect-error Property 'billing_postal_code' does not exist on type 'RawApiBooking'.
-            postalCode: apiBooking.billing_postal_code || "",
-            // @ts-expect-error Property 'billing_country' does not exist on type 'RawApiBooking'
-            country: apiBooking.billing_country || "",
-        };
-    } else {
-        parsedBillingAddress = { email: "", phone_number: "", street: "", city: "", state: "", postalCode: "", country: "" };
-    }
-  }
+  const billingAddress: Partial<BillingAddress> = {
+      firstName: apiBooking.first_name || "",
+      lastName: apiBooking.last_name || "",
+      email: apiBooking.email || "",
+      phone_number: apiBooking.contact_number || "",
+      nic: apiBooking.nic || "",
+      street: apiBooking.billing_street || "",
+      city: apiBooking.billing_city || "",
+      state: apiBooking.billing_state || "",
+      postalCode: apiBooking.billing_postal_code || "",
+      country: apiBooking.billing_country || "",
+  };
 
   const rawTotalPrice = apiBooking.total_price ?? apiBooking.totalPrice;
   let parsedPrice = parseFloat(String(rawTotalPrice));
@@ -120,13 +99,14 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     id: String(apiBooking.id),
     eventId: String(apiBooking.event_id || apiBooking.eventId),
     userId: String(apiBooking.user_id || apiBooking.userId),
+    userName: `${apiBooking.first_name || ''} ${apiBooking.last_name || ''}`.trim() || 'Guest',
     bookingDate: parseApiDateString(apiBooking.booking_date || apiBooking.bookingDate) || new Date().toISOString(),
     eventDate: parseApiDateString(apiBooking.event_date || apiBooking.eventDate) || new Date().toISOString(),
     eventName: apiBooking.event_name || apiBooking.eventName || "N/A",
     eventLocation: apiBooking.event_location || apiBooking.eventLocation || "N/A",
     qrCodeValue: apiBooking.qr_code_value || apiBooking.qrCodeValue || `BOOKING:${apiBooking.id}`,
     totalPrice: parsedPrice,
-    billingAddress: parsedBillingAddress,
+    billingAddress: billingAddress,
     payment_status: apiBooking.payment_status || 'pending',
     bookedTickets: rawBookedTicketsArray.map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
@@ -161,7 +141,6 @@ export const createBooking = async (
   }
   const { userId, cart, totalPrice, billingAddress, isGuest } = bookingData;
 
-  // Replaced grouping logic with a direct map to ensure each ticket type is sent.
   const booking_event_payload = cart.map(item => ({
     eventId: parseInt(item.eventId, 10),
     ticket_count: item.quantity,
@@ -288,7 +267,6 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
 
         const apiBooking = responseData.booking;
         
-        // Sourcing billing info directly from the booking object as requested.
         const billingAddress: Partial<BillingAddress> = {
             firstName: apiBooking.first_name || "",
             lastName: apiBooking.last_name || "",
@@ -356,6 +334,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
             eventDate: parseApiDateString(eventDateForBooking || apiBooking.eventDate) || new Date().toISOString(),
             eventLocation: apiBooking.eventLocation,
+            eventName: apiBooking.eventName,
             qrCodeValue: apiBooking.qrCodeValue,
             payment_status: apiBooking.payment_status || 'pending',
             createdAt: parseApiDateString(apiBooking.createdAt),
@@ -423,6 +402,48 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
     return [];
   }
 };
+
+export const adminGetBookingSummaries = async (): Promise<Booking[]> => {
+  if (!BOOKINGS_API_URL) {
+    console.error("BOOKINGS_API_URL is not configured.");
+    return [];
+  }
+  console.log(`[adminGetBookingSummaries] Fetching all booking summaries from: ${BOOKINGS_API_URL}`);
+  try {
+    const response = await fetch(BOOKINGS_API_URL);
+    if (!response.ok) {
+      let errorBodyText = 'Could not retrieve error body.';
+      try {
+        errorBodyText = await response.text();
+      } catch {
+        console.error("Failed to even get text from error response:");
+      }
+      console.error("[adminGetBookingSummaries] API Error fetching all booking summaries. Status:", response.status, "Body:", errorBodyText);
+      let errorBodyJsonMessage = 'Failed to parse error JSON.';
+      try {
+        const errorJson = JSON.parse(errorBodyText);
+        errorBodyJsonMessage = errorJson.message || JSON.stringify(errorJson);
+      } catch {}
+      throw new Error(`Failed to fetch booking summaries: ${response.status}. Message: ${errorBodyJsonMessage}`);
+    }
+
+    const apiBookings: RawApiBooking[] = await response.json();
+
+    if (!Array.isArray(apiBookings)) {
+        console.error("[adminGetBookingSummaries] Bookings summary data from API is not an array. Received:", apiBookings);
+        return [];
+    }
+
+    const bookings = apiBookings.map(transformApiBookingToAppBooking);
+    
+    return bookings.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+
+  } catch (error) {
+    console.error("[adminGetBookingSummaries] Network or other error fetching/processing booking summaries:", error);
+    return [];
+  }
+};
+
 
 export const getUserBookings = async (userId: string): Promise<Booking[]> => {
   if (!BOOKINGS_API_URL) {

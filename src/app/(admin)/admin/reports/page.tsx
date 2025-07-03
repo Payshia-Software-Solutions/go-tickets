@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
 import { DateRange } from "react-day-picker";
 import { addDays, format } from "date-fns";
 import type { Booking } from '@/lib/types';
-import { adminGetAllBookings } from '@/lib/mockData';
+import { adminGetBookingSummaries } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,7 +37,7 @@ export default function AdminReportsPage() {
         return;
       }
 
-      const allBookings = await adminGetAllBookings();
+      const allBookings = await adminGetBookingSummaries();
 
       const filteredBookings = allBookings.filter(booking => {
         const bookingDate = new Date(booking.bookingDate);
@@ -197,8 +198,9 @@ export default function AdminReportsPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Booking ID</TableHead>
-                            <TableHead>Booking Date</TableHead>
-                            <TableHead>Event Name</TableHead>
+                            <TableHead>Event</TableHead>
+                            <TableHead>Attendee</TableHead>
+                            <TableHead>Contact</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Total Price</TableHead>
                           </TableRow>
@@ -206,18 +208,26 @@ export default function AdminReportsPage() {
                         <TableBody>
                             {reportData.map((booking) => (
                                 <TableRow key={booking.id}>
-                                    <TableCell className="font-mono text-xs">{booking.id}</TableCell>
-                                    <TableCell>{format(new Date(booking.bookingDate), 'PPp')}</TableCell>
-                                    <TableCell>{booking.eventName}</TableCell>
+                                    <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
+                                    <TableCell>
+                                      <div className="font-medium">{booking.eventName}</div>
+                                      <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap">{booking.userName}</TableCell>
+                                    <TableCell>
+                                      <div className="whitespace-nowrap">{booking.billingAddress?.email}</div>
+                                      <div className="text-xs text-muted-foreground whitespace-nowrap">{booking.billingAddress?.phone_number}</div>
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className={cn('capitalize', {
-                                            'bg-green-100 text-green-800': (booking.payment_status || 'pending').toLowerCase() === 'paid',
-                                            'bg-amber-100 text-amber-800': (booking.payment_status || 'pending').toLowerCase() === 'pending',
+                                            'bg-green-100 text-green-800 border-green-200': (booking.payment_status || 'pending').toLowerCase() === 'paid',
+                                            'bg-amber-100 text-amber-800 border-amber-200': (booking.payment_status || 'pending').toLowerCase() === 'pending',
+                                            'bg-red-100 text-red-800 border-red-200': (booking.payment_status || 'pending').toLowerCase() === 'failed',
                                         })}>
                                             {booking.payment_status || 'pending'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="text-right">LKR {booking.totalPrice.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
