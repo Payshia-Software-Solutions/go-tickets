@@ -92,16 +92,16 @@ export default function AdminDashboardPage() {
           adminGetAllBookings(),
         ]);
 
-        const paidBookingCount = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length;
+        const paidBookings = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
         
         setStats({
           events: eventCount,
-          bookings: paidBookingCount,
+          bookings: paidBookings.length,
           users: userCount,
         });
 
-        // Process and set chart data
-        setSalesData(processSalesData(allBookings));
+        // Process and set chart data using only paid bookings
+        setSalesData(processSalesData(paidBookings));
         setCategoryData(processCategoryData(allEvents));
 
       } catch (error) {
@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
                       const y = cy + radius * Math.sin(-midAngle * RADIAN);
                       return (percent > 0.05) ? (
                         <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-xs font-bold">
-                          {`${(percent * 100).toFixed(0)}%`}
+                          {`(${(percent * 100).toFixed(0)}%`}
                         </text>
                       ) : null;
                     }}>
