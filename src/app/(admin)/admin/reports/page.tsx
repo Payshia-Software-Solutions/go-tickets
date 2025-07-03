@@ -58,14 +58,15 @@ export default function AdminReportsPage() {
   
   const reportSummary = useMemo(() => {
     const totalBookings = reportData.length;
-    const totalSales = reportData.reduce((sum, booking) => sum + booking.totalPrice, 0);
-    const paidBookings = reportData.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length;
+    const paidBookingsData = reportData.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
+    const totalSales = paidBookingsData.reduce((sum, booking) => sum + booking.totalPrice, 0);
+    const paidBookingsCount = paidBookingsData.length;
     
     return {
         totalBookings,
         totalSales,
-        paidBookings,
-        pendingBookings: totalBookings - paidBookings
+        paidBookings: paidBookingsCount,
+        pendingBookings: totalBookings - paidBookingsCount
     };
   }, [reportData]);
 
