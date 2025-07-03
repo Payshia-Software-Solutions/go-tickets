@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -71,26 +70,81 @@ export default function AdminReportsPage() {
   }, [reportData]);
 
   const handlePrint = () => {
-      toast({ title: "Print (Mock)", description: "This would open the browser's print dialog." });
-      // In a real app: window.print();
+      window.print();
   };
   
   const handleExport = () => {
-      toast({ title: "Export (Mock)", description: "This would download a CSV of the report." });
-      // In a real app: implement CSV export logic here
+    if (reportData.length === 0) {
+        toast({ title: "No Data", description: "There is no data to export.", variant: "destructive" });
+        return;
+    }
+
+    const headers = [
+      "Booking ID",
+      "Event Name",
+      "Booking Date",
+      "Event Date",
+      "Attendee Name",
+      "Attendee Email",
+      "Attendee Phone",
+      "Payment Status",
+      "Total Price (LKR)"
+    ];
+
+    const escapeCsvCell = (cell: any) => {
+      if (cell === null || cell === undefined) return '';
+      const str = String(cell);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvRows = [headers.join(",")];
+    reportData.forEach(booking => {
+        const row = [
+            escapeCsvCell(booking.id),
+            escapeCsvCell(booking.eventName),
+            escapeCsvCell(format(new Date(booking.bookingDate), 'yyyy-MM-dd HH:mm')),
+            escapeCsvCell(format(new Date(booking.eventDate), 'yyyy-MM-dd')),
+            escapeCsvCell(booking.userName),
+            escapeCsvCell(booking.billingAddress?.email),
+            escapeCsvCell(booking.billingAddress?.phone_number),
+            escapeCsvCell(booking.payment_status || 'pending'),
+            escapeCsvCell(booking.totalPrice.toFixed(2))
+        ];
+        csvRows.push(row.join(","));
+    });
+    
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+
+    const fromDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 'start';
+    const toDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 'end';
+    link.setAttribute("download", `bookings_report_${fromDate}_to_${toDate}.csv`);
+
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({ title: "Export Started", description: "Your CSV file is being downloaded." });
   };
 
 
   return (
     <div className="space-y-8">
-      <header>
+      <header className="no-print">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
             <FileText className="mr-3 h-8 w-8" /> Booking Reports
         </h1>
         <p className="text-muted-foreground">Generate and view reports for event bookings.</p>
       </header>
 
-      <Card>
+      <Card className="no-print">
         <CardHeader>
           <CardTitle>Report Filters</CardTitle>
           <CardDescription>Select criteria to generate your report.</CardDescription>
@@ -159,7 +213,7 @@ export default function AdminReportsPage() {
       </Card>
       
       {hasGeneratedReport && (
-        <Card>
+        <Card id="printable-report" className="card-print">
             <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                     <CardTitle>Report Results</CardTitle>
@@ -167,7 +221,7 @@ export default function AdminReportsPage() {
                         {reportSummary.totalBookings} bookings found from {dateRange?.from ? format(dateRange.from, 'PPP') : ''} to {dateRange?.to ? format(dateRange.to, 'PPP') : ''}.
                     </CardDescription>
                 </div>
-                <div className="flex gap-2 mt-4 md:mt-0">
+                <div className="flex gap-2 mt-4 md:mt-0 no-print">
                     <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
                     <Button variant="outline" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
                 </div>
