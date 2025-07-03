@@ -1,4 +1,5 @@
 
+
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -149,25 +150,12 @@ export const createBooking = async (
   }
   const { userId, cart, totalPrice, billingAddress, isGuest } = bookingData;
 
-  const groupedByEvent = cart.reduce((acc, item) => {
-    const eventId = item.eventId;
-    if (!acc[eventId]) {
-      acc[eventId] = [];
-    }
-    acc[eventId].push(item);
-    return acc;
-  }, {} as Record<string, CartItem[]>);
-
-  const booking_event_payload = Object.values(groupedByEvent).map(eventItems => {
-    // For each unique event, aggregate the ticket count
-    const totalTicketsForEvent = eventItems.reduce((sum, item) => sum + item.quantity, 0);
-    // The API seems to require a tickettype_id, so we'll use the first one from the group.
-    return {
-        eventId: parseInt(eventItems[0].eventId, 10),
-        ticket_count: totalTicketsForEvent,
-        tickettype_id: parseInt(eventItems[0].ticketTypeId, 10),
-    };
-  });
+  // Replaced grouping logic with a direct map to ensure each ticket type is sent.
+  const booking_event_payload = cart.map(item => ({
+    eventId: parseInt(item.eventId, 10),
+    ticket_count: item.quantity,
+    tickettype_id: parseInt(item.ticketTypeId, 10),
+  }));
 
   const apiPayload = {
     userId: parseInt(userId, 10),
