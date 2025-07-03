@@ -76,6 +76,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const PIXEL_ID = process.env.NEXT_PUBLIC_FACEBOOK_PIXEL_ID;
   return (
     // Apply the font variable class to the html tag
     <html lang="en" className={inter.variable} suppressHydrationWarning>
@@ -84,6 +85,17 @@ export default function RootLayout({
       </head>
       {/* The font-body class in Tailwind will now use --font-inter via tailwind.config.ts */}
       <body className="font-body antialiased flex flex-col min-h-screen" suppressHydrationWarning={true}>
+        {PIXEL_ID && (
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        )}
         <Providers>
           <Suspense fallback={null}>
             <FacebookPixelEvents />
