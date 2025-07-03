@@ -245,7 +245,7 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
 
   } catch (error) {
     console.error(`[getFullEventDetails] A critical error occurred while populating details for event ${eventBase.id}:`, error);
-    return eventBase;
+    return undefined;
   }
 };
 
