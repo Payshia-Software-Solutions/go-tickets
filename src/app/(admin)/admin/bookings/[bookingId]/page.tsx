@@ -148,9 +148,10 @@ export default function BookingDetailsPage() {
                     <CardHeader><CardTitle className="text-lg">Attendee & Billing Details</CardTitle></CardHeader>
                     <CardContent className="text-sm space-y-2 break-words">
                         <p><strong>User ID:</strong> <span className="font-mono text-xs">{booking.userId}</span></p>
-                        <p><strong>Name:</strong> {`${booking.billingAddress?.firstName || ''} ${booking.billingAddress?.lastName || ''}`.trim() || 'N/A'}</p>
+                        <p><strong>Name:</strong> {booking.userName || 'N/A'}</p>
                         <p><strong>Email:</strong> {booking.billingAddress?.email || 'N/A'}</p>
                         <p><strong>Phone:</strong> {booking.billingAddress?.phone_number || 'N/A'}</p>
+                        <p><strong>NIC:</strong> {booking.billingAddress?.nic || 'N/A'}</p>
                         <Separator className="my-2"/>
                         <p><strong>Address:</strong> {[booking.billingAddress?.street, booking.billingAddress?.city, booking.billingAddress?.state, booking.billingAddress?.postalCode, booking.billingAddress?.country].filter(Boolean).join(', ') || 'N/A'}</p>
                     </CardContent>

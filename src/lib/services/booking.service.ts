@@ -279,8 +279,11 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         
         const billingInfo = apiBooking.user_billing_info || {};
         const billingAddress: Partial<BillingAddress> = {
+            firstName: billingInfo.first_name || "",
+            lastName: billingInfo.last_name || "",
             email: billingInfo.email || "",
-            phone_number: billingInfo.phone_number || "",
+            phone_number: billingInfo.contact_number || billingInfo.phone_number || "",
+            nic: billingInfo.nic || "",
             street: billingInfo.billing_street || "",
             city: billingInfo.billing_city || "",
             state: billingInfo.billing_state || "",
@@ -337,7 +340,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
-            userName: billingInfo.name || 'Guest',
+            userName: `${billingInfo.first_name || ''} ${billingInfo.last_name || ''}`.trim() || 'Guest',
             totalPrice: parseFloat(apiBooking.totalPrice) || 0,
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
             eventName: apiBooking.eventName,
