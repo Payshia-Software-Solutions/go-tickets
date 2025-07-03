@@ -6,7 +6,7 @@ import { BarChart as BarChartIcon, Users, DollarSign, Tag, PieChart as PieChartI
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { getEventCount, getBookingCount, getUserCount, adminGetAllEvents, adminGetAllBookings } from '@/lib/mockData';
+import { getEventCount, getUserCount, adminGetAllEvents, adminGetAllBookings } from '@/lib/mockData';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Event, Booking } from '@/lib/types';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -85,16 +85,18 @@ export default function AdminDashboardPage() {
       setIsLoading(true);
       setIsChartLoading(true);
       try {
-        const [eventCount, bookingCount, userCount, allEvents, allBookings] = await Promise.all([
+        const [eventCount, userCount, allEvents, allBookings] = await Promise.all([
           getEventCount(),
-          getBookingCount(),
           getUserCount(),
           adminGetAllEvents(),
           adminGetAllBookings(),
         ]);
+
+        const paidBookingCount = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length;
+        
         setStats({
           events: eventCount,
-          bookings: bookingCount,
+          bookings: paidBookingCount,
           users: userCount,
         });
 
@@ -146,7 +148,7 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Events" value={stats.events} icon={BarChartIcon} note="Live data from server" />
-        <StatCard title="Total Bookings" value={stats.bookings} icon={DollarSign} note="Live data from server" />
+        <StatCard title="Completed Bookings" value={stats.bookings} icon={DollarSign} note="Bookings with 'paid' status" />
         <StatCard title="Registered Users" value={stats.users} icon={Users} note="Live data from server" />
         
         <Card className="flex flex-col">
