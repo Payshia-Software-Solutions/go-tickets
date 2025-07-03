@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -6,6 +7,7 @@ import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, User
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
 
 const adminNavItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -61,9 +63,13 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
         })}
       </nav>
       <div className="p-4 border-t">
-        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-destructive" onClick={() => { logout(); handleLinkClick(); }}>
-          <LogOut className="mr-2 h-4 w-4" /> Logout
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+            <Button variant="ghost" className="flex-grow justify-start text-muted-foreground hover:text-destructive" onClick={() => { logout(); handleLinkClick(); }}>
+              <LogOut className="mr-2 h-4 w-4" /> 
+              <span>Logout</span>
+            </Button>
+            <ThemeToggle />
+        </div>
          <Link href="/" legacyBehavior>
             <a onClick={handleLinkClick} className="mt-2 text-xs text-center block text-muted-foreground hover:text-primary">Back to Site</a>
         </Link>
