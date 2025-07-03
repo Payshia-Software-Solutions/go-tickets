@@ -35,6 +35,17 @@ interface RawApiBooking {
   updatedAt?: string;
   showtime?: string;
   tickettype?: string;
+  // Direct billing fields as requested by user
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  contact_number?: string;
+  nic?: string;
+  billing_street?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postal_code?: string;
+  billing_country?: string;
 }
 
 interface RawApiBookedTicket {
@@ -277,18 +288,18 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
 
         const apiBooking = responseData.booking;
         
-        const billingInfo = apiBooking.user_billing_info || {};
+        // Sourcing billing info directly from the booking object as requested.
         const billingAddress: Partial<BillingAddress> = {
-            firstName: billingInfo.first_name || "",
-            lastName: billingInfo.last_name || "",
-            email: billingInfo.email || "",
-            phone_number: billingInfo.contact_number || billingInfo.phone_number || "",
-            nic: billingInfo.nic || "",
-            street: billingInfo.billing_street || "",
-            city: billingInfo.billing_city || "",
-            state: billingInfo.billing_state || "",
-            postalCode: billingInfo.billing_postal_code || "",
-            country: billingInfo.billing_country || "",
+            firstName: apiBooking.first_name || "",
+            lastName: apiBooking.last_name || "",
+            email: apiBooking.email || "",
+            phone_number: apiBooking.contact_number || "",
+            nic: apiBooking.nic || "",
+            street: apiBooking.billing_street || "",
+            city: apiBooking.billing_city || "",
+            state: apiBooking.billing_state || "",
+            postalCode: apiBooking.billing_postal_code || "",
+            country: apiBooking.billing_country || "",
         };
 
         const bookedTickets: BookedTicket[] = [];
@@ -340,10 +351,9 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         const appBooking: Booking = {
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
-            userName: `${billingInfo.first_name || ''} ${billingInfo.last_name || ''}`.trim() || 'Guest',
+            userName: `${apiBooking.first_name || ''} ${apiBooking.last_name || ''}`.trim() || 'Guest',
             totalPrice: parseFloat(apiBooking.totalPrice) || 0,
             bookingDate: parseApiDateString(apiBooking.bookingDate) || new Date().toISOString(),
-            eventName: apiBooking.eventName,
             eventDate: parseApiDateString(eventDateForBooking || apiBooking.eventDate) || new Date().toISOString(),
             eventLocation: apiBooking.eventLocation,
             qrCodeValue: apiBooking.qrCodeValue,
