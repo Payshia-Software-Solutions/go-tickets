@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import * as fpixel from '@/lib/fpixel';
 
 const defaultBillingValues: BillingAddress = {
   firstName: "",
@@ -105,6 +106,13 @@ const CheckoutPage = () => {
     if (typeof window !== 'undefined') {
       document.title = 'Checkout | Event Horizon Tickets';
     }
+    if (totalItems > 0) {
+      fpixel.track('InitiateCheckout', {
+        value: totalPrice,
+        currency: 'LKR',
+        num_items: totalItems
+      });
+    }
   }, []);
 
   const handleConfirmBooking = async (formBillingData: BillingAddress) => {
@@ -113,6 +121,7 @@ const CheckoutPage = () => {
       return;
     }
 
+    fpixel.track('AddPaymentInfo');
     setIsProcessing(true);
 
     let finalUserId: string;

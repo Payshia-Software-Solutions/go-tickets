@@ -1,10 +1,13 @@
 
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google'; // Import Inter from next/font
 import './globals.css';
 import { Providers } from '@/components/Providers';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import FacebookPixelEvents from '@/components/FacebookPixelEvents';
+import { Suspense } from 'react';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -82,6 +85,9 @@ export default function RootLayout({
       {/* The font-body class in Tailwind will now use --font-inter via tailwind.config.ts */}
       <body className="font-body antialiased flex flex-col min-h-screen" suppressHydrationWarning={true}>
         <Providers>
+          <Suspense fallback={null}>
+            <FacebookPixelEvents />
+          </Suspense>
           <Header />
           <main className="flex-grow">
             {children}
@@ -92,4 +98,3 @@ export default function RootLayout({
     </html>
   );
 }
-

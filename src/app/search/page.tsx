@@ -11,17 +11,19 @@ import { Loader2, SearchX, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import * as fpixel from '@/lib/fpixel';
 
 const SearchResultsDisplay: FC = () => {
   const searchParams = useSearchParams();
   const [results, setResults] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageTitle, setPageTitle] = useState('Search Events');
+  const query = searchParams.get('query');
 
   useEffect(() => {
     const fetchResults = async () => {
       setIsLoading(true);
-      const query = searchParams.get('query') || undefined;
+      const queryParam = searchParams.get('query') || undefined;
       const category = searchParams.get('category') || undefined;
       const date = searchParams.get('date') || undefined;
       const location = searchParams.get('location') || undefined;
@@ -30,15 +32,16 @@ const SearchResultsDisplay: FC = () => {
       // const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
       
       let title = 'Browse All Events | MyPass.lk';
-      if (query) {
-        title = `Search results for "${query}" | MyPass.lk`;
+      if (queryParam) {
+        title = `Search results for "${queryParam}" | MyPass.lk`;
+        fpixel.track('Search', { search_string: queryParam });
       } else if (category) {
         title = `${category} Events | MyPass.lk`;
       }
       setPageTitle(title);
 
       // searchEvents now calls the API
-      const events = await searchEvents(query, category, date, location);
+      const events = await searchEvents(queryParam, category, date, location);
       setResults(events);
       setIsLoading(false);
     };

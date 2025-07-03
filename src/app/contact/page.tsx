@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Phone, Mail, MapPin, MessageSquare, Send } from 'lucide-react';
 import Image from 'next/image';
+import * as fpixel from '@/lib/fpixel';
 
 
 // Cannot export metadata from a client component. 
@@ -27,6 +28,7 @@ import Image from 'next/image';
 export default function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    fpixel.track('Contact');
     // Mock submission logic
     alert('Message sent (mock)! Thank you for contacting us.');
     // Add toast notification here in a real app

@@ -1,92 +1,95 @@
 
+"use client";
+
 import { getBookingById } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle, CreditCard, Clock, User } from 'lucide-react';
+import { CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle, CreditCard, Clock, User, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import type { Metadata } from 'next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import PayNowButton from '@/components/PayNowButton';
 import DownloadTicketActions from '@/components/events/DownloadTicketButton';
 import QRCode from '@/components/QRCode';
+import { useEffect, useState } from 'react';
+import type { Booking } from '@/lib/types';
+import * as fpixel from '@/lib/fpixel';
 
 interface BookingConfirmationPageProps {
   searchParams: { order_id?: string };
 }
 
-export async function generateMetadata(
-  { searchParams }: BookingConfirmationPageProps
-): Promise<Metadata> {
+export default function BookingConfirmationPage({ searchParams }: BookingConfirmationPageProps) {
+  const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const bookingId = searchParams.order_id;
 
-  if (!bookingId) {
-    return {
-      title: 'Booking Not Found',
-      robots: {
-        index: false,
-      },
+  useEffect(() => {
+    document.title = isLoading ? 'Loading Booking...' : (booking ? `Booking ${booking.id}` : 'Booking Not Found');
+  }, [isLoading, booking]);
+
+  useEffect(() => {
+    if (!bookingId) {
+      setError("No booking ID was provided in the URL. Please check the link and try again.");
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchBooking = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const bookingData = await getBookingById(bookingId);
+        if (bookingData) {
+          setBooking(bookingData);
+          const isPaid = (bookingData.payment_status || 'pending').toLowerCase() === 'paid';
+          if (isPaid) {
+            // Track Purchase event
+            fpixel.track('Purchase', {
+              value: bookingData.totalPrice,
+              currency: 'LKR',
+              content_ids: bookingData.bookedTickets.map(t => t.ticketTypeId),
+              content_type: 'product',
+              num_items: bookingData.bookedTickets.reduce((sum, t) => sum + t.quantity, 0)
+            });
+          }
+        } else {
+          setBooking(null);
+          setError(`The booking with ID "${bookingId}" could not be found or has expired.`);
+        }
+      } catch (e) {
+        console.error("Failed to fetch booking:", e);
+        setError("An error occurred while fetching your booking details.");
+      } finally {
+        setIsLoading(false);
+      }
     };
-  }
 
-  const booking = await getBookingById(bookingId);
+    fetchBooking();
+  }, [bookingId]);
 
-  if (!booking) {
-    return {
-      title: 'Booking Not Found',
-      robots: {
-        index: false,
-        follow: true,
-      },
-    };
-  }
-
-  const isPaid = (booking.payment_status || 'pending').toLowerCase() === 'paid';
-
-  return {
-    title: isPaid ? `Booking Confirmed: ${booking.eventName}` : `Payment Pending: ${booking.eventName}`,
-    description: `Your booking for ${booking.eventName}. ID: ${booking.id}. Status: ${isPaid ? 'Confirmed' : 'Pending'}.`,
-    robots: {
-      index: false, // Do not index booking confirmation pages
-      follow: true,
-    },
-    openGraph: {
-      title: isPaid ? `Booking Confirmed: ${booking.eventName}` : `Payment Pending: ${booking.eventName}`,
-      description: `Your tickets for ${booking.eventName} are ${isPaid ? 'confirmed' : 'pending payment'}.`,
-    },
-  };
-}
-
-export default async function BookingConfirmationPage({ searchParams }: BookingConfirmationPageProps) {
-  const bookingId = searchParams.order_id;
-
-   if (!bookingId) {
+  if (isLoading) {
     return (
-        <div className="container mx-auto py-12 text-center">
-            <Alert variant="destructive" className="max-w-md mx-auto">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>
-                    No booking ID was provided in the URL. Please check the link and try again.
-                </AlertDescription>
-            </Alert>
-        </div>
+      <div className="container mx-auto py-12 text-center flex justify-center items-center min-h-[calc(100vh-15rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-lg text-muted-foreground">Loading booking details...</p>
+      </div>
     );
   }
-
-  const booking = await getBookingById(bookingId);
-
-  if (!booking) {
+  
+  if (error || !booking) {
     return (
-        <div className="container mx-auto py-12 text-center">
-            <Alert variant="destructive" className="max-w-md mx-auto">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Booking Not Found</AlertTitle>
-                <AlertDescription>
-                    The booking with ID "{bookingId}" could not be found or has expired.
-                </AlertDescription>
-            </Alert>
-        </div>
+      <div className="container mx-auto py-12 text-center">
+        <Alert variant="destructive" className="max-w-md mx-auto">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Booking Not Found</AlertTitle>
+            <AlertDescription>
+                {error || `The booking with ID "${bookingId}" could not be found or has expired.`}
+            </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 

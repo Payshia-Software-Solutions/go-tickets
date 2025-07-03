@@ -4,6 +4,7 @@
 import type { User, SignupFormData } from '@/lib/types'; // Removed direct import of BillingAddress
 import { loginUserWithApi, createUser as apiCreateUser, updateUser as apiUpdateUser, getUserByEmail } from '@/lib/mockData';
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import * as fpixel from '@/lib/fpixel';
 
 interface AuthContextType {
   user: User | null;
@@ -74,6 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error("This email address is already registered (pre-check).");
       }
       const newUser = await apiCreateUser(data);
+      fpixel.track('CompleteRegistration');
       setUser(newUser);
       localStorage.setItem(localStorageKey, JSON.stringify(newUser));
     } finally {

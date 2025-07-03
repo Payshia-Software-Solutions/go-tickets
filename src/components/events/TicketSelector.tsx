@@ -11,6 +11,7 @@ import { MinusCircle, PlusCircle, AlertTriangle } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import * as fpixel from '@/lib/fpixel';
 
 interface TicketSelectorProps {
   event: Event;
@@ -105,6 +106,13 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
             const fullTicketType = event.ticketTypes?.find(tt => tt.id === ticketTypeId);
             if (fullTicketType) {
                 addToCart(event, fullTicketType, newQuantity, selectedShowTime.id, selectedShowTime.dateTime);
+                fpixel.track('AddToCart', {
+                  content_name: event.name,
+                  content_ids: [fullTicketType.id],
+                  content_type: 'product',
+                  value: fullTicketType.price * newQuantity,
+                  currency: 'LKR',
+                });
                  toast({
                     title: "Added to Cart",
                     description: `${newQuantity} x ${ticketTypeForAvailability.name} for ${event.name} added.`,
