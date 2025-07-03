@@ -13,9 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import QRCode from '@/components/QRCode';
-import { Separator } from '@/components/ui/separator';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const ITEMS_PER_PAGE = 10;
@@ -79,7 +76,6 @@ export default function AdminBookingsPage() {
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
@@ -239,8 +235,10 @@ export default function AdminBookingsPage() {
                         <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
                         <TableCell className="text-right space-x-1 whitespace-nowrap">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedBooking(booking)}>
-                            <FileText className="mr-2 h-3.5 w-3.5" /> Details
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/admin/bookings/${booking.id}`}>
+                              <FileText className="mr-2 h-3.5 w-3.5" /> Details
+                            </Link>
                           </Button>
                           <Button variant="ghost" size="sm" asChild title="View Public Confirmation Page">
                             <Link href={`/booking-confirmation?order_id=${booking.id}`} target="_blank">
@@ -304,86 +302,6 @@ export default function AdminBookingsPage() {
         </CardContent>
       </Card>
       
-      {selectedBooking && (
-        <Dialog open={!!selectedBooking} onOpenChange={(isOpen) => !isOpen && setSelectedBooking(null)}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh]">
-                <DialogHeader>
-                    <DialogTitle>Booking Details</DialogTitle>
-                    <DialogDescription>
-                        ID: <span className="font-mono">{selectedBooking.id}</span>
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 grid gap-4 overflow-y-auto pr-4">
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">Event & Payment</CardTitle></CardHeader>
-                        <CardContent className="text-sm space-y-2">
-                            <p><strong>Event:</strong> {selectedBooking.eventName}</p>
-                            <p><strong>Date:</strong> {new Date(selectedBooking.eventDate).toLocaleString()}</p>
-                            <p><strong>Location:</strong> {selectedBooking.eventLocation}</p>
-                            <Separator className="my-2" />
-                            <p><strong>Total Price:</strong> LKR {selectedBooking.totalPrice.toFixed(2)}</p>
-                            <div className="flex items-center gap-2">
-                              <strong>Payment Status:</strong> 
-                              <Badge 
-                                variant="secondary"
-                                className={cn('capitalize', {
-                                  'bg-green-100 text-green-800 border-green-200': (selectedBooking.payment_status || 'pending').toLowerCase() === 'paid',
-                                  'bg-amber-100 text-amber-800 border-amber-200': (selectedBooking.payment_status || 'pending').toLowerCase() === 'pending',
-                                  'bg-red-100 text-red-800 border-red-200': (selectedBooking.payment_status || 'pending').toLowerCase() === 'failed',
-                                })}
-                              >
-                                {selectedBooking.payment_status || 'pending'}
-                              </Badge>
-                            </div>
-                            <p><strong>Booked On:</strong> {new Date(selectedBooking.bookingDate).toLocaleString()}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">Attendee & Billing Details</CardTitle></CardHeader>
-                        <CardContent className="text-sm space-y-2">
-                            <p><strong>User ID:</strong> <span className="font-mono text-xs">{selectedBooking.userId}</span></p>
-                            <p><strong>Name:</strong> {`${selectedBooking.billingAddress?.firstName || ''} ${selectedBooking.billingAddress?.lastName || ''}`.trim() || 'N/A'}</p>
-                            <p><strong>Email:</strong> {selectedBooking.billingAddress?.email || 'N/A'}</p>
-                            <p><strong>Phone:</strong> {selectedBooking.billingAddress?.phone_number || 'N/A'}</p>
-                            <Separator className="my-2"/>
-                            <p><strong>Address:</strong> {[selectedBooking.billingAddress?.street, selectedBooking.billingAddress?.city, selectedBooking.billingAddress?.state, selectedBooking.billingAddress?.postalCode, selectedBooking.billingAddress?.country].filter(Boolean).join(', ') || 'N/A'}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">Booked Tickets</CardTitle></CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead className="text-center">Quantity</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {selectedBooking.bookedTickets.map((ticket, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{ticket.ticketTypeName}</TableCell>
-                                            <TableCell className="text-center">{ticket.quantity}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">QR Code for Entry</CardTitle></CardHeader>
-                        <CardContent className="flex justify-center">
-                            <QRCode data={selectedBooking.qrCodeValue} size={150} />
-                        </CardContent>
-                    </Card>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setSelectedBooking(null)}>Close</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
-
