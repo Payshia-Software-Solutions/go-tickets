@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { getBookingByQrCode } from '@/lib/mockData';
+import { getBookingByQrCode, getBookingById } from '@/lib/mockData';
 
 interface VerificationResponse {
   success: boolean;
@@ -78,13 +77,20 @@ const TicketVerificationPage = () => {
     setIsScanning(false);
   };
 
-  const fetchBookingDetails = async (qrCodeValue: string) => {
+  const fetchBookingDetails = async (code: string) => {
     setIsLoading(true);
     setScannedBooking(null);
     setVerificationError(null);
 
     try {
-      const result = await getBookingByQrCode(qrCodeValue);
+      let result: Booking | undefined;
+      // If the code consists only of digits, treat it as a booking ID.
+      // Otherwise, treat it as a full QR code string.
+      if (/^\d+$/.test(code)) {
+        result = await getBookingById(code);
+      } else {
+        result = await getBookingByQrCode(code);
+      }
 
       if (result) {
         audioSuccessRef.current?.play().catch(e => console.warn("Could not play sound:", e));
