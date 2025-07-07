@@ -1,6 +1,7 @@
-import { parse, isValid } from 'date-fns';
 
-// Helper to parse various date strings to ISO string
+import { parse, isValid, format } from 'date-fns';
+
+// Helper to parse various date strings to a standard "local" format string
 export const parseApiDateString = (dateString?: string): string | undefined => {
   if (!dateString) return undefined;
 
@@ -40,12 +41,19 @@ export const parseApiDateString = (dateString?: string): string | undefined => {
   const parsedDateObject = tryParseVariousFormats(dateString);
 
   if (parsedDateObject) {
-    return parsedDateObject.toISOString();
+    // Re-format the date into a standard 'local time' format string.
+    // This avoids using .toISOString(), which would convert the time to UTC.
+    // A string like "2025-08-02 19:00:00" passed to `new Date()` on the client
+    // will be interpreted in the browser's local timezone, effectively showing
+    // the time as it was written, without conversion.
+    return format(parsedDateObject, "yyyy-MM-dd HH:mm:ss");
   }
   
-  console.warn(`parseApiDateString: Failed to parse "${dateString}" into a valid ISO string. Returning original or undefined.`);
+  console.warn(`parseApiDateString: Failed to parse "${dateString}" into a valid string. Returning original or undefined.`);
+  // Return the original string if parsing fails, so we don't lose data.
   return dateString;
 };
 
 // Helper for unique IDs for mock data
 export const generateId = (prefix: string = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
