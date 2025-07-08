@@ -143,14 +143,20 @@ export const createBooking = async (
   if (cart.length === 0) {
     throw new Error("Cannot create a booking with an empty cart.");
   }
-  
-  const mainEventId = cart[0].eventId;
-  const totalTicketCountForEvent = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const booking_event_payload = [{
-    eventId: parseInt(mainEventId, 10),
-    ticket_count: totalTicketCountForEvent,
-  }];
+  // Group cart items by eventId to summarize ticket counts for the `booking_event` payload.
+  const eventTicketCounts = cart.reduce((acc, item) => {
+      if (!acc[item.eventId]) {
+          acc[item.eventId] = 0;
+      }
+      acc[item.eventId] += item.quantity;
+      return acc;
+  }, {} as Record<string, number>);
+
+  const booking_event_payload = Object.entries(eventTicketCounts).map(([eventId, count]) => ({
+      eventId: parseInt(eventId, 10),
+      ticket_count: count,
+  }));
 
   const booking_showtime_payload = cart.map(item => {
     if (!item.showTimeDateTime || typeof item.showTimeDateTime !== 'string') {
