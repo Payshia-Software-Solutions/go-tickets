@@ -1,5 +1,4 @@
 
-
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -141,11 +140,31 @@ export const createBooking = async (
   }
   const { userId, cart, totalPrice, billingAddress, isGuest } = bookingData;
 
-  const booking_event_payload = cart.map(item => ({
-    eventId: parseInt(item.eventId, 10),
-    ticket_count: item.quantity,
-    tickettype_id: parseInt(item.ticketTypeId, 10),
-  }));
+  if (cart.length === 0) {
+    throw new Error("Cannot create a booking with an empty cart.");
+  }
+  
+  const mainEventId = cart[0].eventId;
+  const totalTicketCountForEvent = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const booking_event_payload = [{
+    eventId: parseInt(mainEventId, 10),
+    ticket_count: totalTicketCountForEvent,
+  }];
+
+  const booking_showtime_payload = cart.map(item => {
+    if (!item.showTimeDateTime || typeof item.showTimeDateTime !== 'string') {
+      throw new Error(`A ticket in your cart (${item.eventName} - ${item.ticketTypeName}) has an invalid showtime. Please remove it and add it again.`);
+    }
+    return {
+      eventId: parseInt(item.eventId, 10),
+      showtime_id: parseInt(item.showTimeId, 10),
+      tickettype_id: parseInt(item.ticketTypeId, 10),
+      ticket_type: item.ticketTypeName,
+      showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm:ss") + ".000",
+      ticket_count: item.quantity
+    };
+  });
 
   const apiPayload = {
     userId: parseInt(userId, 10),
@@ -155,7 +174,7 @@ export const createBooking = async (
     contact_number: billingAddress.phone_number,
     email: billingAddress.email,
     totalPrice: totalPrice,
-    eventName: cart.length > 1 ? `Multi-Event Package (${new Date().toLocaleDateString()})` : cart[0].eventName,
+    eventName: cart[0].eventName,
     eventDate: format(parseISO(cart[0].showTimeDateTime), "yyyy-MM-dd"),
     eventLocation: (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
     qrCodeValue: `BOOK-${new Date().getFullYear()}-${isGuest ? 'GUEST' : 'USER'}-${generateId()}`,
@@ -166,19 +185,7 @@ export const createBooking = async (
     billing_country: billingAddress.country,
     guest: isGuest ? 1 : 0,
     booking_event: booking_event_payload,
-    booking_showtime: cart.map(item => {
-      if (!item.showTimeDateTime || typeof item.showTimeDateTime !== 'string') {
-        throw new Error(`A ticket in your cart (${item.eventName} - ${item.ticketTypeName}) is invalid. Please remove it and add it to your cart again.`);
-      }
-      return {
-        eventId: parseInt(item.eventId, 10),
-        showtime_id: parseInt(item.showTimeId, 10),
-        ticket_type: item.ticketTypeName,
-        tickettype_id: parseInt(item.ticketTypeId, 10),
-        showtime: format(parseISO(item.showTimeDateTime), "yyyy-MM-dd HH:mm"),
-        ticket_count: item.quantity
-      };
-    })
+    booking_showtime: booking_showtime_payload
   };
 
   try {
