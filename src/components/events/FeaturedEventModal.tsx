@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -48,7 +49,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-2rem)] rounded-lg max-w-sm md:max-w-2xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
-        <div className="relative w-full aspect-[4/3] bg-muted/50">
+        <div className="relative w-full aspect-square bg-muted/50">
            <Image
               src={event.imageUrl}
               alt={event.name}
