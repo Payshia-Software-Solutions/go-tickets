@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart as BarChartIcon, Users, DollarSign, Tag, PieChart as PieChartIcon, Activity, PlusCircle } from 'lucide-react';
+import { BarChart as BarChartIcon, Users, DollarSign, Tag, PieChart as PieChartIcon, Activity, PlusCircle, ShoppingBag, TrendingUp, UserCheck, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -16,6 +16,9 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart"
 import { format, subDays, parseISO } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 // Helper for sales chart data processing
 const processSalesData = (bookings: Booking[]) => {
@@ -60,8 +63,36 @@ const processCategoryData = (events: Event[]) => {
   }));
 };
 
+const processTopEvents = (paidBookings: Booking[], allEvents: Event[]) => {
+  if (!paidBookings || paidBookings.length === 0) return [];
+
+  const bookingCounts = paidBookings.reduce((acc, booking) => {
+      acc[booking.eventId] = (acc[booking.eventId] || 0) + 1;
+      return acc;
+  }, {} as Record<string, number>);
+
+  return Object.entries(bookingCounts)
+      .map(([eventId, count]) => {
+          const event = allEvents.find(e => e.id === eventId);
+          return {
+              name: event?.name || `Event ID: ${eventId}`,
+              count: count
+          };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+};
+
+
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+const getInitials = (name: string) => {
+  const names = name.split(' ');
+  if (names.length > 1) {
+    return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -74,6 +105,8 @@ export default function AdminDashboardPage() {
   // State for chart data
   const [salesData, setSalesData] = useState<any[]>([]);
   const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [topEvents, setTopEvents] = useState<any[]>([]);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(true);
 
   useEffect(() => {
@@ -100,15 +133,18 @@ export default function AdminDashboardPage() {
           users: userCount,
         });
 
-        // Process and set chart data using only paid bookings
         setSalesData(processSalesData(paidBookings));
         setCategoryData(processCategoryData(allEvents));
+        setTopEvents(processTopEvents(paidBookings, allEvents));
+        setRecentBookings(paidBookings.slice(0, 5));
 
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
         setStats({ events: 0, bookings: 0, users: 0 }); // Show 0 on error
         setSalesData([]);
         setCategoryData([]);
+        setTopEvents([]);
+        setRecentBookings([]);
       } finally {
         setIsLoading(false);
         setIsChartLoading(false);
@@ -117,27 +153,39 @@ export default function AdminDashboardPage() {
     fetchAllData();
   }, []);
 
-  const StatCard = ({ title, value, icon: Icon, note }: { title: string; value: number | null; icon: React.ElementType, note: string }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <>
-            <Skeleton className="h-7 w-12" />
-            <Skeleton className="h-3 w-24 mt-2" />
-          </>
-        ) : (
-          <>
-            <div className="text-2xl font-bold">{value ?? 'N/A'}</div>
-            <p className="text-xs text-muted-foreground">{note}</p>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
+  const StatCard = ({ title, value, icon: Icon, note, href }: { title: string; value: number | null; icon: React.ElementType, note: string, href?: string }) => {
+    const cardContent = (
+      <Card className={cn("transition-shadow", href && "hover:shadow-md")}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <>
+              <Skeleton className="h-7 w-12" />
+              <Skeleton className="h-3 w-24 mt-2" />
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold">{value ?? 'N/A'}</div>
+              <p className="text-xs text-muted-foreground">{note}</p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+
+    if (href) {
+      return (
+        <Link href={href} className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg">
+          {cardContent}
+        </Link>
+      );
+    }
+    return cardContent;
+  };
+
 
   return (
     <div className="space-y-8">
@@ -147,9 +195,9 @@ export default function AdminDashboardPage() {
       </header>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Events" value={stats.events} icon={BarChartIcon} note="Live data from server" />
-        <StatCard title="Completed Bookings" value={stats.bookings} icon={DollarSign} note="Bookings with 'paid' status" />
-        <StatCard title="Registered Users" value={stats.users} icon={Users} note="Live data from server" />
+        <StatCard title="Total Events" value={stats.events} icon={BarChartIcon} note="Live data from server" href="/admin/events" />
+        <StatCard title="Completed Bookings" value={stats.bookings} icon={DollarSign} note="Bookings with 'paid' status" href="/admin/bookings" />
+        <StatCard title="Registered Users" value={stats.users} icon={Users} note="Live data from server" href="/admin/users"/>
         
         <Card className="flex flex-col">
           <CardHeader className="pb-2">
@@ -243,6 +291,70 @@ export default function AdminDashboardPage() {
        <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center"><Star className="mr-2 h-5 w-5"/> Top Performing Events</CardTitle>
+            <CardDescription>By number of confirmed bookings.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isChartLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+              ) : topEvents.length > 0 ? (
+                <ul className="space-y-4">
+                  {topEvents.map((event, index) => (
+                    <li key={index} className="flex items-center justify-between">
+                      <span className="font-medium text-sm truncate pr-4">{event.name}</span>
+                      <Badge variant="secondary">{event.count} Bookings</Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-center text-muted-foreground py-4">No bookings yet to determine top events.</p>
+              )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center"><ShoppingBag className="mr-2 h-5 w-5"/> Recent Bookings</CardTitle>
+            <CardDescription>A feed of the latest paid bookings.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             {isChartLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : recentBookings.length > 0 ? (
+                <div className="space-y-4">
+                  {recentBookings.map((booking) => (
+                    <div key={booking.id} className="flex items-center">
+                      <Avatar className="h-9 w-9">
+                          <AvatarImage src={`https://avatar.vercel.sh/${booking.billingAddress?.email || booking.id}.png`} alt="Avatar" />
+                          <AvatarFallback>{getInitials(booking.userName || 'G')}</AvatarFallback>
+                      </Avatar>
+                      <div className="ml-4 space-y-1">
+                          <p className="text-sm font-medium leading-none">{booking.userName}</p>
+                          <p className="text-xs text-muted-foreground">{booking.eventName}</p>
+                      </div>
+                      <div className="ml-auto font-medium text-sm">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/bookings/${booking.id}`}>
+                            Details
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-4">No recent bookings found.</p>
+              )}
+          </CardContent>
+        </Card>
+      </div>
+
+       <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -266,4 +378,5 @@ export default function AdminDashboardPage() {
       </div>
     </div>
   );
-}
+
+    
