@@ -7,7 +7,8 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Event } from '@/lib/types';
-import { Ticket, Zap } from 'lucide-react';
+import { Ticket, Zap, CalendarDays, MapPin } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 
 interface FeaturedEventModalProps {
   isOpen: boolean;
@@ -19,6 +20,31 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
   if (!event) {
     return null;
   }
+  
+  const safeParseDate = (dateStr: string | undefined): Date | null => {
+    if (!dateStr) return null;
+    try {
+      // Handle both ISO strings and "YYYY-MM-DD HH:MM:SS" formats
+      const parsed = parseISO(dateStr);
+      // Check if parsing was successful
+      if (isNaN(parsed.getTime())) {
+          // Fallback for non-ISO formats
+          const parts = dateStr.split(/[\s:-]/);
+          if (parts.length >= 3) {
+            return new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]),
+                            parseInt(parts[3]) || 0, parseInt(parts[4]) || 0, parseInt(parts[5]) || 0);
+          }
+          return null;
+      }
+      return parsed;
+    } catch (e) {
+      console.warn(`Could not parse date: ${dateStr}`, e);
+      return null;
+    }
+  };
+
+  const eventDate = safeParseDate(event.date);
+  const formattedDate = eventDate ? format(eventDate, "EEEE, MMMM do, yyyy") : "Date not available";
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -39,8 +65,16 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                     <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets Almost Sold Out!
                 </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
-                <p className="text-muted-foreground text-sm">
+            <div className="py-4 space-y-4">
+                <div className="flex items-center text-sm">
+                    <CalendarDays className="mr-3 h-4 w-4 text-muted-foreground" />
+                    <span className="text-foreground">{formattedDate}</span>
+                </div>
+                 <div className="flex items-center text-sm">
+                    <MapPin className="mr-3 h-4 w-4 text-muted-foreground" />
+                    <span className="text-foreground">{event.venueName || event.location}</span>
+                </div>
+                <p className="text-muted-foreground text-sm pt-2">
                     Don't miss out on one of the hottest events of the year. Grab your tickets before they're all gone.
                 </p>
             </div>
