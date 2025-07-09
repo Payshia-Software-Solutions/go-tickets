@@ -48,13 +48,13 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] rounded-lg max-w-sm md:max-w-3xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
-        <div className="relative w-full aspect-square bg-muted/50">
+      <DialogContent className="w-[calc(100vw-2rem)] rounded-lg max-w-sm md:max-w-2xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
+        <div className="relative w-full aspect-[4/3] bg-muted/50">
            <Image
               src={event.imageUrl}
               alt={event.name}
               fill
-              className="object-contain"
+              className="object-cover"
               data-ai-hint="event concert festival"
             />
         </div>
@@ -63,7 +63,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                 <DialogTitle className="text-2xl font-bold font-headline">{event.name}</DialogTitle>
                 <DialogDescription asChild>
                     <div className="pt-2 space-y-4">
-                        <p className="font-semibold flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
+                        <p className="font-semibold flex items-center justify-center gap-2 text-red-500 dark:text-red-400">
                             <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets are selling fast!
                         </p>
                         <div className="text-center">
