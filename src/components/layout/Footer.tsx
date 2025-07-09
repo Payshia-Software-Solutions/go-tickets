@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -14,7 +15,7 @@ const Footer = () => {
   return (
     <footer className="bg-[hsl(var(--footer-background))] text-[hsl(var(--footer-foreground))] border-t border-[hsl(var(--footer-border))]">
       <div className="container py-12 px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <Link href="/" className="block mb-4">
               <span className="text-xl font-bold text-primary font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
@@ -33,6 +34,14 @@ const Footer = () => {
             </ul>
           </div>
           <div>
+            <h3 className="text-lg font-semibold text-[hsl(var(--footer-foreground))] mb-4">Policies</h3>
+            <ul className="space-y-2">
+              <li><Link href="/terms" className="hover:text-primary transition-colors text-sm opacity-80 hover:opacity-100">Terms & Conditions</Link></li>
+              <li><Link href="/privacy" className="hover:text-primary transition-colors text-sm opacity-80 hover:opacity-100">Privacy Policy</Link></li>
+              <li><Link href="/refund" className="hover:text-primary transition-colors text-sm opacity-80 hover:opacity-100">Refund Policy</Link></li>
+            </ul>
+          </div>
+          <div>
             <h3 className="text-lg font-semibold text-[hsl(var(--footer-foreground))] mb-4">Connect With Us</h3>
             <div className="flex space-x-4 mb-4">
               <Link href="#" aria-label="Facebook" className="text-[hsl(var(--footer-foreground))] opacity-70 hover:opacity-100 hover:text-primary transition-colors"><Facebook size={24} /></Link>
@@ -40,11 +49,11 @@ const Footer = () => {
               <Link href="#" aria-label="Instagram" className="text-[hsl(var(--footer-foreground))] opacity-70 hover:opacity-100 hover:text-primary transition-colors"><Instagram size={24} /></Link>
               <Link href="#" aria-label="LinkedIn" className="text-[hsl(var(--footer-foreground))] opacity-70 hover:opacity-100 hover:text-primary transition-colors"><Linkedin size={24} /></Link>
             </div>
-            <p className="text-sm opacity-80">&copy; {new Date().getFullYear()} GoTickets.lk. All rights reserved.</p>
           </div>
         </div>
         <div className="text-center mt-8 pt-8 border-t border-[hsl(var(--footer-border))] opacity-70">
             <p className="text-xs">
+                &copy; {new Date().getFullYear()} GoTickets.lk. All rights reserved. <br/>
                 <a href="https://www.payshia.com/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
                 Powered by Payshia Software Solutions
                 </a>
