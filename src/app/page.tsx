@@ -92,7 +92,7 @@ export default function HomePage() {
       const viewCountString = localStorage.getItem('featuredEventViewCount') || '0';
       const viewCount = parseInt(viewCountString, 10);
 
-      if (viewCount >= 5) {
+      if (viewCount >= 100) {
         return;
       }
 
