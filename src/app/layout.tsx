@@ -2,6 +2,7 @@
 
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google'; // Import Inter from next/font
+import Script from 'next/script'; // Import Script component
 import './globals.css';
 import { Providers } from '@/components/Providers';
 import Header from '@/components/layout/Header';
@@ -10,6 +11,8 @@ import FacebookPixelEvents from '@/components/FacebookPixelEvents';
 import { Suspense } from 'react';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const GA_TRACKING_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-XW1Q7R19PV';
+
 
 // Initialize Inter font with a CSS variable
 const inter = Inter({
@@ -85,6 +88,17 @@ export default function RootLayout({
       </head>
       {/* The font-body class in Tailwind will now use --font-inter via tailwind.config.ts */}
       <body className="font-body antialiased flex flex-col min-h-screen" suppressHydrationWarning={true}>
+        {/* Google Analytics */}
+        <Script strategy="afterInteractive" src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`} />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_TRACKING_ID}');
+          `}
+        </Script>
+
         {PIXEL_ID && (
           <noscript>
             <img
