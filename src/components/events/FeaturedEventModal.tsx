@@ -51,9 +51,6 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                     Buy Tickets Now
                     </Link>
                 </Button>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full">
-                    Close
-                </Button>
             </DialogFooter>
         </div>
       </DialogContent>

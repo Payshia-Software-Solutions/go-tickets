@@ -89,8 +89,10 @@ export default function HomePage() {
 
   useEffect(() => {
     const fetchFeaturedEvent = async () => {
-      const modalShown = sessionStorage.getItem('featuredEventModalShown');
-      if (modalShown) {
+      const viewCountString = localStorage.getItem('featuredEventViewCount') || '0';
+      const viewCount = parseInt(viewCountString, 10);
+
+      if (viewCount >= 5) {
         return;
       }
 
@@ -100,7 +102,7 @@ export default function HomePage() {
           setFeaturedEvent(event);
           const timer = setTimeout(() => {
             setIsFeaturedModalOpen(true);
-            sessionStorage.setItem('featuredEventModalShown', 'true');
+            localStorage.setItem('featuredEventViewCount', String(viewCount + 1));
           }, 1500);
            return () => clearTimeout(timer);
         }
