@@ -60,7 +60,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                 <div className="lg:col-span-2 space-y-6">
                 <Card className="overflow-hidden shadow-lg">
                     <CardHeader className="p-0">
-                    <div className="relative w-full aspect-video">
+                    <div className="relative w-full aspect-square">
                         <Image
                         src={event.imageUrl || "https://placehold.co/600x400.png"}
                         alt={event.name}
