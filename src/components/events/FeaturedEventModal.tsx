@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { FC } from 'react';
@@ -21,13 +22,13 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm md:max-w-3xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
-        <div className="relative w-full h-48 md:h-full min-h-[250px]">
+      <DialogContent className="max-w-sm md:max-w-4xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
+        <div className="relative w-full aspect-square bg-muted/50">
            <Image
               src={event.imageUrl}
               alt={event.name}
               fill
-              className="object-cover"
+              className="object-contain"
               data-ai-hint="event concert festival"
             />
         </div>
