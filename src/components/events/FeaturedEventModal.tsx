@@ -61,8 +61,15 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
         <div className="p-6 flex flex-col justify-between">
             <DialogHeader className="text-left">
                 <DialogTitle className="text-2xl font-bold font-headline">{event.name}</DialogTitle>
-                <DialogDescription className="text-destructive font-semibold flex items-center gap-2 pt-1">
-                    <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets Almost Sold Out!
+                <DialogDescription asChild>
+                    <div className="pt-1 space-y-1">
+                        <p className="font-semibold flex items-center gap-2 text-red-600 dark:text-red-500">
+                            <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets Almost Sold Out!
+                        </p>
+                        <p className="text-sm font-medium text-muted-foreground">
+                            Over 20% of tickets already sold!
+                        </p>
+                    </div>
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
