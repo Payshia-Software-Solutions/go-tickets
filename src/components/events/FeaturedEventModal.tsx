@@ -62,13 +62,13 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
             <DialogHeader className="text-left">
                 <DialogTitle className="text-2xl font-bold font-headline">{event.name}</DialogTitle>
                 <DialogDescription asChild>
-                    <div className="pt-1 space-y-1">
+                    <div className="pt-2 space-y-2">
                         <p className="font-semibold flex items-center gap-2 text-red-600 dark:text-red-500">
-                            <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets Almost Sold Out!
+                            <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets are selling fast!
                         </p>
-                        <p className="text-sm font-medium text-muted-foreground">
-                            Over 20% of tickets already sold!
-                        </p>
+                        <div className="text-muted-foreground">
+                            Over <span className="block my-1 text-5xl lg:text-6xl font-extrabold text-accent">20%</span> of tickets already sold!
+                        </div>
                     </div>
                 </DialogDescription>
             </DialogHeader>
