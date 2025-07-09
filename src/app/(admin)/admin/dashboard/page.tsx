@@ -359,7 +359,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Button asChild>
-              <Link href="/admin/events/new">
+              <Link href="/admin/events">
                 <PlusCircle className="mr-2 h-4 w-4" /> Create New Event
               </Link>
             </Button>
@@ -378,5 +378,6 @@ export default function AdminDashboardPage() {
       </div>
     </div>
   );
+}
 
     
