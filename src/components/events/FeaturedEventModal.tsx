@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { FC } from 'react';
@@ -58,31 +57,31 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
               data-ai-hint="event concert festival"
             />
         </div>
-        <div className="p-6 flex flex-col justify-between">
+        <div className="p-4 flex flex-col justify-between">
             <DialogHeader className="text-left">
-                <DialogTitle className="text-2xl font-bold font-headline">{event.name}</DialogTitle>
+                <DialogTitle className="text-xl font-bold font-headline">{event.name}</DialogTitle>
                 <DialogDescription asChild>
-                    <div className="pt-2 space-y-4">
+                    <div className="pt-2 space-y-2">
                         <p className="font-semibold flex items-center justify-center gap-2 text-red-500 dark:text-red-400">
                             <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets are selling fast!
                         </p>
                         <div className="text-center">
-                            <span className="block text-6xl font-extrabold text-accent leading-tight">20%</span>
-                            <span className="text-muted-foreground text-base">of tickets already sold!</span>
+                            <span className="block text-5xl font-extrabold text-accent leading-tight">20%</span>
+                            <span className="text-muted-foreground text-sm">of tickets already sold!</span>
                         </div>
                     </div>
                 </DialogDescription>
             </DialogHeader>
-            <div className="py-4 space-y-4">
-                <div className="flex items-center text-sm">
-                    <CalendarDays className="mr-3 h-4 w-4 text-muted-foreground" />
+            <div className="py-2 space-y-2">
+                <div className="flex items-center text-xs">
+                    <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-foreground">{formattedDate}</span>
                 </div>
-                 <div className="flex items-center text-sm">
-                    <MapPin className="mr-3 h-4 w-4 text-muted-foreground" />
+                 <div className="flex items-center text-xs">
+                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-foreground">{event.venueName || event.location}</span>
                 </div>
-                <p className="text-muted-foreground text-sm pt-2">
+                <p className="text-muted-foreground text-xs pt-1">
                     Don't miss out on one of the hottest events of the year. Grab your tickets before they're all gone.
                 </p>
             </div>
