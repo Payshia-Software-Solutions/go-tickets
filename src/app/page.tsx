@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, getPopularEvents, getEventSuggestionsByName } from '@/lib/mockData'; 
+import { getUpcomingEvents, getEventCategories, getPopularEvents, getEventSuggestionsByName, getAdminEventById } from '@/lib/mockData'; 
 import type { Event, Category } from '@/lib/types'; // Added Category
 import EventCard from '@/components/events/EventCard';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import FeaturedEventModal from '@/components/events/FeaturedEventModal';
 
 
 const categoryDisplayData: Record<string, { icon: React.ElementType; bgColor: string; iconColor: string }> = {
@@ -55,6 +56,10 @@ export default function HomePage() {
   const [isLoadingUpcoming, setIsLoadingUpcoming] = useState(true);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingPopular, setIsLoadingPopular] = useState(true);
+  
+  // State for featured event modal
+  const [isFeaturedModalOpen, setIsFeaturedModalOpen] = useState(false);
+  const [featuredEvent, setFeaturedEvent] = useState<Event | null>(null);
 
 
   useEffect(() => {
@@ -80,6 +85,31 @@ export default function HomePage() {
       });
     };
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const fetchFeaturedEvent = async () => {
+      const modalShown = sessionStorage.getItem('featuredEventModalShown');
+      if (modalShown) {
+        return;
+      }
+
+      try {
+        const event = await getAdminEventById('1');
+        if (event) {
+          setFeaturedEvent(event);
+          const timer = setTimeout(() => {
+            setIsFeaturedModalOpen(true);
+            sessionStorage.setItem('featuredEventModalShown', 'true');
+          }, 1500);
+           return () => clearTimeout(timer);
+        }
+      } catch (error) {
+        console.error("Could not fetch featured event:", error);
+      }
+    };
+
+    fetchFeaturedEvent();
   }, []);
 
   useEffect(() => {
@@ -182,6 +212,11 @@ export default function HomePage() {
 
   return (
     <div className="">
+      <FeaturedEventModal
+        isOpen={isFeaturedModalOpen}
+        onOpenChange={setIsFeaturedModalOpen}
+        event={featuredEvent}
+      />
       {/* Hero Section */}
       <section className="bg-primary text-primary-foreground py-20 md:py-32">
         <div className="container mx-auto text-center">
