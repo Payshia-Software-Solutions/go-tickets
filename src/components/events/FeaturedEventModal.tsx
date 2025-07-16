@@ -48,8 +48,8 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] rounded-lg max-w-sm md:max-w-2xl p-0 overflow-hidden grid md:grid-cols-2 gap-0">
-        <div className="relative w-full aspect-square bg-muted/50">
+      <DialogContent className="grid w-[calc(100vw-2rem)] max-w-sm gap-0 overflow-hidden rounded-lg p-0 md:max-w-2xl md:grid-cols-2">
+        <div className="relative aspect-square w-full bg-muted/50">
            <Image
               src={event.imageUrl}
               alt={event.name}
@@ -58,22 +58,22 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
               data-ai-hint="event concert festival"
             />
         </div>
-        <div className="p-4 flex flex-col justify-between">
+        <div className="flex flex-col justify-between p-4">
             <DialogHeader className="text-left">
-                <DialogTitle className="text-xl font-bold font-headline">{event.name}</DialogTitle>
+                <DialogTitle className="font-headline text-xl font-bold">{event.name}</DialogTitle>
                 <DialogDescription asChild>
-                    <div className="pt-2 space-y-2">
-                        <p className="font-semibold flex items-center justify-center gap-2 text-red-500 dark:text-red-400">
+                    <div className="space-y-2 pt-2">
+                        <p className="flex items-center justify-center gap-2 font-semibold text-red-500 dark:text-red-400">
                             <Zap className="h-5 w-5 animate-pulse" /> Hurry Up! Tickets are selling fast!
                         </p>
                         <div className="text-center">
-                            <span className="block text-5xl font-extrabold text-accent leading-tight">20%</span>
-                            <span className="text-muted-foreground text-sm">of tickets already sold!</span>
+                            <span className="block text-5xl font-extrabold leading-tight text-accent">50%</span>
+                            <span className="text-sm text-muted-foreground">of tickets already sold!</span>
                         </div>
                     </div>
                 </DialogDescription>
             </DialogHeader>
-            <div className="py-2 space-y-2">
+            <div className="space-y-2 py-2">
                 <div className="flex items-center text-xs">
                     <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-foreground">{formattedDate}</span>
@@ -82,12 +82,12 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                     <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
                     <span className="text-foreground">{event.venueName || event.location}</span>
                 </div>
-                <p className="text-muted-foreground text-xs pt-1">
+                <p className="pt-1 text-xs text-muted-foreground">
                     Don't miss out on one of the hottest events of the year. Grab your tickets before they're all gone.
                 </p>
             </div>
-            <DialogFooter className="flex-col sm:flex-col sm:items-stretch sm:justify-end gap-2">
-                 <Button asChild type="button" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+            <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch sm:justify-end">
+                 <Button asChild type="button" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                     <Link href={`/events/${event.slug}/book`} onClick={() => onOpenChange(false)}>
                     <Ticket className="mr-2 h-4 w-4"/>
                     Buy Tickets Now
