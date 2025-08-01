@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const ITEMS_PER_PAGE = 10;
@@ -74,6 +75,7 @@ export default function AdminBookingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -116,11 +118,29 @@ export default function AdminBookingsPage() {
   }, [fetchBookings]);
 
   const filteredBookings = useMemo(() => {
-    return bookings.filter(booking => {
-      if (statusFilter === 'all') return true;
-      return (booking.payment_status || 'pending').toLowerCase() === statusFilter;
-    });
-  }, [bookings, statusFilter]);
+    let filtered = bookings;
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+        filtered = filtered.filter(booking => (booking.payment_status || 'pending').toLowerCase() === statusFilter);
+    }
+
+    // Search query filter
+    if (searchQuery.trim() !== '') {
+        const lowercasedQuery = searchQuery.toLowerCase().trim();
+        filtered = filtered.filter(booking => {
+            const userName = booking.userName?.toLowerCase() || '';
+            const email = booking.billingAddress?.email?.toLowerCase() || '';
+            const phone = String(booking.billingAddress?.phone_number || '');
+            
+            return userName.includes(lowercasedQuery) || 
+                   email.includes(lowercasedQuery) ||
+                   phone.includes(lowercasedQuery);
+        });
+    }
+
+    return filtered;
+  }, [bookings, statusFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
@@ -131,6 +151,11 @@ export default function AdminBookingsPage() {
 
   const handleFilterChange = (value: string) => {
     setStatusFilter(value);
+    setCurrentPage(1);
+  };
+  
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
     setCurrentPage(1);
   };
 
@@ -155,14 +180,26 @@ export default function AdminBookingsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
         <p className="text-muted-foreground">View and manage all event bookings.</p>
       </header>
+      
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative w-full md:w-1/3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search by name, email, phone..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="pl-10"
+          />
+        </div>
+        <Tabs value={statusFilter} onValueChange={handleFilterChange}>
+          <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-[auto,auto,auto]">
+            <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
+            <TabsTrigger value="paid">Paid ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'pending').length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-      <Tabs value={statusFilter} onValueChange={handleFilterChange}>
-        <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-[auto,auto,auto]">
-          <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
-          <TabsTrigger value="paid">Paid ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'pending').length})</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       <Card>
         <CardHeader>
@@ -175,7 +212,9 @@ export default function AdminBookingsPage() {
           {paginatedBookings.length === 0 ? (
             <div className="text-center py-10">
               <Ticket className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No bookings found for this filter.</p>
+              <p className="text-muted-foreground">
+                {searchQuery ? `No bookings found for "${searchQuery}".` : "No bookings found for this filter."}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -184,9 +223,9 @@ export default function AdminBookingsPage() {
                   <TableRow>
                     <TableHead>Booking ID</TableHead>
                     <TableHead>Event Name</TableHead>
+                    <TableHead>Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Event Date</TableHead>
-                    <TableHead>User ID</TableHead>
                     <TableHead className="text-right">Tickets</TableHead>
                     <TableHead className="text-right">Total Price</TableHead>
                     <TableHead>Booked On</TableHead>
@@ -203,6 +242,10 @@ export default function AdminBookingsPage() {
                       <TableRow key={booking.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
                         <TableCell className="font-medium whitespace-nowrap">{booking.eventName}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                            <div className="font-medium">{booking.userName}</div>
+                            <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                        </TableCell>
                         <TableCell>
                           <Badge 
                             variant="secondary"
@@ -216,7 +259,6 @@ export default function AdminBookingsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{booking.userId}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">{totalTickets}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
@@ -280,3 +322,5 @@ export default function AdminBookingsPage() {
     </div>
   );
 }
+
+    
