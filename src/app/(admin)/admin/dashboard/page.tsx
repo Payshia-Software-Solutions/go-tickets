@@ -63,24 +63,22 @@ const processCategoryData = (events: Event[]) => {
   }));
 };
 
-const processTopEvents = (paidBookings: Booking[], allEvents: Event[]) => {
-  if (!paidBookings || paidBookings.length === 0) return [];
+const processTopEvents = (paidBookings: Booking[]) => {
+    if (!paidBookings || paidBookings.length === 0) return [];
 
-  const bookingCounts = paidBookings.reduce((acc, booking) => {
-      acc[booking.eventId] = (acc[booking.eventId] || 0) + 1;
-      return acc;
-  }, {} as Record<string, number>);
-
-  return Object.entries(bookingCounts)
-      .map(([eventId, count]) => {
-          const event = allEvents.find(e => e.id === eventId);
-          return {
-              name: event?.name || `Event ID: ${eventId}`,
-              count: count
-          };
-      })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+    const eventCountsByName = paidBookings.reduce((acc, booking) => {
+        const eventName = booking.eventName || `Event ID: ${booking.eventId}`;
+        acc[eventName] = (acc[eventName] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    
+    return Object.entries(eventCountsByName)
+        .map(([name, count]) => ({
+            name: name,
+            count: count,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
 };
 
 
@@ -135,7 +133,7 @@ export default function AdminDashboardPage() {
 
         setSalesData(processSalesData(paidBookings));
         setCategoryData(processCategoryData(allEvents));
-        setTopEvents(processTopEvents(paidBookings, allEvents));
+        setTopEvents(processTopEvents(paidBookings));
         setRecentBookings(paidBookings.slice(0, 5));
 
       } catch (error) {
