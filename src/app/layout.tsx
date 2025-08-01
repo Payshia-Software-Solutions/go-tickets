@@ -70,9 +70,24 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  icons: { // Add favicon and other icons here if you have them in /public
-    icon: '/favicon.ico',
-    apple: '/icons/icon-192x192.png',
+  icons: {
+    icon: 'https://content-provider.gotickets.lk/app-icon/favicon.ico',
+    shortcut: 'https://content-provider.gotickets.lk/app-icon/favicon.ico',
+    apple: 'https://content-provider.gotickets.lk/app-icon/apple-touch-icon.png',
+    other: [
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '32x32',
+        url: 'https://content-provider.gotickets.lk/app-icon/favicon-32x32.png',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '16x16',
+        url: 'https://content-provider.gotickets.lk/app-icon/favicon-16x16.png',
+      },
+    ],
   }
 };
 
