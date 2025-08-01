@@ -226,7 +226,6 @@ export default function AdminBookingsPage() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Event Date</TableHead>
-                    <TableHead className="text-right">Tickets</TableHead>
                     <TableHead className="text-right">Total Price</TableHead>
                     <TableHead>Booked On</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
@@ -234,9 +233,6 @@ export default function AdminBookingsPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedBookings.map((booking) => {
-                    const totalTickets = (booking.bookedTickets && Array.isArray(booking.bookedTickets))
-                      ? booking.bookedTickets.reduce((sum, ticket) => sum + (ticket.quantity || 0), 0)
-                      : 0;
                     const paymentStatus = (booking.payment_status || 'pending').toLowerCase();
                     return (
                       <TableRow key={booking.id}>
@@ -259,7 +255,6 @@ export default function AdminBookingsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">{totalTickets}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
                         <TableCell className="text-center">
@@ -322,5 +317,7 @@ export default function AdminBookingsPage() {
     </div>
   );
 }
+
+    
 
     
