@@ -30,6 +30,7 @@ export const metadata: Metadata = {
   },
   description: 'Discover and book tickets for concerts, sports, theater, festivals, and more on GoTickets.lk. Your ultimate destination for unforgettable live experiences.',
   keywords: ['events', 'tickets', 'concerts', 'sports', 'theater', 'festivals', 'booking', 'GoTickets.lk'],
+  manifest: '/manifest.json',
   openGraph: {
     title: {
         default: 'GoTickets.lk - Your Gateway to Events',
@@ -71,6 +72,7 @@ export const metadata: Metadata = {
   },
   icons: { // Add favicon and other icons here if you have them in /public
     icon: '/favicon.ico',
+    apple: '/icons/icon-192x192.png',
   }
 };
 
