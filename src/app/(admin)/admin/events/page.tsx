@@ -21,7 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import EventForm from '@/components/admin/EventForm';
 import EventDetailsManager from '@/components/admin/EventDetailsManager';
-import { getAdminEventById, deleteEvent, createEvent, updateEvent } from '@/lib/mockData';
+import { getAdminEventById, deleteEvent, createEvent, updateEvent, adminGetAllEvents } from '@/lib/mockData';
 
 const API_PROXY_URL = '/api/admin/events';
 
@@ -46,13 +46,7 @@ export default function AdminEventsPage() {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true);
     try {
-      // The old proxy endpoint /api/admin/events is fine for GET all,
-      // but let's call the mockData function directly for consistency.
-      const response = await fetch('/api/admin/events'); // Using proxy
-      if (!response.ok) {
-        throw new Error('Failed to fetch events');
-      }
-      const allEvents: Event[] = await response.json();
+      const allEvents: Event[] = await adminGetAllEvents();
       setEvents(allEvents);
     } catch (error) {
       console.error("Error fetching events:", error);

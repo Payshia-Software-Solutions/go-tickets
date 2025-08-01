@@ -6,7 +6,7 @@ import { BarChart as BarChartIcon, Users, DollarSign, Tag, PieChart as PieChartI
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { getEventCount, getUserCount, adminGetAllEvents, adminGetAllBookings } from '@/lib/mockData';
+import { getEventCount, getUserCount, adminGetAllEvents, adminGetBookingSummaries } from '@/lib/mockData';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Event, Booking } from '@/lib/types';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -118,14 +118,14 @@ export default function AdminDashboardPage() {
       setIsLoading(true);
       setIsChartLoading(true);
       try {
-        const [eventCount, userCount, allEvents, allBookings] = await Promise.all([
+        const [eventCount, userCount, allEvents, allBookingSummaries] = await Promise.all([
           getEventCount(),
           getUserCount(),
           adminGetAllEvents(),
-          adminGetAllBookings(),
+          adminGetBookingSummaries(),
         ]);
 
-        const paidBookings = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
+        const paidBookings = allBookingSummaries.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
         
         setStats({
           events: eventCount,
@@ -359,7 +359,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <Button asChild>
-              <Link href="/admin/events">
+              <Link href="/admin/events/new">
                 <PlusCircle className="mr-2 h-4 w-4" /> Create New Event
               </Link>
             </Button>
