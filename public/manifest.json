@@ -1,11 +1,7 @@
 {
-  "name": "GoTickets.lk PWA",
-  "short_name": "GoTickets",
-  "description": "Your ultimate destination for discovering and booking tickets for unforgettable live experiences.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#F3E5F5",
-  "theme_color": "#673AB7",
+  "name": "GoTickets.lk",
+  "short_name": "GoTickets.lk",
+  "description": "Your ultimate destination for discovering and booking tickets for events.",
   "icons": [
     {
       "src": "https://content-provider.gotickets.lk/app-icon/android-chrome-192x192.png",
@@ -17,5 +13,9 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/"
 }

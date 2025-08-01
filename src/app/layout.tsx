@@ -9,6 +9,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import FacebookPixelEvents from '@/components/FacebookPixelEvents';
 import { Suspense } from 'react';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const GA_TRACKING_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-XW1Q7R19PV';
@@ -131,6 +132,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <FacebookPixelEvents />
           </Suspense>
+          <PwaInstallPrompt />
           <Header />
           <main className="flex-grow">
             {children}
