@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Event } from '@/lib/types';
-import { Ticket, Zap, CalendarDays, MapPin } from 'lucide-react';
+import { Ticket, Zap, CalendarDays, MapPin, Ban } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 interface FeaturedEventModalProps {
@@ -45,6 +45,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
 
   const eventDate = safeParseDate(event.date);
   const formattedDate = eventDate ? format(eventDate, "EEEE, MMMM do, yyyy") : "Date not available";
+  const canBook = event.accept_booking === '1';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -87,12 +88,19 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                 </p>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch sm:justify-end">
-                 <Button asChild type="button" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-                    <Link href={`/events/${event.slug}/book`} onClick={() => onOpenChange(false)}>
-                    <Ticket className="mr-2 h-4 w-4"/>
-                    Buy Tickets Now
-                    </Link>
-                </Button>
+                 {canBook ? (
+                    <Button asChild type="button" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                        <Link href={`/events/${event.slug}/book`} onClick={() => onOpenChange(false)}>
+                        <Ticket className="mr-2 h-4 w-4"/>
+                        Buy Tickets Now
+                        </Link>
+                    </Button>
+                 ) : (
+                    <Button type="button" disabled className="w-full">
+                        <Ban className="mr-2 h-4 w-4"/>
+                        Sold Out
+                    </Button>
+                 )}
             </DialogFooter>
         </div>
       </DialogContent>
