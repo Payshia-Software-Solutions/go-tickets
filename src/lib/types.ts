@@ -204,6 +204,7 @@ export interface Event {
   ticketTypes?: TicketType[];
   showTimes?: ShowTime[];
   mapLink?: string | null;
+  accept_booking?: string; // Added this line
   createdAt?: string;
   updatedAt?: string;
 }

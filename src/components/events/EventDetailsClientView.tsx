@@ -7,7 +7,7 @@ import * as fpixel from '@/lib/fpixel';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase } from 'lucide-react';
+import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase, Ban } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -53,6 +53,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
     const venueName = event.venueName;
     const venueAddress = event.venueAddress;
     const venueMapLink = event.mapLink || (venueAddress ? `https://maps.google.com/?q=${encodeURIComponent(venueAddress)}` : undefined);
+    const canBook = event.accept_booking === '1';
 
     return (
         <div className="container mx-auto py-8 px-4 space-y-8">
@@ -74,6 +75,9 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                     <CardContent className="p-6">
                     <div className="flex flex-wrap gap-2 mb-3">
                         <Badge variant="secondary">{event.category}</Badge>
+                         {!canBook && (
+                            <Badge variant="destructive" className="animate-pulse">Bookings Closed</Badge>
+                        )}
                     </div>
                     <h1 className="text-3xl md:text-4xl font-bold font-headline mb-4 text-primary">{event.name}</h1>
                     <div className="space-y-3 text-muted-foreground">
@@ -88,11 +92,17 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                     </div>
                     </CardContent>
                     <CardFooter className="p-6 border-t">
-                    <Button asChild size="lg" className="w-full sm:w-auto">
-                        <Link href={`/events/${event.slug}/book`}>
-                        <TicketIcon className="mr-2 h-5 w-5" /> Book Tickets
-                        </Link>
-                    </Button>
+                    {canBook ? (
+                        <Button asChild size="lg" className="w-full sm:w-auto">
+                            <Link href={`/events/${event.slug}/book`}>
+                                <TicketIcon className="mr-2 h-5 w-5" /> Book Tickets
+                            </Link>
+                        </Button>
+                    ) : (
+                        <Button size="lg" disabled className="w-full sm:w-auto">
+                            <Ban className="mr-2 h-5 w-5" /> Sold Out / Bookings Closed
+                        </Button>
+                    )}
                     </CardFooter>
                 </Card>
 

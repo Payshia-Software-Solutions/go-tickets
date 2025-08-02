@@ -21,6 +21,7 @@ interface ApiEventFlat {
   venueAddress?: string | null;
   organizerId: string;
   organizer?: Organizer;
+  accept_booking?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -51,6 +52,7 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
     venueName: apiEvent.venueName,
     venueAddress: apiEvent.venueAddress,
     organizerId: apiEvent.organizerId,
+    accept_booking: apiEvent.accept_booking,
     organizer: apiEvent.organizer ? {
         ...apiEvent.organizer,
         createdAt: parseApiDateString(apiEvent.organizer.createdAt),

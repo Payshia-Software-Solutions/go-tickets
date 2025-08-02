@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, CalendarClock, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowRight, CalendarClock, Loader2, AlertTriangle, Ban } from 'lucide-react';
 import type { Event } from '@/lib/types';
 import { useEffect, useState, use } from 'react';
 import { format, parseISO } from 'date-fns';
@@ -95,6 +95,17 @@ export default function BookEventPage({ params }: BookEventPageProps) {
     );
   }
   
+  if (event.accept_booking === '0') {
+    return (
+      <div className="container mx-auto py-12 text-center">
+        <Ban className="mx-auto h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold">Bookings Closed</h2>
+        <p className="text-muted-foreground mb-4">We are no longer accepting bookings for this event.</p>
+        <Button asChild><Link href={`/events/${slug}`}>Back to Event Details</Link></Button>
+      </div>
+    );
+  }
+
   if (!event || !event.showTimes || event.showTimes.length === 0) {
      return (
       <div className="container mx-auto py-12 text-center">

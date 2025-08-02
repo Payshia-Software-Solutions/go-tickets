@@ -4,8 +4,9 @@ import Image from 'next/image';
 import type { Event } from '@/lib/types';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Ban } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 interface EventCardProps {
   event: Event;
@@ -29,10 +30,11 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
 
   // Use venueName if available, otherwise fallback to location
   const displayLocation = event.venueName || event.location;
+  const canBook = event.accept_booking === '1';
 
   return (
     <Card className="flex flex-col overflow-hidden h-full hover:shadow-xl transition-shadow duration-300 rounded-[25px] border-none">
-      <Link href={`/events/${event.slug}`} aria-label={`View details for ${event.name}`}>
+      <Link href={`/events/${event.slug}`} aria-label={`View details for ${event.name}`} className="relative">
         <div className="relative w-full aspect-square">
           <Image
             src={event.imageUrl || "https://placehold.co/400x400.png"} // Fallback image
@@ -42,6 +44,11 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             className="rounded-t-[25px]" 
             data-ai-hint="event concert festival"
           />
+           {!canBook && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-t-[25px]">
+                  <Badge variant="destructive" className="text-lg px-4 py-2">SOLD OUT</Badge>
+              </div>
+            )}
         </div>
       </Link>
 
@@ -63,19 +70,27 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
       <CardFooter className="p-4 flex justify-between items-center border-t mt-auto">
         <div className="text-left">
           <p className="text-xs text-muted-foreground">Tickets</p>
-          {minPrice !== null ? (
+          {minPrice !== null && canBook ? (
             <p className="text-md font-semibold text-foreground">
               {minPrice === 0 ? 'Free' : `${minPrice.toFixed(0)} LKR`} Upwards
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">See Details</p> 
+            <p className="text-sm text-muted-foreground">{canBook ? 'See Details' : 'Unavailable'}</p> 
           )}
         </div>
-        <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-md px-3 py-1.5 h-auto">
-          <Link href={`/events/${event.slug}`}>
-            Book Now <ChevronRight className="ml-1 h-4 w-4" />
-          </Link>
-        </Button>
+        {canBook ? (
+            <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-md px-3 py-1.5 h-auto">
+                <Link href={`/events/${event.slug}`}>
+                    Book Now <ChevronRight className="ml-1 h-4 w-4" />
+                </Link>
+            </Button>
+        ) : (
+             <Button asChild size="sm" variant="secondary" disabled>
+                <Link href={`/events/${event.slug}`}>
+                    Sold Out <Ban className="ml-1 h-4 w-4" />
+                </Link>
+            </Button>
+        )}
       </CardFooter>
     </Card>
   );
