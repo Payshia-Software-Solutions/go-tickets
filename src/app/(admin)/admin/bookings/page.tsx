@@ -222,7 +222,7 @@ export default function AdminBookingsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Booking ID</TableHead>
-                    <TableHead>Event Name</TableHead>
+                    <TableHead>Event &amp; Ticket Breakdown</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Event Date</TableHead>
@@ -237,7 +237,16 @@ export default function AdminBookingsPage() {
                     return (
                       <TableRow key={booking.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">{booking.eventName}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">
+                            <div className="font-semibold">{booking.eventName}</div>
+                            {booking.bookedTickets && booking.bookedTickets.length > 0 && (
+                                <ul className="text-xs text-muted-foreground list-disc list-inside pl-2 mt-1">
+                                    {booking.bookedTickets.map(ticket => (
+                                        <li key={ticket.id}>{ticket.quantity} x {ticket.ticketTypeName}</li>
+                                    ))}
+                                </ul>
+                            )}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                             <div className="font-medium">{booking.userName}</div>
                             <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
