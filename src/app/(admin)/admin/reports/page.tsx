@@ -1,21 +1,56 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { DateRange } from "react-day-picker";
-import { addDays, format } from "date-fns";
-import type { Booking } from '@/lib/types';
-import { adminGetBookingSummaries } from '@/lib/mockData';
+import { addDays, format, parseISO } from "date-fns";
+import type { Booking, Event } from '@/lib/types';
+import { adminGetBookingSummaries, adminGetAllEvents } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search, Ticket, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+
+const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
+
+interface RawBookedShowtime {
+  id: string;
+  booking_id: string;
+  eventId: string;
+  showtime_id: string;
+  ticket_type: string;
+  tickettype_id: string;
+  showtime: string;
+  ticket_count: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface EnrichedTicketRecord {
+  bookingId: string;
+  eventId: string;
+  eventName: string;
+  ticketTypeName: string;
+  quantity: number;
+  paymentStatus: string;
+  bookingDate: string;
+}
+
+interface EventTicketSummary {
+    eventName: string;
+    tickets: {
+        typeName: string;
+        count: number;
+    }[];
+}
+
 
 export default function AdminReportsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -25,33 +60,65 @@ export default function AdminReportsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<Booking[]>([]);
+  const [ticketReportData, setTicketReportData] = useState<EnrichedTicketRecord[]>([]);
   const [hasGeneratedReport, setHasGeneratedReport] = useState(false);
   const { toast } = useToast();
 
   const handleGenerateReport = async () => {
     setIsLoading(true);
     setReportData([]);
+    setTicketReportData([]);
     try {
       if (!dateRange || !dateRange.from || !dateRange.to) {
         toast({ title: "Invalid Date Range", description: "Please select a valid start and end date.", variant: "destructive" });
         return;
       }
+      
+      const [allBookings, allBookedShowtimesResponse] = await Promise.all([
+        adminGetBookingSummaries(),
+        fetch(BOOKING_SHOWTIMES_API_URL)
+      ]);
+      
+      if (!allBookedShowtimesResponse.ok) {
+          throw new Error('Failed to fetch booked ticket data from the API.');
+      }
+      const allBookedShowtimes: RawBookedShowtime[] = await allBookedShowtimesResponse.json();
+      const bookingsMap = new Map<string, Booking>(allBookings.map(b => [b.id, b]));
+      
+      const filteredTickets: EnrichedTicketRecord[] = [];
+      const includedBookingIds = new Set<string>();
 
-      const allBookings = await adminGetBookingSummaries();
+      allBookedShowtimes.forEach(rawTicket => {
+          const parentBooking = bookingsMap.get(rawTicket.booking_id);
+          if (!parentBooking) return;
 
-      const filteredBookings = allBookings.filter(booking => {
-        const bookingDate = new Date(booking.bookingDate);
-        const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
-        const statusMatch = statusFilter === 'all' || (booking.payment_status || 'pending').toLowerCase() === statusFilter;
-        return isInDateRange && statusMatch;
+          const bookingDate = new Date(parentBooking.bookingDate);
+          const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
+          const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
+          
+          if (isInDateRange && statusMatch) {
+            filteredTickets.push({
+              bookingId: rawTicket.booking_id,
+              eventId: rawTicket.eventId,
+              eventName: parentBooking.eventName,
+              ticketTypeName: rawTicket.ticket_type,
+              quantity: parseInt(rawTicket.ticket_count, 10) || 0,
+              paymentStatus: parentBooking.payment_status || 'pending',
+              bookingDate: parentBooking.bookingDate,
+            });
+            includedBookingIds.add(rawTicket.booking_id);
+          }
       });
+      
+      const filteredBookings = allBookings.filter(b => includedBookingIds.has(b.id));
 
       setReportData(filteredBookings);
+      setTicketReportData(filteredTickets);
       setHasGeneratedReport(true);
-      toast({ title: "Report Generated", description: `Found ${filteredBookings.length} bookings matching your criteria.` });
+      toast({ title: "Report Generated", description: `Found ${filteredBookings.length} bookings and ${filteredTickets.length} ticket line items.` });
     } catch (error) {
       console.error("Error generating report:", error);
-      toast({ title: "Error", description: "Could not generate the report.", variant: "destructive" });
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Could not generate the report.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +137,31 @@ export default function AdminReportsPage() {
         pendingBookings: totalBookings - paidBookingsCount
     };
   }, [reportData]);
+
+  const eventTicketBreakdown = useMemo((): EventTicketSummary[] => {
+    if (ticketReportData.length === 0) return [];
+
+    const summaryMap = new Map<string, { eventName: string, tickets: Map<string, number> }>();
+    
+    const paidTickets = ticketReportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
+
+    paidTickets.forEach(ticket => {
+        if (!summaryMap.has(ticket.eventId)) {
+            summaryMap.set(ticket.eventId, { eventName: ticket.eventName, tickets: new Map() });
+        }
+        const eventSummary = summaryMap.get(ticket.eventId)!;
+        const currentCount = eventSummary.tickets.get(ticket.ticketTypeName) || 0;
+        eventSummary.tickets.set(ticket.ticketTypeName, currentCount + ticket.quantity);
+    });
+    
+    return Array.from(summaryMap.values()).map(eventSum => ({
+        eventName: eventSum.eventName,
+        tickets: Array.from(eventSum.tickets.entries()).map(([typeName, count]) => ({ typeName, count }))
+                      .sort((a,b) => a.typeName.localeCompare(b.typeName))
+    })).sort((a,b) => a.eventName.localeCompare(b.eventName));
+
+  }, [ticketReportData]);
+
 
   const handlePrint = () => {
       window.print();
@@ -153,7 +245,7 @@ export default function AdminReportsPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Date Range</label>
+            <label className="text-sm font-medium">Date Range (Booking Date)</label>
              <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -215,87 +307,127 @@ export default function AdminReportsPage() {
       </Card>
       
       {hasGeneratedReport && (
-        <Card id="printable-report" className="card-print">
-            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                    <CardTitle>Report Results</CardTitle>
+        <>
+            <Card id="printable-report-summary" className="card-print">
+                <CardHeader>
+                    <CardTitle>Report Summary</CardTitle>
                     <CardDescription>
-                        {reportSummary.totalBookings} bookings found from {dateRange?.from ? format(dateRange.from, 'PPP') : ''} to {dateRange?.to ? format(dateRange.to, 'PPP') : ''}.
+                        Overview of bookings from {dateRange?.from ? format(dateRange.from, 'PPP') : ''} to {dateRange?.to ? format(dateRange.to, 'PPP') : ''}.
                     </CardDescription>
-                </div>
-                <div className="flex gap-2 mt-4 md:mt-0 no-print">
-                    <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
-                    <Button variant="outline" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Bookings</p>
-                        <p className="text-2xl font-bold">{reportSummary.totalBookings}</p>
+                </CardHeader>
+                <CardContent>
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground">Total Bookings</p>
+                            <p className="text-2xl font-bold">{reportSummary.totalBookings}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground">Total Sales (Paid)</p>
+                            <p className="text-2xl font-bold">LKR {reportSummary.totalSales.toFixed(2)}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground">Paid Bookings</p>
+                            <p className="text-2xl font-bold">{reportSummary.paidBookings}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground">Pending/Other</p>
+                            <p className="text-2xl font-bold">{reportSummary.pendingBookings}</p>
+                        </div>
                     </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Sales</p>
-                        <p className="text-2xl font-bold">LKR {reportSummary.totalSales.toFixed(2)}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Paid Bookings</p>
-                        <p className="text-2xl font-bold">{reportSummary.paidBookings}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Pending/Other</p>
-                        <p className="text-2xl font-bold">{reportSummary.pendingBookings}</p>
-                    </div>
-                </div>
+                </CardContent>
+            </Card>
 
-                {reportData.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Booking ID</TableHead>
-                            <TableHead>Event</TableHead>
-                            <TableHead>Attendee</TableHead>
-                            <TableHead>Contact</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Total Price</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reportData.map((booking) => (
-                                <TableRow key={booking.id}>
-                                    <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
-                                    <TableCell>
-                                      <div className="font-medium">{booking.eventName}</div>
-                                      <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">{booking.userName}</TableCell>
-                                    <TableCell>
-                                      <div className="whitespace-nowrap">{booking.billingAddress?.email}</div>
-                                      <div className="text-xs text-muted-foreground whitespace-nowrap">{booking.billingAddress?.phone_number}</div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary" className={cn('capitalize', {
-                                            'bg-green-100 text-green-800 border-green-200': (booking.payment_status || 'pending').toLowerCase() === 'paid',
-                                            'bg-amber-100 text-amber-800 border-amber-200': (booking.payment_status || 'pending').toLowerCase() === 'pending',
-                                            'bg-red-100 text-red-800 border-red-200': (booking.payment_status || 'pending').toLowerCase() === 'failed',
-                                        })}>
-                                            {booking.payment_status || 'pending'}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
-                                </TableRow>
+            {eventTicketBreakdown.length > 0 && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Ticket Sales Breakdown</CardTitle>
+                        <CardDescription>A breakdown of all 'Paid' tickets sold for each event in the selected period.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Accordion type="multiple" className="w-full">
+                            {eventTicketBreakdown.map((event, index) => (
+                                <AccordionItem key={index} value={`item-${index}`}>
+                                    <AccordionTrigger>{event.eventName}</AccordionTrigger>
+                                    <AccordionContent>
+                                        <ul className="space-y-2 pt-2">
+                                            {event.tickets.map((ticket, ticketIndex) => (
+                                                <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1 bg-muted/50 rounded-md">
+                                                    <span><Ticket className="inline-block mr-2 h-4 w-4 text-muted-foreground"/>{ticket.typeName}</span>
+                                                    <Badge variant="secondary">{ticket.count} sold</Badge>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
                             ))}
-                        </TableBody>
-                      </Table>
+                        </Accordion>
+                    </CardContent>
+                 </Card>
+            )}
+
+            <Card id="printable-report-details" className="card-print">
+                <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <CardTitle>Report Details</CardTitle>
+                        <CardDescription>
+                            A list of all individual bookings matching the filters.
+                        </CardDescription>
                     </div>
-                ) : (
-                    <div className="text-center py-10 text-muted-foreground">
-                        <p>No bookings found for the selected criteria.</p>
+                    <div className="flex gap-2 mt-4 md:mt-0 no-print">
+                        <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                        <Button variant="outline" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
                     </div>
-                )}
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent>
+                    {reportData.length > 0 ? (
+                        <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                            <TableRow>
+                                <TableHead>Booking ID</TableHead>
+                                <TableHead>Event</TableHead>
+                                <TableHead>Attendee</TableHead>
+                                <TableHead>Contact</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Total Price</TableHead>
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {reportData.map((booking) => (
+                                    <TableRow key={booking.id}>
+                                        <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
+                                        <TableCell>
+                                        <div className="font-medium">{booking.eventName}</div>
+                                        <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">{booking.userName}</TableCell>
+                                        <TableCell>
+                                        <div className="whitespace-nowrap">{booking.billingAddress?.email}</div>
+                                        <div className="text-xs text-muted-foreground whitespace-nowrap">{booking.billingAddress?.phone_number}</div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary" className={cn('capitalize', {
+                                                'bg-green-100 text-green-800 border-green-200': (booking.payment_status || 'pending').toLowerCase() === 'paid',
+                                                'bg-amber-100 text-amber-800 border-amber-200': (booking.payment_status || 'pending').toLowerCase() === 'pending',
+                                                'bg-red-100 text-red-800 border-red-200': (booking.payment_status || 'pending').toLowerCase() === 'failed',
+                                            })}>
+                                                {booking.payment_status || 'pending'}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground">
+                            <p>No bookings found for the selected criteria.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </>
       )}
     </div>
   );
