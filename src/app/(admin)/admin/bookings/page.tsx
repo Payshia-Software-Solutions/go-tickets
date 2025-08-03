@@ -17,10 +17,18 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 10;
+const BOOKING_EVENTS_API_URL = "https://gotickets-server.payshia.com/booking-events";
+
+interface BookingEventLink {
+    id: string;
+    booking_id: string;
+    eventId: string;
+}
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [bookingEventMap, setBookingEventMap] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -32,10 +40,22 @@ export default function AdminBookingsPage() {
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [processedBookings, allEvents] = await Promise.all([
+      const [processedBookings, allEvents, bookingEventsResponse] = await Promise.all([
         adminGetAllBookings(),
         adminGetAllEvents(),
+        fetch(BOOKING_EVENTS_API_URL)
       ]);
+      
+      if (!bookingEventsResponse.ok) {
+          throw new Error('Failed to fetch the booking-to-event links.');
+      }
+      const bookingEventLinks: BookingEventLink[] = await bookingEventsResponse.json();
+      const newMap = new Map<string, string>();
+      bookingEventLinks.forEach(link => {
+          newMap.set(String(link.booking_id), String(link.eventId));
+      });
+
+      setBookingEventMap(newMap);
       setBookings(processedBookings);
       setEvents(allEvents);
     } catch (error) {
@@ -65,9 +85,12 @@ export default function AdminBookingsPage() {
         filtered = filtered.filter(booking => (booking.payment_status || 'pending').toLowerCase() === statusFilter);
     }
     
-    // Event filter
+    // Event filter - using the new map
     if (eventFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.eventId === eventFilter);
+      filtered = filtered.filter(booking => {
+          const bookingEventId = bookingEventMap.get(String(booking.id));
+          return bookingEventId === eventFilter;
+      });
     }
 
     // Search query filter
@@ -85,7 +108,7 @@ export default function AdminBookingsPage() {
     }
 
     return filtered;
-  }, [bookings, statusFilter, eventFilter, searchQuery]);
+  }, [bookings, statusFilter, eventFilter, searchQuery, bookingEventMap]);
 
   const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
@@ -284,4 +307,5 @@ export default function AdminBookingsPage() {
       
     </div>
   );
-}
+
+    
