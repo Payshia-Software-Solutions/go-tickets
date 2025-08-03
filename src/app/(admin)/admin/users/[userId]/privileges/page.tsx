@@ -127,26 +127,34 @@ const UserPrivilegesPage = () => {
                         <TableHead className="text-center">Create</TableHead>
                         <TableHead className="text-center">Update</TableHead>
                         <TableHead className="text-center">Delete</TableHead>
+                        <TableHead className="text-center font-bold">Full Access</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {permissionStructure.map(perm => (
-                        <TableRow key={perm.feature}>
-                            <TableCell className="font-medium">{perm.feature}</TableCell>
-                            <TableCell className="text-center">
-                                {perm.read ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
-                            </TableCell>
-                            <TableCell className="text-center">
-                                {perm.create ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
-                            </TableCell>
-                            <TableCell className="text-center">
-                                {perm.update ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
-                            </TableCell>
-                            <TableCell className="text-center">
-                                {perm.delete ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
-                            </TableCell>
-                        </TableRow>
-                    ))}
+                    {permissionStructure.map(perm => {
+                        const hasFullAccess = perm.read && perm.create && perm.update && perm.delete;
+                        const isChecked = userIsAdmin && hasFullAccess;
+                        return (
+                            <TableRow key={perm.feature}>
+                                <TableCell className="font-medium">{perm.feature}</TableCell>
+                                <TableCell className="text-center">
+                                    {perm.read ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    {perm.create ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    {perm.update ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    {perm.delete ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    <Checkbox checked={isChecked} disabled />
+                                </TableCell>
+                            </TableRow>
+                        )
+                    })}
                 </TableBody>
             </Table>
         </div>
