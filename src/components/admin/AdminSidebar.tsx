@@ -58,14 +58,16 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
               <AccordionItem key={`menu-item-${index}`} value="reports-item" className="border-b-0">
                 <AccordionTrigger
                   className={cn(
-                    "flex items-center space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors hover:no-underline",
+                    "flex items-center w-full space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors hover:no-underline",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     pathname.startsWith(item.href)
                       ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
+                    <item.icon className="h-5 w-5" />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {/* The default chevron is now part of the AccordionTrigger, so we don't need a separate one here */}
                 </AccordionTrigger>
                 <AccordionContent className="pl-6 pt-1 pb-0">
                   <div className="flex flex-col space-y-1 border-l border-muted-foreground/30 ml-1.5">
