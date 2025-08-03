@@ -55,6 +55,7 @@ export default function AdminTicketReportPage() {
     to: new Date(),
   });
   const [eventFilter, setEventFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<EnrichedTicketRecord[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -124,8 +125,9 @@ export default function AdminTicketReportPage() {
             const bookingDate = new Date(ticket.bookingDate);
             const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
             const eventMatch = eventFilter === 'all' || ticket.eventId === eventFilter;
+            const statusMatch = statusFilter === 'all' || ticket.paymentStatus.toLowerCase() === statusFilter;
 
-            return isInDateRange && eventMatch;
+            return isInDateRange && eventMatch && statusMatch;
         });
 
       setReportData(enrichedAndFilteredTickets);
@@ -258,6 +260,20 @@ export default function AdminTicketReportPage() {
                 </SelectContent>
               </Select>
           </div>
+           <div className="space-y-2">
+            <label htmlFor="status" className="text-sm font-medium">Payment Status</label>
+             <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger id="status" className="w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+          </div>
         </CardContent>
         <CardFooter>
             <Button onClick={handleGenerateReport} disabled={isLoading}>
@@ -341,3 +357,5 @@ export default function AdminTicketReportPage() {
     </div>
   );
 }
+
+    
