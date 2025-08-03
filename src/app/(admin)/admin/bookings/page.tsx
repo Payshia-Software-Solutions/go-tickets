@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import type { Booking, BillingAddress } from '@/lib/types';
-import { transformApiBookingToAppBooking } from '@/lib/mockData';
+import type { Booking } from '@/lib/types';
+import { adminGetAllBookings } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -15,60 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const ITEMS_PER_PAGE = 10;
-
-// Define interfaces for the raw API response structure
-interface RawApiBookedTicket {
-  id: string | number;
-  booking_id?: string | number;
-  bookingId?: string | number;
-  ticket_type_id?: string | number;
-  ticketTypeId?: string | number;
-  ticket_type_name?: string;
-  ticketTypeName?: string;
-  show_time_id?: string | number;
-  showTimeId?: string | number;
-  quantity: string | number;
-  price_per_ticket?: string | number;
-  pricePerTicket?: string | number;
-  event_nsid?: string;
-  event_slug?: string;
-  eventId?: string;
-  created_at?: string;
-  createdAt?: string;
-  updated_at?: string;
-  updatedAt?: string;
-}
-
-interface RawApiBooking {
-  id: string | number;
-  event_id?: string | number;
-  eventId?: string | number;
-  user_id?: string | number;
-  userId?: string | number;
-  booking_date?: string;
-  bookingDate?: string;
-  event_date?: string;
-  eventDate?: string;
-  event_name?: string;
-  eventName?: string;
-  event_location?: string;
-  eventLocation?: string;
-  qr_code_value?: string;
-  qrCodeValue?: string;
-  total_price?: string | number;
-  totalPrice?: string | number;
-  billing_address?: string | BillingAddress;
-  booked_tickets?: RawApiBookedTicket[];
-  bookedTickets?: RawApiBookedTicket[];
-  event_slug?: string;
-  payment_status?: string;
-  created_at?: string;
-  createdAt?: string;
-  updated_at?: string;
-  updatedAt?: string;
-}
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -82,21 +29,8 @@ export default function AdminBookingsPage() {
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const endpointPath = API_BASE_URL ? '/bookings' : '/api/admin/bookings';
-      const fullFetchUrl = API_BASE_URL ? `${API_BASE_URL}${endpointPath}` : endpointPath;
-
-      const response = await fetch(fullFetchUrl);
-      if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Failed to fetch bookings. Status:", response.status, "Body:", errorBody);
-        throw new Error(`Failed to fetch bookings. Status: ${response.status}`);
-      }
-      const rawData: RawApiBooking[] = await response.json();
-
-      const processedBookings = API_BASE_URL
-        ? rawData.map(item => transformApiBookingToAppBooking(item))
-        : rawData.map(item => transformApiBookingToAppBooking(item));
-
+      // This function now fetches full booking details including line items
+      const processedBookings = await adminGetAllBookings(); 
       setBookings(processedBookings);
     } catch (error) {
        console.error("Error fetching bookings:", error);
@@ -326,7 +260,3 @@ export default function AdminBookingsPage() {
     </div>
   );
 }
-
-    
-
-    

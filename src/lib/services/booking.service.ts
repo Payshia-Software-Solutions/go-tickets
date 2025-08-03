@@ -1,4 +1,5 @@
 
+
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -366,52 +367,44 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
-  console.log(`Attempting to fetch all admin bookings from: ${BOOKINGS_API_URL}`);
+  console.log(`[adminGetAllBookings] Fetching all booking summaries from: ${BOOKINGS_API_URL}`);
+  if (!BOOKINGS_API_URL) {
+    console.error("[adminGetAllBookings] BOOKINGS_API_URL is not configured.");
+    return [];
+  }
   try {
     const response = await fetch(BOOKINGS_API_URL);
     if (!response.ok) {
-      let errorBodyText = 'Could not retrieve error body.';
-      try {
-        errorBodyText = await response.text();
-      } catch {
-        console.error("Failed to even get text from error response:");
-      }
-      console.error("API Error fetching all admin bookings. Status:", response.status, "Body:", errorBodyText);
-      let errorBodyJsonMessage = 'Failed to parse error JSON.';
-      try {
-        const errorJson = JSON.parse(errorBodyText);
-        errorBodyJsonMessage = errorJson.message || JSON.stringify(errorJson);
-      } catch {}
-      throw new Error(`Failed to fetch bookings: ${response.status}. Message: ${errorBodyJsonMessage}`);
+      const errorText = await response.text();
+      console.error("[adminGetAllBookings] API Error fetching all booking summaries. Status:", response.status, "Body:", errorText);
+      throw new Error(`Failed to fetch booking summaries: ${response.status}.`);
     }
 
-    const responseData = await response.json();
-    const apiBookings: RawApiBooking[] = Array.isArray(responseData)
-      ? responseData
-      : responseData.data || responseData.bookings || [];
+    const apiBookings: RawApiBooking[] = await response.json();
 
     if (!Array.isArray(apiBookings)) {
-        console.error("Bookings data from API is not an array and not under a known key (data, bookings). Received:", apiBookings);
-        return [];
+      console.error("[adminGetAllBookings] Bookings summary data from API is not an array. Received:", apiBookings);
+      return [];
     }
 
-    console.log(`Found ${apiBookings.length} bookings from API. Mapping now...`);
+    console.log(`[adminGetAllBookings] Found ${apiBookings.length} booking summaries. Fetching full details for each...`);
 
-    const mappedBookingsPromises = apiBookings.map(async (bookingData) => {
-      try {
-        return getBookingById(String(bookingData.id));
-      } catch (mapError) {
-        console.error("Error mapping individual booking in adminGetAllBookings:", JSON.stringify(bookingData, null, 2), "Error:", mapError);
-        return null;
-      }
-    });
+    // Fetch full details for each booking to get the bookedTickets array
+    const detailedBookingsPromises = apiBookings.map(summary => 
+      getBookingById(String(summary.id)).catch(e => {
+        console.error(`[adminGetAllBookings] Failed to fetch full details for booking ID ${summary.id}`, e);
+        return null; // Return null on error to filter out later
+      })
+    );
+    
+    const resolvedBookings = (await Promise.all(detailedBookingsPromises)).filter(Boolean) as Booking[];
 
-    const resolvedBookings = (await Promise.all(mappedBookingsPromises)).filter(Boolean) as Booking[];
-    console.log(`Successfully mapped ${resolvedBookings.length} bookings with line items.`);
+    console.log(`[adminGetAllBookings] Successfully resolved full details for ${resolvedBookings.length} bookings.`);
+
     return resolvedBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
 
   } catch (error) {
-    console.error("Network or other error fetching/processing all admin bookings:", error);
+    console.error("[adminGetAllBookings] Network or other error fetching/processing booking summaries:", error);
     return [];
   }
 };
@@ -538,3 +531,4 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
+
