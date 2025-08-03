@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight, ClipboardCheck } from 'lucide-react';
+import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight, ClipboardCheck, BookCopy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -38,12 +39,25 @@ interface TicketSummary {
     revenue: number;
 }
 
+interface EnrichedTicketRecord {
+  id: string;
+  bookingId: string;
+  ticketTypeName: string;
+  quantity: number;
+  attendeeName: string;
+  attendeeEmail: string;
+  showtime: string;
+}
+
+
 export default function EventSummaryReportPage() {
   const [eventFilter, setEventFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const { toast } = useToast();
+  
+  const [activeTab, setActiveTab] = useState("overview");
   const [currentPage, setCurrentPage] = useState(1);
 
 
@@ -59,6 +73,12 @@ export default function EventSummaryReportPage() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+  
+  useEffect(() => {
+    // Reset pagination whenever the active tab changes
+    setCurrentPage(1);
+  }, [activeTab]);
+
 
   const handleGenerateReport = async () => {
     if (!eventFilter) {
@@ -68,6 +88,7 @@ export default function EventSummaryReportPage() {
     setIsLoading(true);
     setReportData(null);
     setCurrentPage(1); // Reset pagination on new report
+    setActiveTab("overview");
     try {
         const [eventRes, bookingsRes, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
             fetchEventByIdFromApi(eventFilter),
@@ -147,6 +168,26 @@ export default function EventSummaryReportPage() {
         totalTicketsVerified: ticketSummary.reduce((sum, s) => sum + s.verified, 0),
     }
   }, [ticketSummary]);
+  
+  const enrichedTicketRecords = useMemo((): EnrichedTicketRecord[] => {
+    if (!reportData) return [];
+    
+    const bookingMap = new Map(reportData.bookings.map(b => [b.id, b]));
+
+    return reportData.bookedShowtimes.map((st: any) => {
+      const parentBooking = bookingMap.get(String(st.booking_id));
+      return {
+        id: st.id,
+        bookingId: String(st.booking_id),
+        ticketTypeName: reportData.ticketTypes.find(tt => tt.id === String(st.tickettype_id))?.name || 'Unknown Type',
+        quantity: parseInt(st.ticket_count, 10) || 0,
+        attendeeName: parentBooking?.userName || 'N/A',
+        attendeeEmail: parentBooking?.billingAddress?.email || 'N/A',
+        showtime: format(new Date(st.showtime), 'PPp'),
+      };
+    }).sort((a, b) => new Date(b.showtime).getTime() - new Date(a.showtime).getTime());
+  }, [reportData]);
+
 
   const paginatedBookings = useMemo(() => {
     if (!reportData) return [];
@@ -159,10 +200,26 @@ export default function EventSummaryReportPage() {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return reportData.verifications.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [reportData, currentPage]);
+  
+  const paginatedTickets = useMemo(() => {
+    if (!enrichedTicketRecords) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return enrichedTicketRecords.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [enrichedTicketRecords, currentPage]);
 
 
   const totalBookingPages = reportData ? Math.ceil(reportData.bookings.length / ITEMS_PER_PAGE) : 0;
   const totalVerificationPages = reportData ? Math.ceil(reportData.verifications.length / ITEMS_PER_PAGE) : 0;
+  const totalTicketPages = enrichedTicketRecords ? Math.ceil(enrichedTicketRecords.length / ITEMS_PER_PAGE) : 0;
+
+  let paginationContent: JSX.Element | null = null;
+  if (activeTab === 'bookings' && totalBookingPages > 1) {
+    paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalBookingPages} onPageChange={setCurrentPage} itemCount={paginatedBookings.length} totalItems={reportData?.bookings.length || 0} itemType="bookings" />;
+  } else if (activeTab === 'verifications' && totalVerificationPages > 1) {
+    paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalVerificationPages} onPageChange={setCurrentPage} itemCount={paginatedVerifications.length} totalItems={reportData?.verifications.length || 0} itemType="logs" />;
+  } else if (activeTab === 'tickets' && totalTicketPages > 1) {
+    paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalTicketPages} onPageChange={setCurrentPage} itemCount={paginatedTickets.length} totalItems={enrichedTicketRecords.length || 0} itemType="tickets" />;
+  }
 
 
   return (
@@ -206,10 +263,11 @@ export default function EventSummaryReportPage() {
       )}
 
       {reportData && (
-        <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="bookings">Paid Bookings</TabsTrigger>
+              <TabsTrigger value="tickets">Booked Tickets</TabsTrigger>
               <TabsTrigger value="verifications">Verifications</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="mt-4">
@@ -320,36 +378,45 @@ export default function EventSummaryReportPage() {
                             </div>
                         )}
                     </CardContent>
-                    {totalBookingPages > 1 && (
-                    <CardFooter className="flex items-center justify-between border-t pt-4">
-                        <div className="text-xs text-muted-foreground">
-                        Showing <strong>{paginatedBookings.length}</strong> of <strong>{reportData.bookings.length.toLocaleString()}</strong> bookings.
-                        </div>
-                        <div className="flex items-center space-x-2">
-                        <span className="text-sm text-muted-foreground">
-                            Page {currentPage} of {totalBookingPages}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                        >
-                            <ChevronLeft className="mr-2 h-4 w-4" />
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalBookingPages))}
-                            disabled={currentPage === totalBookingPages}
-                        >
-                            Next
-                            <ChevronRight className="ml-2 h-4 w-4" />
-                        </Button>
-                        </div>
-                    </CardFooter>
-                    )}
+                    {paginationContent}
+                </Card>
+            </TabsContent>
+            <TabsContent value="tickets" className="mt-4">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5"/> Booked Ticket Details</CardTitle>
+                        <CardDescription>A detailed line-by-line list of all tickets sold for this event.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {paginatedTickets.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-4">No ticket records found for this event.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader><TableRow>
+                                        <TableHead>Attendee</TableHead>
+                                        <TableHead>Ticket Type</TableHead>
+                                        <TableHead className="text-center">Quantity</TableHead>
+                                        <TableHead>Showtime</TableHead>
+                                    </TableRow></TableHeader>
+                                    <TableBody>
+                                        {paginatedTickets.map(ticket => (
+                                            <TableRow key={ticket.id}>
+                                                <TableCell>
+                                                    <div className="font-medium">{ticket.attendeeName}</div>
+                                                    <div className="text-xs text-muted-foreground">{ticket.attendeeEmail}</div>
+                                                </TableCell>
+                                                <TableCell className="font-medium">{ticket.ticketTypeName}</TableCell>
+                                                <TableCell className="text-center">{ticket.quantity}</TableCell>
+                                                <TableCell>{ticket.showtime}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                    {paginationContent}
                 </Card>
             </TabsContent>
             <TabsContent value="verifications" className="mt-4">
@@ -386,36 +453,7 @@ export default function EventSummaryReportPage() {
                             </div>
                         )}
                     </CardContent>
-                    {totalVerificationPages > 1 && (
-                    <CardFooter className="flex items-center justify-between border-t pt-4">
-                        <div className="text-xs text-muted-foreground">
-                        Showing <strong>{paginatedVerifications.length}</strong> of <strong>{reportData.verifications.length.toLocaleString()}</strong> logs.
-                        </div>
-                        <div className="flex items-center space-x-2">
-                        <span className="text-sm text-muted-foreground">
-                            Page {currentPage} of {totalVerificationPages}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                            disabled={currentPage === 1}
-                        >
-                            <ChevronLeft className="mr-2 h-4 w-4" />
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalVerificationPages))}
-                            disabled={currentPage === totalVerificationPages}
-                        >
-                            Next
-                            <ChevronRight className="ml-2 h-4 w-4" />
-                        </Button>
-                        </div>
-                    </CardFooter>
-                    )}
+                    {paginationContent}
                 </Card>
             </TabsContent>
         </Tabs>
@@ -423,3 +461,44 @@ export default function EventSummaryReportPage() {
     </div>
   );
 }
+
+// Reusable Pagination Component
+const PaginationControls = ({ currentPage, totalPages, onPageChange, itemCount, totalItems, itemType }: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  itemCount: number;
+  totalItems: number;
+  itemType: string;
+}) => (
+  <CardFooter className="flex items-center justify-between border-t pt-4">
+    <div className="text-xs text-muted-foreground">
+      Showing <strong>{itemCount}</strong> of <strong>{totalItems.toLocaleString()}</strong> {itemType}.
+    </div>
+    <div className="flex items-center space-x-2">
+      <span className="text-sm text-muted-foreground">
+        Page {currentPage} of {totalPages}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
+        disabled={currentPage === 1}
+      >
+        <ChevronLeft className="mr-2 h-4 w-4" />
+        Previous
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
+        disabled={currentPage === totalPages}
+      >
+        Next
+        <ChevronRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  </CardFooter>
+);
+
+    
