@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -12,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search, Ticket, BarChart3 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search, Ticket, BarChart3, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -57,12 +58,28 @@ export default function AdminReportsPage() {
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+  const [eventFilter, setEventFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
   const [reportData, setReportData] = useState<Booking[]>([]);
   const [ticketReportData, setTicketReportData] = useState<EnrichedTicketRecord[]>([]);
   const [hasGeneratedReport, setHasGeneratedReport] = useState(false);
   const { toast } = useToast();
+  
+  const fetchEvents = useCallback(async () => {
+    try {
+      const allEvents = await adminGetAllEvents();
+      setEvents(allEvents);
+    } catch (error) {
+      toast({ title: "Error", description: "Could not fetch event list for filtering." });
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
 
   const handleGenerateReport = async () => {
     setIsLoading(true);
@@ -95,8 +112,9 @@ export default function AdminReportsPage() {
           const bookingDate = new Date(parentBooking.bookingDate);
           const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
           const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
+          const eventMatch = eventFilter === 'all' || parentBooking.eventId === eventFilter;
           
-          if (isInDateRange && statusMatch) {
+          if (isInDateRange && statusMatch && eventMatch) {
             filteredTickets.push({
               bookingId: rawTicket.booking_id,
               eventId: rawTicket.eventId,
@@ -282,6 +300,20 @@ export default function AdminReportsPage() {
                   />
                 </PopoverContent>
               </Popover>
+          </div>
+           <div className="space-y-2">
+            <label htmlFor="event" className="text-sm font-medium">Event</label>
+             <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger id="event" className="w-full">
+                  <SelectValue placeholder="Select an event" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Events</SelectItem>
+                  {events.map(event => (
+                    <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
           </div>
           <div className="space-y-2">
             <label htmlFor="status" className="text-sm font-medium">Payment Status</label>
