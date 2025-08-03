@@ -119,11 +119,11 @@ const VerificationBreakdownPage = () => {
 
   const summary = useMemo(() => {
     const totalVerifications = filteredLogs.length;
-    const totalTicketsCheckedIn = filteredLogs.reduce((acc, log) => acc + (log.ticket_count || 0), 0);
+    const totalTicketsVerified = filteredLogs.reduce((acc, log) => acc + (log.ticket_count || 0), 0);
     
     return {
         totalVerifications,
-        totalTicketsCheckedIn,
+        totalTicketsVerified,
     };
   }, [filteredLogs]);
   
@@ -162,11 +162,11 @@ const VerificationBreakdownPage = () => {
         </Card>
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Tickets Checked In</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Tickets Verified</CardTitle>
                 <Ticket className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalTicketsCheckedIn}</div>
+                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalTicketsVerified}</div>
                 <p className="text-xs text-muted-foreground">Total individual tickets admitted for current filters.</p>
             </CardContent>
         </Card>
