@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { adminGetAllEvents } from '@/lib/mockData';
 import type { VerificationLog, Event, TicketType } from '@/lib/types';
-import { fetchTicketTypesForEvent, getTicketAvailabilityCount } from '@/lib/services/ticket.service';
+import { fetchTicketTypesForEvent } from '@/lib/services/ticket.service';
 import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { TICKET_TYPES_API_URL } from '@/lib/constants';
 
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
 
@@ -24,10 +25,15 @@ interface TicketTypeSummary {
     totalAvailable: number;
 }
 
+interface EnrichedVerificationLog extends VerificationLog {
+    ticketTypeName?: string;
+}
+
 const VerificationBreakdownPage = () => {
-  const [logs, setLogs] = useState<VerificationLog[]>([]);
+  const [logs, setLogs] = useState<EnrichedVerificationLog[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
-  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
+  const [allTicketTypes, setAllTicketTypes] = useState<TicketType[]>([]);
+  const [ticketTypesForFilter, setTicketTypesForFilter] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingTicketTypes, setIsLoadingTicketTypes] = useState(false);
   const { toast } = useToast();
@@ -40,23 +46,29 @@ const VerificationBreakdownPage = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [verificationsResponse, eventsResponse] = await Promise.all([
+        const [verificationsResponse, eventsResponse, allTicketTypesResponse] = await Promise.all([
           fetch(VERIFICATIONS_API_URL),
-          adminGetAllEvents()
+          adminGetAllEvents(),
+          fetch(TICKET_TYPES_API_URL)
         ]);
         
-        if (!verificationsResponse.ok) {
-          throw new Error('Failed to fetch verification logs');
-        }
+        if (!verificationsResponse.ok) throw new Error('Failed to fetch verification logs');
+        if (!allTicketTypesResponse.ok) throw new Error('Failed to fetch all ticket types');
+        
         const rawLogs: Omit<VerificationLog, 'eventName'>[] = await verificationsResponse.json();
         const allEvents = eventsResponse;
+        const allTicketTypesData: TicketType[] = await allTicketTypesResponse.json();
         
         const eventMap = new Map(allEvents.map(e => [String(e.id), e.name]));
+        const ticketTypeMap = new Map(allTicketTypesData.map(t => [String(t.id), t.name]));
         
+        setAllTicketTypes(allTicketTypesData);
+
         const enhancedLogs = rawLogs.map(log => ({
           ...log,
           ticket_count: parseInt(String(log.ticket_count), 10) || 0,
           eventName: eventMap.get(String(log.event_id)) || `Event ID: ${log.event_id}`,
+          ticketTypeName: ticketTypeMap.get(String(log.tickettype_id)) || `Type ID: ${log.tickettype_id}`,
         }));
 
         setLogs(enhancedLogs.sort((a,b) => new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime()));
@@ -66,7 +78,7 @@ const VerificationBreakdownPage = () => {
         console.error("Error fetching data:", error);
         toast({
           title: "Error Fetching Data",
-          description: "Could not load verification logs or events.",
+          description: error instanceof Error ? error.message : "Could not load initial data.",
           variant: "destructive",
         });
       } finally {
@@ -82,7 +94,7 @@ const VerificationBreakdownPage = () => {
   
   useEffect(() => {
     if (eventFilter === 'all') {
-      setTicketTypes([]);
+      setTicketTypesForFilter([]);
       setTicketTypeFilter('all');
       return;
     }
@@ -91,11 +103,11 @@ const VerificationBreakdownPage = () => {
       setIsLoadingTicketTypes(true);
       try {
         const types = await fetchTicketTypesForEvent(eventFilter);
-        setTicketTypes(types);
+        setTicketTypesForFilter(types);
       } catch (error) {
         console.error("Error fetching ticket types for event:", error);
         toast({ title: "Error", description: "Could not fetch ticket types for the selected event."});
-        setTicketTypes([]);
+        setTicketTypesForFilter([]);
       } finally {
         setIsLoadingTicketTypes(false);
       }
@@ -119,7 +131,8 @@ const VerificationBreakdownPage = () => {
       filtered = filtered.filter(log =>
         String(log.booking_id).includes(lowercasedQuery) ||
         log.checking_by.toLowerCase().includes(lowercasedQuery) ||
-        log.eventName?.toLowerCase().includes(lowercasedQuery)
+        log.eventName?.toLowerCase().includes(lowercasedQuery) ||
+        log.ticketTypeName?.toLowerCase().includes(lowercasedQuery)
       );
     }
     
@@ -137,26 +150,24 @@ const VerificationBreakdownPage = () => {
   }, [filteredLogs]);
 
   const ticketTypeSummary = useMemo((): TicketTypeSummary[] | null => {
-      if (eventFilter === 'all' || ticketTypes.length === 0) {
+      if (eventFilter === 'all' || ticketTypesForFilter.length === 0) {
         return null;
       }
 
-      // Aggregate verified counts from logs
       const verifiedCounts = filteredLogs.reduce((acc, log) => {
           const ticketId = String(log.tickettype_id);
           acc[ticketId] = (acc[ticketId] || 0) + log.ticket_count;
           return acc;
       }, {} as Record<string, number>);
 
-      // Map over all ticket types for the event to build the summary
-      return ticketTypes.map(tt => ({
+      return ticketTypesForFilter.map(tt => ({
         id: tt.id,
         name: tt.name,
         verifiedCount: verifiedCounts[tt.id] || 0,
-        totalAvailable: tt.availability || 0, // Assuming this is the total sold
+        totalAvailable: tt.availability || 0,
       }));
 
-  }, [filteredLogs, ticketTypes, eventFilter]);
+  }, [filteredLogs, ticketTypesForFilter, eventFilter]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
@@ -180,9 +191,9 @@ const VerificationBreakdownPage = () => {
     const headers = [
       "Log ID",
       "Event Name",
+      "Ticket Type",
       "Booking ID",
       "Showtime ID",
-      "Ticket Type ID",
       "Tickets Verified",
       "Checked In By",
       "Checked In Time"
@@ -202,9 +213,9 @@ const VerificationBreakdownPage = () => {
         const row = [
             escapeCsvCell(log.id),
             escapeCsvCell(log.eventName),
+            escapeCsvCell(log.ticketTypeName),
             escapeCsvCell(log.booking_id),
             escapeCsvCell(log.showtime_id),
-            escapeCsvCell(log.tickettype_id),
             escapeCsvCell(log.ticket_count),
             escapeCsvCell(log.checking_by),
             escapeCsvCell(format(new Date(log.checking_time), 'yyyy-MM-dd HH:mm:ss')),
@@ -266,7 +277,7 @@ const VerificationBreakdownPage = () => {
         <div className="relative w-full md:w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search booking ID, checker..."
+            placeholder="Search booking ID, checker, type..."
             value={searchQuery}
             onChange={handleSearchChange}
             className="pl-10"
@@ -292,7 +303,7 @@ const VerificationBreakdownPage = () => {
             <SelectContent>
                 <SelectItem value="all">All Ticket Types</SelectItem>
                 {isLoadingTicketTypes && <div className="p-2 text-sm text-muted-foreground flex items-center justify-center"><Loader2 className="h-4 w-4 mr-2 animate-spin"/> Loading...</div>}
-                {!isLoadingTicketTypes && ticketTypes.map(tt => (
+                {!isLoadingTicketTypes && ticketTypesForFilter.map(tt => (
                     <SelectItem key={tt.id} value={String(tt.id)}>
                         {tt.name}
                     </SelectItem>
@@ -368,6 +379,7 @@ const VerificationBreakdownPage = () => {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Event Name</TableHead>
+                                <TableHead>Ticket Type</TableHead>
                                 <TableHead>Booking ID</TableHead>
                                 <TableHead>Tickets Verified</TableHead>
                                 <TableHead>Checked In By</TableHead>
@@ -378,6 +390,7 @@ const VerificationBreakdownPage = () => {
                             {filteredLogs.map((log) => (
                                 <TableRow key={log.id}>
                                     <TableCell className="font-medium">{log.eventName}</TableCell>
+                                    <TableCell>{log.ticketTypeName}</TableCell>
                                     <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
                                     <TableCell className="text-center">{log.ticket_count}</TableCell>
                                     <TableCell>{log.checking_by}</TableCell>
