@@ -141,7 +141,7 @@ export default function AdminReportsPage() {
     <div className="space-y-8">
       <header className="no-print">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
-            <FileText className="mr-3 h-8 w-8" /> Booking Reports
+            <FileText className="mr-3 h-8 w-8" /> Booking Report
         </h1>
         <p className="text-muted-foreground">Generate and view reports for event bookings.</p>
       </header>

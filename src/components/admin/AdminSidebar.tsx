@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +17,8 @@ const adminNavItems = [
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/verifications', label: 'Verifications', icon: ClipboardCheck },
-  { href: '/admin/reports', label: 'Reports', icon: FileText },
+  { href: '/admin/reports', label: 'Booking Report', icon: FileText },
+  { href: '/admin/reports/tickets', label: 'Ticket Report', icon: BookCopy },
   { href: '/admin/verify-ticket', label: 'Verify Ticket', icon: QrCode },
 ];
 
