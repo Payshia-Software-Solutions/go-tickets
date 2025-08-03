@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { Loader2, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent } from '@/components/ui/sheet'; // Removed SheetTrigger
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import Link from 'next/link';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -35,8 +35,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex w-64 flex-shrink-0">
-        <AdminSidebar />
+      <div className="hidden md:block md:w-64 md:flex-shrink-0">
+        <div className="fixed top-0 left-0 h-full w-64">
+          <AdminSidebar />
+        </div>
       </div>
 
       {/* Mobile Sidebar (Sheet) */}
@@ -46,18 +48,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-auto md:ml-64">
         {/* Mobile Header with Hamburger */}
-        <div className="md:hidden mb-4 flex items-center justify-between">
+        <header className="md:hidden mb-4 flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-sm z-10 -mx-4 px-4 py-2 border-b">
           <Button variant="outline" size="icon" onClick={() => setIsMobileSidebarOpen(true)}>
             <Menu className="h-6 w-6" />
             <span className="sr-only">Open sidebar</span>
           </Button>
-          <Link href="/admin/dashboard">
+          <Link href="/admin/dashboard" onClick={() => setIsMobileSidebarOpen(false)}>
             <h1 className="text-xl font-bold text-primary">Admin Panel</h1>
           </Link>
           <div className="w-10"></div> {/* Spacer for alignment */}
-        </div>
+        </header>
         {children}
       </main>
     </div>
