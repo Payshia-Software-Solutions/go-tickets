@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -14,6 +15,7 @@ const adminNavItems = [
   { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/organizers', label: 'Organizers', icon: Users },
   { href: '/admin/users', label: 'Users', icon: UserCog },
+  { href: '/admin/user-privileges', label: 'User Privileges', icon: UserCog },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/verifications', label: 'Verifications', icon: ClipboardCheck },

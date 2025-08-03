@@ -19,11 +19,11 @@ export type BillingAddress = z.infer<typeof BillingAddressSchema>;
 export interface User {
   id: string;
   email: string;
-  password?: string; // Added password
+  password?: string;
   name?: string | null;
   phoneNumber?: string | null;
-  isAdmin?: boolean;
-  billingAddress?: Partial<BillingAddress> | null; // Use Partial to accommodate incomplete saved addresses
+  isAdmin: boolean; // Changed to non-optional
+  billingAddress?: Partial<BillingAddress> | null;
   createdAt?: string;
   updatedAt?: string;
 }
