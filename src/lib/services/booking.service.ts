@@ -97,7 +97,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
 
   return {
     id: String(apiBooking.id),
-    eventId: String(apiBooking.event_id || apiBooking.eventId),
+    eventId: String(apiBooking.event_id || apiBooking.eventId || ''),
     userId: String(apiBooking.user_id || apiBooking.userId),
     userName: `${apiBooking.first_name || ''} ${apiBooking.last_name || ''}`.trim() || 'Guest',
     bookingDate: parseApiDateString(apiBooking.booking_date || apiBooking.bookingDate) || new Date().toISOString(),
