@@ -2,8 +2,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import type { Booking } from '@/lib/types';
-import { adminGetAllBookings } from '@/lib/mockData';
+import type { Booking, Event } from '@/lib/types';
+import { adminGetAllBookings, adminGetAllEvents } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -14,28 +14,35 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [eventFilter, setEventFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const processedBookings = await adminGetAllBookings(); 
+      const [processedBookings, allEvents] = await Promise.all([
+        adminGetAllBookings(),
+        adminGetAllEvents(),
+      ]);
       setBookings(processedBookings);
+      setEvents(allEvents);
     } catch (error) {
-       console.error("Error fetching bookings:", error);
+       console.error("Error fetching bookings or events:", error);
        toast({
-        title: "Error Fetching Bookings",
-        description: (error instanceof Error && error.message) ? error.message : "Could not load bookings from the server.",
+        title: "Error Fetching Data",
+        description: (error instanceof Error && error.message) ? error.message : "Could not load data from the server.",
         variant: "destructive",
       });
     } finally {
@@ -57,6 +64,11 @@ export default function AdminBookingsPage() {
     if (statusFilter !== 'all') {
         filtered = filtered.filter(booking => (booking.payment_status || 'pending').toLowerCase() === statusFilter);
     }
+    
+    // Event filter
+    if (eventFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.eventId === eventFilter);
+    }
 
     // Search query filter
     if (searchQuery.trim() !== '') {
@@ -73,7 +85,7 @@ export default function AdminBookingsPage() {
     }
 
     return filtered;
-  }, [bookings, statusFilter, searchQuery]);
+  }, [bookings, statusFilter, eventFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
@@ -82,8 +94,13 @@ export default function AdminBookingsPage() {
     return filteredBookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredBookings, currentPage]);
 
-  const handleFilterChange = (value: string) => {
+  const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
+    setCurrentPage(1);
+  };
+  
+  const handleEventFilterChange = (value: string) => {
+    setEventFilter(value);
     setCurrentPage(1);
   };
   
@@ -115,7 +132,7 @@ export default function AdminBookingsPage() {
       </header>
       
       <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative w-full md:w-1/3">
+        <div className="relative w-full md:flex-grow">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search by name, email, phone..."
@@ -124,7 +141,20 @@ export default function AdminBookingsPage() {
             className="pl-10"
           />
         </div>
-        <Tabs value={statusFilter} onValueChange={handleFilterChange}>
+        <Select value={eventFilter} onValueChange={handleEventFilterChange}>
+            <SelectTrigger className="w-full md:w-[250px]">
+                <SelectValue placeholder="Filter by event..." />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">All Events</SelectItem>
+                {events.map(event => (
+                    <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+        <Tabs value={statusFilter} onValueChange={handleStatusFilterChange}>
           <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:grid-cols-[auto,auto,auto]">
             <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
             <TabsTrigger value="paid">Paid ({bookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid').length})</TabsTrigger>
@@ -225,7 +255,7 @@ export default function AdminBookingsPage() {
                 onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="mr-2 h-4 w-4" />
                 Previous
               </Button>
               <Button
@@ -235,7 +265,7 @@ export default function AdminBookingsPage() {
                 disabled={currentPage === totalPages}
               >
                 Next
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="mr-2 h-4 w-4" />
               </Button>
             </div>
           </CardFooter>
