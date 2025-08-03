@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, TrendingUp, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, TrendingUp, ChevronDown, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ const adminNavItems = [
   { href: '/admin/events', label: 'Events', icon: CalendarDays },
   { href: '/admin/organizers', label: 'Organizers', icon: Users },
   { href: '/admin/users', label: 'Users', icon: UserCog },
+  { href: '/admin/roles', label: 'User Roles', icon: Shield },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/verifications', label: 'Verifications', icon: ClipboardCheck },
@@ -45,6 +46,20 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
     }
   };
 
+  const isLinkActive = (item: any) => {
+    if (item.children) {
+      return pathname.startsWith(item.href);
+    }
+    // Handle the dashboard case separately to avoid it always being active
+    if (item.href === '/admin/dashboard') {
+      return pathname === item.href;
+    }
+    return pathname.startsWith(item.href);
+  };
+  
+  const defaultAccordionValue = adminNavItems.find(item => item.children && pathname.startsWith(item.href)) ? 'reports-item' : '';
+
+
   return (
     <aside className="w-full h-full bg-muted/40 border-r border-border flex flex-col">
       <div className="p-4 border-b">
@@ -53,7 +68,7 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
         </Link>
       </div>
       <nav className="flex-grow p-4 space-y-1">
-        <Accordion type="multiple" defaultValue={pathname.startsWith('/admin/reports') ? ['reports-item'] : []}>
+        <Accordion type="multiple" defaultValue={defaultAccordionValue ? [defaultAccordionValue] : []}>
           {adminNavItems.map((item, index) => (
             item.children ? (
               <AccordionItem key={`menu-item-${index}`} value="reports-item" className="border-b-0">
@@ -61,7 +76,7 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
                   className={cn(
                     "flex items-center w-full space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors hover:no-underline",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    pathname.startsWith(item.href)
+                    isLinkActive(item)
                       ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
@@ -101,7 +116,7 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
                   onClick={handleLinkClick}
                   className={cn(
                     'flex items-center space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
-                    pathname.startsWith(item.href) && item.href !== '/admin/dashboard' || pathname === item.href
+                     isLinkActive(item)
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}

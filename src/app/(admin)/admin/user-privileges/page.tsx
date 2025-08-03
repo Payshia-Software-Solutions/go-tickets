@@ -1,4 +1,4 @@
-// This page has been replaced by the new /admin/roles page.
+// This page has been replaced by the new /admin/users/[userId]/privileges page.
 // This file can be safely deleted.
 import { redirect } from 'next/navigation';
 
