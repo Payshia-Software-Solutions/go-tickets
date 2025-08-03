@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -11,16 +12,18 @@ import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Per
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
+import { BOOKINGS_API_URL } from '@/lib/constants';
 
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
-const BOOKINGS_API_URL = "https://gotickets-server.payshia.com/bookings";
+const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
 
 interface ReportData {
   event: Event | null;
   bookings: Booking[];
   ticketTypes: TicketType[];
   verifications: VerificationLog[];
+  bookedShowtimes: any[]; // Add this to store the new data
 }
 
 interface TicketSummary {
@@ -58,21 +61,29 @@ export default function EventSummaryReportPage() {
     setIsLoading(true);
     setReportData(null);
     try {
-        const [eventRes, bookingsRes, verificationsRes, ticketTypesRes] = await Promise.all([
+        const [eventRes, bookingsRes, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
             fetchEventByIdFromApi(eventFilter),
             fetch(`${BOOKINGS_API_URL}?eventId=${eventFilter}`).then(res => res.ok ? res.json() : []),
             fetch(`${VERIFICATIONS_API_URL}?event_id=${eventFilter}`).then(res => res.ok ? res.json() : []),
-            fetch(`${TICKET_TYPES_API_URL}?eventid=${eventFilter}`).then(res => res.ok ? res.json() : [])
+            fetch(`${TICKET_TYPES_API_URL}?eventid=${eventFilter}`).then(res => res.ok ? res.json() : []),
+            fetch(BOOKING_SHOWTIMES_API_URL).then(res => res.ok ? res.json() : [])
         ]);
 
         const typedBookings = bookingsRes as Booking[];
         const paidBookings = typedBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
+        const paidBookingIds = new Set(paidBookings.map(b => String(b.id)));
+        
+        // Filter bookedShowtimes to only include those from paid bookings for the selected event
+        const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
+            String(st.eventId) === eventFilter && paidBookingIds.has(String(st.booking_id))
+        );
 
         setReportData({
             event: eventRes,
             bookings: paidBookings,
             ticketTypes: ticketTypesRes.map((t: any) => ({...t, price: parseFloat(t.price)})),
             verifications: verificationsRes,
+            bookedShowtimes: paidAndFilteredShowtimes,
         });
 
       toast({ title: "Report Generated", description: `Summary loaded for ${eventRes?.name}.` });
@@ -94,16 +105,15 @@ export default function EventSummaryReportPage() {
         summaryMap.set(tt.id, { sold: 0, verified: 0, revenue: 0 });
     });
 
-    // Collate sales data
-    reportData.bookings.forEach(booking => {
-        booking.bookedTickets.forEach(ticket => {
-            const ticketInfo = summaryMap.get(ticket.ticketTypeId);
-            if (ticketInfo) {
-                const price = reportData.ticketTypes.find(tt => tt.id === ticket.ticketTypeId)?.price || 0;
-                ticketInfo.sold += ticket.quantity;
-                ticketInfo.revenue += ticket.quantity * price;
-            }
-        });
+    // Collate sales data from the filtered bookedShowtimes
+    reportData.bookedShowtimes.forEach(showtime => {
+        const ticketInfo = summaryMap.get(String(showtime.tickettype_id));
+        if (ticketInfo) {
+            const price = reportData.ticketTypes.find(tt => tt.id === String(showtime.tickettype_id))?.price || 0;
+            const quantity = parseInt(showtime.ticket_count, 10) || 0;
+            ticketInfo.sold += quantity;
+            ticketInfo.revenue += quantity * price;
+        }
     });
     
     // Collate verification data
@@ -283,3 +293,4 @@ export default function EventSummaryReportPage() {
     </div>
   );
 }
+
