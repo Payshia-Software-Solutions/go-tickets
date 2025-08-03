@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { DateRange } from "react-day-picker";
 import { addDays, format, parseISO } from "date-fns";
-import type { Booking, Event } from '@/lib/types';
+import type { Booking, Event, TicketType } from '@/lib/types';
 import { adminGetAllBookings, adminGetAllEvents } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -12,10 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Loader2, BookCopy, Download, Search, Ticket } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, BookCopy, Download, Search, Ticket, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { TICKET_TYPES_API_URL } from '@/lib/constants';
 
 const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
 
@@ -46,6 +47,7 @@ interface EnrichedTicketRecord {
   attendeeName: string; // From parent booking
   attendeeEmail: string; // From parent booking
   paymentStatus: string; // From parent booking
+  pricePerTicket: number; // Added for revenue calculation
 }
 
 
@@ -84,15 +86,21 @@ export default function AdminTicketReportPage() {
         return;
       }
       
-      const [allBookings, allBookedShowtimesResponse] = await Promise.all([
+      const [allBookings, allBookedShowtimesResponse, allTicketTypesResponse] = await Promise.all([
         adminGetAllBookings(),
-        fetch(BOOKING_SHOWTIMES_API_URL)
+        fetch(BOOKING_SHOWTIMES_API_URL),
+        fetch(TICKET_TYPES_API_URL)
       ]);
       
       if (!allBookedShowtimesResponse.ok) {
           throw new Error('Failed to fetch booked ticket data from the new API.');
       }
+       if (!allTicketTypesResponse.ok) {
+        throw new Error('Failed to fetch ticket types for pricing info.');
+      }
       const allBookedShowtimes: RawBookedShowtime[] = await allBookedShowtimesResponse.json();
+      const allTicketTypes: TicketType[] = await allTicketTypesResponse.json();
+      const ticketPriceMap = new Map<string, number>(allTicketTypes.map(t => [String(t.id), t.price]));
 
       const bookingsMap = new Map<string, Booking>(allBookings.map(b => [b.id, b]));
       
@@ -116,6 +124,7 @@ export default function AdminTicketReportPage() {
               attendeeName: parentBooking.userName || 'N/A',
               attendeeEmail: parentBooking.billingAddress?.email || 'N/A',
               paymentStatus: parentBooking.payment_status || 'pending',
+              pricePerTicket: ticketPriceMap.get(rawTicket.tickettype_id) || 0,
             };
         })
         .filter((ticket): ticket is EnrichedTicketRecord => {
@@ -143,9 +152,11 @@ export default function AdminTicketReportPage() {
   
   const reportSummary = useMemo(() => {
     const totalTicketsSold = reportData.reduce((sum, ticket) => sum + ticket.quantity, 0);
-    // Note: Revenue can't be calculated as the new API doesn't include price per ticket.
+    const paidTickets = reportData.filter(t => t.paymentStatus === 'paid');
+    const totalRevenue = paidTickets.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
     return {
         totalTicketsSold,
+        totalRevenue,
     };
   }, [reportData]);
 
@@ -159,6 +170,8 @@ export default function AdminTicketReportPage() {
       "Event Name",
       "Ticket Type",
       "Quantity",
+      "Price Per Ticket (LKR)",
+      "Total Price (LKR)",
       "Booking ID",
       "Booking Date",
       "Showtime ID",
@@ -182,6 +195,8 @@ export default function AdminTicketReportPage() {
             escapeCsvCell(ticket.eventName),
             escapeCsvCell(ticket.ticketTypeName),
             escapeCsvCell(ticket.quantity),
+            escapeCsvCell(ticket.pricePerTicket.toFixed(2)),
+            escapeCsvCell((ticket.quantity * ticket.pricePerTicket).toFixed(2)),
             escapeCsvCell(ticket.bookingId),
             escapeCsvCell(format(new Date(ticket.bookingDate), 'yyyy-MM-dd HH:mm')),
             escapeCsvCell(ticket.showtimeId),
@@ -298,9 +313,13 @@ export default function AdminTicketReportPage() {
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
-                    <div className="p-4 bg-muted rounded-lg col-span-full">
-                        <p className="text-sm text-muted-foreground">Total Tickets Sold</p>
+                    <div className="p-4 bg-muted rounded-lg">
+                        <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Ticket className="h-4 w-4"/>Total Tickets Sold</p>
                         <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
+                    </div>
+                     <div className="p-4 bg-muted rounded-lg">
+                        <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid)</p>
+                        <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
                     </div>
                 </div>
 
@@ -313,7 +332,7 @@ export default function AdminTicketReportPage() {
                             <TableHead>Ticket Type</TableHead>
                             <TableHead>Qty</TableHead>
                             <TableHead>Attendee</TableHead>
-                            <TableHead>Booking ID</TableHead>
+                            <TableHead>Total Price</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -330,7 +349,9 @@ export default function AdminTicketReportPage() {
                                       <div className="whitespace-nowrap font-medium">{ticket.attendeeName}</div>
                                       <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs whitespace-nowrap">{ticket.bookingId}</TableCell>
+                                     <TableCell className="whitespace-nowrap text-right">
+                                        LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className={cn('capitalize', {
                                             'bg-green-100 text-green-800 border-green-200': ticket.paymentStatus === 'paid',
@@ -357,5 +378,3 @@ export default function AdminTicketReportPage() {
     </div>
   );
 }
-
-    
