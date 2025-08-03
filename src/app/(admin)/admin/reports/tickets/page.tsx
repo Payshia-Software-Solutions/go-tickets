@@ -12,11 +12,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Loader2, BookCopy, Download, Search, Ticket, DollarSign } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, BookCopy, Download, Search, Ticket, DollarSign, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { TICKET_TYPES_API_URL } from '@/lib/constants';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
 
@@ -48,6 +49,15 @@ interface EnrichedTicketRecord {
   attendeeEmail: string; // From parent booking
   paymentStatus: string; // From parent booking
   pricePerTicket: number; // Added for revenue calculation
+}
+
+interface EventRevenueSummary {
+    eventName: string;
+    tickets: {
+        typeName: string;
+        count: number;
+        revenue: number;
+    }[];
 }
 
 
@@ -159,6 +169,41 @@ export default function AdminTicketReportPage() {
         totalRevenue,
     };
   }, [reportData]);
+  
+  const revenueByTicketType = useMemo((): EventRevenueSummary[] => {
+    const paidTickets = reportData.filter(t => t.paymentStatus === 'paid');
+
+    const summaryMap = new Map<string, { 
+        eventName: string; 
+        tickets: Map<string, { count: number; revenue: number }> 
+    }>();
+
+    paidTickets.forEach(ticket => {
+        if (!summaryMap.has(ticket.eventId)) {
+            summaryMap.set(ticket.eventId, { 
+                eventName: ticket.eventName, 
+                tickets: new Map() 
+            });
+        }
+        const eventSummary = summaryMap.get(ticket.eventId)!;
+
+        const ticketTypeSummary = eventSummary.tickets.get(ticket.ticketTypeName) || { count: 0, revenue: 0 };
+        ticketTypeSummary.count += ticket.quantity;
+        ticketTypeSummary.revenue += ticket.quantity * ticket.pricePerTicket;
+        eventSummary.tickets.set(ticket.ticketTypeName, ticketTypeSummary);
+    });
+
+    return Array.from(summaryMap.values()).map(eventSum => ({
+        eventName: eventSum.eventName,
+        tickets: Array.from(eventSum.tickets.entries()).map(([typeName, data]) => ({ 
+            typeName, 
+            count: data.count,
+            revenue: data.revenue
+        })).sort((a, b) => a.typeName.localeCompare(b.typeName))
+    })).sort((a, b) => a.eventName.localeCompare(b.eventName));
+
+  }, [reportData]);
+
 
   const handleExport = () => {
     if (reportData.length === 0) {
@@ -299,81 +344,121 @@ export default function AdminTicketReportPage() {
       </Card>
       
       {hasGeneratedReport && (
-        <Card id="printable-report" className="card-print">
-            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                    <CardTitle>Report Results</CardTitle>
-                    <CardDescription>
-                        {reportData.length} ticket line items found.
-                    </CardDescription>
-                </div>
-                <div className="flex gap-2 mt-4 md:mt-0 no-print">
-                    <Button variant="outline" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Ticket className="h-4 w-4"/>Total Tickets Sold</p>
-                        <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Report Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Ticket className="h-4 w-4"/>Total Tickets Sold</p>
+                            <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
+                        </div>
+                         <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid)</p>
+                            <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
+                        </div>
                     </div>
-                     <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid)</p>
-                        <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
-                    </div>
-                </div>
+                </CardContent>
+            </Card>
 
-                {reportData.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Event</TableHead>
-                            <TableHead>Ticket Type</TableHead>
-                            <TableHead>Qty</TableHead>
-                            <TableHead>Attendee</TableHead>
-                            <TableHead>Total Price</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reportData.map((ticket) => (
-                                <TableRow key={ticket.id}>
-                                    <TableCell>
-                                      <div className="font-medium">{ticket.eventName}</div>
-                                      <div className="text-xs text-muted-foreground">{format(new Date(ticket.bookingDate), 'PP')}</div>
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">{ticket.ticketTypeName}</TableCell>
-                                    <TableCell className="text-center">{ticket.quantity}</TableCell>
-                                    <TableCell>
-                                      <div className="whitespace-nowrap font-medium">{ticket.attendeeName}</div>
-                                      <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
-                                    </TableCell>
-                                     <TableCell className="whitespace-nowrap text-right">
-                                        LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary" className={cn('capitalize', {
-                                            'bg-green-100 text-green-800 border-green-200': ticket.paymentStatus === 'paid',
-                                            'bg-amber-100 text-amber-800 border-amber-200': ticket.paymentStatus === 'pending',
-                                            'bg-red-100 text-red-800 border-red-200': ticket.paymentStatus === 'failed',
-                                        })}>
-                                            {ticket.paymentStatus}
-                                        </Badge>
-                                    </TableCell>
-                                </TableRow>
+            {revenueByTicketType.length > 0 && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Revenue by Ticket Type</CardTitle>
+                        <CardDescription>A breakdown of all 'Paid' tickets sold for each event in the selected period.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Accordion type="multiple" className="w-full">
+                            {revenueByTicketType.map((event, index) => (
+                                <AccordionItem key={index} value={`item-${index}`}>
+                                    <AccordionTrigger>{event.eventName}</AccordionTrigger>
+                                    <AccordionContent>
+                                        <ul className="space-y-2 pt-2">
+                                            {event.tickets.map((ticket, ticketIndex) => (
+                                                <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1 bg-muted/50 rounded-md">
+                                                    <span className="font-medium"><Ticket className="inline-block mr-2 h-4 w-4 text-muted-foreground"/>{ticket.typeName}</span>
+                                                    <div className="text-right">
+                                                        <p className="font-semibold text-foreground">LKR {ticket.revenue.toFixed(2)}</p>
+                                                        <p className="text-xs text-muted-foreground">{ticket.count} sold</p>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </AccordionContent>
+                                </AccordionItem>
                             ))}
-                        </TableBody>
-                      </Table>
+                        </Accordion>
+                    </CardContent>
+                 </Card>
+            )}
+
+            <Card id="printable-report" className="card-print">
+                <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <CardTitle>Report Results</CardTitle>
+                        <CardDescription>
+                            {reportData.length} ticket line items found.
+                        </CardDescription>
                     </div>
-                ) : (
-                    <div className="text-center py-10 text-muted-foreground">
-                        <Ticket className="mx-auto h-12 w-12 mb-4"/>
-                        <p>No tickets found for the selected criteria.</p>
+                    <div className="flex gap-2 mt-4 md:mt-0 no-print">
+                        <Button variant="outline" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
                     </div>
-                )}
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent>
+                    {reportData.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Event</TableHead>
+                                <TableHead>Ticket Type</TableHead>
+                                <TableHead>Qty</TableHead>
+                                <TableHead>Attendee</TableHead>
+                                <TableHead>Total Price</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {reportData.map((ticket) => (
+                                    <TableRow key={ticket.id}>
+                                        <TableCell>
+                                          <div className="font-medium">{ticket.eventName}</div>
+                                          <div className="text-xs text-muted-foreground">{format(new Date(ticket.bookingDate), 'PP')}</div>
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">{ticket.ticketTypeName}</TableCell>
+                                        <TableCell className="text-center">{ticket.quantity}</TableCell>
+                                        <TableCell>
+                                          <div className="whitespace-nowrap font-medium">{ticket.attendeeName}</div>
+                                          <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
+                                        </TableCell>
+                                         <TableCell className="whitespace-nowrap text-right">
+                                            LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary" className={cn('capitalize', {
+                                                'bg-green-100 text-green-800 border-green-200': ticket.paymentStatus === 'paid',
+                                                'bg-amber-100 text-amber-800 border-amber-200': ticket.paymentStatus === 'pending',
+                                                'bg-red-100 text-red-800 border-red-200': ticket.paymentStatus === 'failed',
+                                            })}>
+                                                {ticket.paymentStatus}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground">
+                            <Ticket className="mx-auto h-12 w-12 mb-4"/>
+                            <p>No tickets found for the selected criteria.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </>
       )}
     </div>
   );
