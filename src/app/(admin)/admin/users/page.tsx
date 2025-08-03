@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, CheckCircle, XCircle, Users } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, Users } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { adminGetAllUsers, adminCreateUser, updateUser, deleteUser } from '@/lib/services/user.service';
 import UserForm from '@/components/admin/UserForm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -167,13 +168,10 @@ export default function AdminUsersPage() {
     );
   }
 
-  const renderUserTable = (userList: User[], title: string, description: string, icon: React.ReactNode) => (
+  const renderUserTable = (userList: User[], title: string, description: string) => (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center">
-            {icon}
-            <span className="ml-2">{title} ({userList.length})</span>
-        </CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -228,8 +226,22 @@ export default function AdminUsersPage() {
         </Button>
       </div>
 
-      {renderUserTable(adminUsers, "Administrators", "Users with administrative privileges.", <UserCog className="h-5 w-5"/>)}
-      {renderUserTable(normalUsers, "Normal Users", "Standard users without admin access.", <Users className="h-5 w-5"/>)}
+      <Tabs defaultValue="normal" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="normal">
+             <Users className="mr-2 h-4 w-4" /> Normal Users ({normalUsers.length})
+          </TabsTrigger>
+          <TabsTrigger value="admin">
+            <UserCog className="mr-2 h-4 w-4" /> Administrators ({adminUsers.length})
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="normal" className="mt-4">
+          {renderUserTable(normalUsers, "All Normal Users", "Standard users without admin access.")}
+        </TabsContent>
+        <TabsContent value="admin" className="mt-4">
+          {renderUserTable(adminUsers, "All Administrators", "Users with administrative privileges.")}
+        </TabsContent>
+      </Tabs>
       
       {/* Create User Dialog */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
