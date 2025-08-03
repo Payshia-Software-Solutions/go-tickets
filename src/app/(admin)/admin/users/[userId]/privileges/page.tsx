@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import type { User } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, UserCog, ShieldAlert, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, UserCog, ShieldAlert, ShieldCheck, ArrowLeft, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getUserById, updateUser } from '@/lib/services/user.service';
 import { Switch } from "@/components/ui/switch";
@@ -16,15 +16,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const permissionStructure = {
-    pages: ["Dashboard", "Events", "Organizers", "Users", "Categories", "Bookings", "Reports", "Verification"],
-    crud: {
-        events: ["Create Events", "Update Events", "Delete Events"],
-        users: ["Create Users", "Update Users", "Delete Users"],
-        bookings: ["Update Bookings", "Delete Bookings"],
-    }
-};
+
+const permissionStructure = [
+    { feature: "Dashboard", read: true, create: false, update: false, delete: false },
+    { feature: "Events", read: true, create: true, update: true, delete: true },
+    { feature: "Organizers", read: true, create: true, update: true, delete: true },
+    { feature: "Categories", read: true, create: true, update: true, delete: true },
+    { feature: "Users", read: true, create: true, update: true, delete: true },
+    { feature: "Bookings", read: true, create: false, update: true, delete: true },
+    { feature: "Reports", read: true, create: false, update: false, delete: false },
+    { feature: "Verification", read: true, create: false, update: false, delete: false },
+];
+
 
 const getInitials = (name?: string | null, email: string = '') => {
   if (name) {
@@ -107,37 +112,45 @@ const UserPrivilegesPage = () => {
   };
 
   const renderPermissions = (userIsAdmin: boolean) => {
-    const allPermissions = [
-        ...permissionStructure.pages,
-        ...permissionStructure.crud.events,
-        ...permissionStructure.crud.users,
-        ...permissionStructure.crud.bookings
-    ];
-
     return (
-        <div className="mt-4">
-            <h4 className="font-semibold mb-2">Detailed Permissions</h4>
-            <p className="text-xs text-muted-foreground mb-4">
-                The permissions below are for display purposes to illustrate a full role-based system. Currently, the backend only supports a single "Administrator" role. Toggling the main switch will grant or revoke all permissions.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-3">
-                {allPermissions.map(permission => (
-                    <div key={permission} className="flex items-center space-x-2">
-                        <Checkbox
-                            id={`${permission}-${userIsAdmin}`}
-                            checked={userIsAdmin}
-                            disabled={true}
-                        />
-                        <label
-                            htmlFor={`${permission}-${userIsAdmin}`}
-                            className={cn("text-sm font-medium leading-none", userIsAdmin ? "text-foreground" : "text-muted-foreground", "peer-disabled:cursor-not-allowed peer-disabled:opacity-70")}
-                        >
-                            {permission}
-                        </label>
-                    </div>
-                ))}
-            </div>
+      <div className="mt-4">
+        <h4 className="font-semibold mb-2">Detailed Permissions</h4>
+        <p className="text-xs text-muted-foreground mb-4">
+          The permissions below are for display purposes to illustrate a full role-based system. Currently, the backend only supports a single "Administrator" role. Toggling the main switch will grant or revoke all permissions.
+        </p>
+        <div className="overflow-x-auto">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Feature</TableHead>
+                        <TableHead className="text-center">Read</TableHead>
+                        <TableHead className="text-center">Create</TableHead>
+                        <TableHead className="text-center">Update</TableHead>
+                        <TableHead className="text-center">Delete</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {permissionStructure.map(perm => (
+                        <TableRow key={perm.feature}>
+                            <TableCell className="font-medium">{perm.feature}</TableCell>
+                            <TableCell className="text-center">
+                                {perm.read ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                            </TableCell>
+                            <TableCell className="text-center">
+                                {perm.create ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                            </TableCell>
+                            <TableCell className="text-center">
+                                {perm.update ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                            </TableCell>
+                            <TableCell className="text-center">
+                                {perm.delete ? <Checkbox checked={userIsAdmin} disabled /> : <X className="h-4 w-4 mx-auto text-muted-foreground/50" />}
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
         </div>
+      </div>
     );
   };
 
