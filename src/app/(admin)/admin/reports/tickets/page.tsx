@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { DateRange } from "react-day-picker";
 import { addDays, format, parseISO } from "date-fns";
-import type { Booking, BookedTicket, Event } from '@/lib/types';
+import type { Booking, Event } from '@/lib/types';
 import { adminGetAllBookings, adminGetAllEvents } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -17,14 +17,37 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
-interface DetailedTicketRecord extends BookedTicket {
-  bookingDate: string;
-  eventName: string;
-  eventDate: string;
-  attendeeName: string;
-  attendeeEmail: string;
-  paymentStatus: string;
+const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
+
+interface RawBookedShowtime {
+  id: string;
+  booking_id: string;
+  eventId: string;
+  showtime_id: string;
+  ticket_type: string;
+  tickettype_id: string;
+  showtime: string;
+  ticket_count: string;
+  created_at: string;
+  updated_at: string;
 }
+
+interface EnrichedTicketRecord {
+  id: string;
+  bookingId: string;
+  eventId: string;
+  showtimeId: string;
+  ticketTypeName: string;
+  ticketTypeId: string;
+  quantity: number;
+  showtimeDateTime: string;
+  bookingDate: string; // From parent booking
+  eventName: string; // From parent booking
+  attendeeName: string; // From parent booking
+  attendeeEmail: string; // From parent booking
+  paymentStatus: string; // From parent booking
+}
+
 
 export default function AdminTicketReportPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -33,7 +56,7 @@ export default function AdminTicketReportPage() {
   });
   const [eventFilter, setEventFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
-  const [reportData, setReportData] = useState<DetailedTicketRecord[]>([]);
+  const [reportData, setReportData] = useState<EnrichedTicketRecord[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [hasGeneratedReport, setHasGeneratedReport] = useState(false);
   const { toast } = useToast();
@@ -60,38 +83,57 @@ export default function AdminTicketReportPage() {
         return;
       }
       
-      const allBookings = await adminGetAllBookings();
-
-      const filteredBookings = allBookings.filter(booking => {
-        const bookingDate = new Date(booking.bookingDate);
-        const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
-        const eventMatch = eventFilter === 'all' || booking.eventId === eventFilter;
-        return isInDateRange && eventMatch;
-      });
-
-      const detailedTickets: DetailedTicketRecord[] = [];
-      for (const booking of filteredBookings) {
-        // Since adminGetAllBookings might not return full ticket details, we might need a full fetch here.
-        // For now, assuming bookedTickets is populated. If not, this needs adjustment.
-        booking.bookedTickets.forEach(ticket => {
-          detailedTickets.push({
-            ...ticket,
-            bookingDate: booking.bookingDate,
-            eventName: booking.eventName,
-            eventDate: booking.eventDate,
-            attendeeName: booking.userName || 'N/A',
-            attendeeEmail: booking.billingAddress?.email || 'N/A',
-            paymentStatus: booking.payment_status || 'pending',
-          });
-        });
+      const [allBookings, allBookedShowtimesResponse] = await Promise.all([
+        adminGetAllBookings(),
+        fetch(BOOKING_SHOWTIMES_API_URL)
+      ]);
+      
+      if (!allBookedShowtimesResponse.ok) {
+          throw new Error('Failed to fetch booked ticket data from the new API.');
       }
+      const allBookedShowtimes: RawBookedShowtime[] = await allBookedShowtimesResponse.json();
 
-      setReportData(detailedTickets);
+      const bookingsMap = new Map<string, Booking>(allBookings.map(b => [b.id, b]));
+      
+      const enrichedAndFilteredTickets: EnrichedTicketRecord[] = allBookedShowtimes
+        .map(rawTicket => {
+            const parentBooking = bookingsMap.get(rawTicket.booking_id);
+            if (!parentBooking) return null;
+
+            return {
+              id: rawTicket.id,
+              bookingId: rawTicket.booking_id,
+              eventId: rawTicket.eventId,
+              showtimeId: rawTicket.showtime_id,
+              ticketTypeName: rawTicket.ticket_type,
+              ticketTypeId: rawTicket.tickettype_id,
+              quantity: parseInt(rawTicket.ticket_count, 10) || 0,
+              showtimeDateTime: rawTicket.showtime,
+              // Enriched data
+              bookingDate: parentBooking.bookingDate,
+              eventName: parentBooking.eventName,
+              attendeeName: parentBooking.userName || 'N/A',
+              attendeeEmail: parentBooking.billingAddress?.email || 'N/A',
+              paymentStatus: parentBooking.payment_status || 'pending',
+            };
+        })
+        .filter((ticket): ticket is EnrichedTicketRecord => {
+            if (!ticket) return false;
+            
+            // Apply filters
+            const bookingDate = new Date(ticket.bookingDate);
+            const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
+            const eventMatch = eventFilter === 'all' || ticket.eventId === eventFilter;
+
+            return isInDateRange && eventMatch;
+        });
+
+      setReportData(enrichedAndFilteredTickets);
       setHasGeneratedReport(true);
-      toast({ title: "Report Generated", description: `Found ${detailedTickets.length} individual tickets matching your criteria.` });
+      toast({ title: "Report Generated", description: `Found ${enrichedAndFilteredTickets.length} individual ticket records matching your criteria.` });
     } catch (error) {
       console.error("Error generating ticket report:", error);
-      toast({ title: "Error", description: "Could not generate the ticket report.", variant: "destructive" });
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Could not generate the ticket report.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -99,12 +141,9 @@ export default function AdminTicketReportPage() {
   
   const reportSummary = useMemo(() => {
     const totalTicketsSold = reportData.reduce((sum, ticket) => sum + ticket.quantity, 0);
-    const paidTickets = reportData.filter(t => t.paymentStatus === 'paid');
-    const totalRevenue = paidTickets.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
-    
+    // Note: Revenue can't be calculated as the new API doesn't include price per ticket.
     return {
         totalTicketsSold,
-        totalRevenue,
     };
   }, [reportData]);
 
@@ -118,8 +157,6 @@ export default function AdminTicketReportPage() {
       "Event Name",
       "Ticket Type",
       "Quantity",
-      "Price Per Ticket (LKR)",
-      "Total Price (LKR)",
       "Booking ID",
       "Booking Date",
       "Showtime ID",
@@ -143,11 +180,9 @@ export default function AdminTicketReportPage() {
             escapeCsvCell(ticket.eventName),
             escapeCsvCell(ticket.ticketTypeName),
             escapeCsvCell(ticket.quantity),
-            escapeCsvCell(ticket.pricePerTicket.toFixed(2)),
-            escapeCsvCell((ticket.quantity * ticket.pricePerTicket).toFixed(2)),
             escapeCsvCell(ticket.bookingId),
             escapeCsvCell(format(new Date(ticket.bookingDate), 'yyyy-MM-dd HH:mm')),
-            escapeCsvCell(ticket.showTimeId),
+            escapeCsvCell(ticket.showtimeId),
             escapeCsvCell(ticket.attendeeName),
             escapeCsvCell(ticket.attendeeEmail),
             escapeCsvCell(ticket.paymentStatus),
@@ -163,7 +198,7 @@ export default function AdminTicketReportPage() {
 
     const fromDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 'start';
     const toDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 'end';
-    link.setAttribute("download", `ticket_report_${fromDate}_to_${toDate}.csv`);
+    link.setAttribute("download", `booked_tickets_report_${fromDate}_to_${toDate}.csv`);
 
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
@@ -247,13 +282,9 @@ export default function AdminTicketReportPage() {
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-center">
-                    <div className="p-4 bg-muted rounded-lg">
+                    <div className="p-4 bg-muted rounded-lg col-span-full">
                         <p className="text-sm text-muted-foreground">Total Tickets Sold</p>
                         <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Revenue (from paid)</p>
-                        <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
                     </div>
                 </div>
 
@@ -268,7 +299,6 @@ export default function AdminTicketReportPage() {
                             <TableHead>Attendee</TableHead>
                             <TableHead>Booking ID</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Total Price</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -294,7 +324,6 @@ export default function AdminTicketReportPage() {
                                             {ticket.paymentStatus}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="text-right whitespace-nowrap">LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
