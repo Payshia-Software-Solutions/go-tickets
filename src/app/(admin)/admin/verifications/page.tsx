@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ClipboardCheck, Search, Ticket, Users, Percent } from 'lucide-react';
+import { Loader2, ClipboardCheck, Search, Ticket, Users, Percent, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +13,7 @@ import type { VerificationLog, Event, TicketType } from '@/lib/types';
 import { fetchTicketTypesForEvent, getTicketAvailabilityCount } from '@/lib/services/ticket.service';
 import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
 
@@ -170,6 +171,65 @@ const VerificationBreakdownPage = () => {
     setTicketTypeFilter(value);
   }
 
+  const handleExport = () => {
+    if (filteredLogs.length === 0) {
+        toast({ title: "No Data", description: "There is no data to export.", variant: "destructive" });
+        return;
+    }
+
+    const headers = [
+      "Log ID",
+      "Event Name",
+      "Booking ID",
+      "Showtime ID",
+      "Ticket Type ID",
+      "Tickets Verified",
+      "Checked In By",
+      "Checked In Time"
+    ];
+
+    const escapeCsvCell = (cell: any) => {
+      if (cell === null || cell === undefined) return '';
+      const str = String(cell);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvRows = [headers.join(",")];
+    filteredLogs.forEach(log => {
+        const row = [
+            escapeCsvCell(log.id),
+            escapeCsvCell(log.eventName),
+            escapeCsvCell(log.booking_id),
+            escapeCsvCell(log.showtime_id),
+            escapeCsvCell(log.tickettype_id),
+            escapeCsvCell(log.ticket_count),
+            escapeCsvCell(log.checking_by),
+            escapeCsvCell(format(new Date(log.checking_time), 'yyyy-MM-dd HH:mm:ss')),
+        ];
+        csvRows.push(row.join(","));
+    });
+    
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+
+    const selectedEventName = events.find(e => e.id === eventFilter)?.name.replace(/\s/g, '_') || 'all_events';
+    link.setAttribute("download", `verifications_log_${selectedEventName}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({ title: "Export Started", description: "Your CSV file is being downloaded." });
+  };
+
+
   return (
     <div className="space-y-8">
       <header>
@@ -282,9 +342,14 @@ const VerificationBreakdownPage = () => {
       )}
 
       <Card>
-        <CardHeader>
-            <CardTitle>Verification Logs ({filteredLogs.length})</CardTitle>
-            <CardDescription>All recorded ticket check-ins matching the current filters.</CardDescription>
+        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+                <CardTitle>Verification Logs ({filteredLogs.length})</CardTitle>
+                <CardDescription>All recorded ticket check-ins matching the current filters.</CardDescription>
+            </div>
+            <Button variant="outline" onClick={handleExport} disabled={filteredLogs.length === 0}>
+                <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
         </CardHeader>
         <CardContent>
              {isLoading ? (
