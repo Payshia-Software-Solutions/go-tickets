@@ -4,16 +4,24 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ClipboardCheck, Search, Ticket } from 'lucide-react';
+import { Loader2, ClipboardCheck, Search, Ticket, Users, Percent } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { adminGetAllEvents } from '@/lib/mockData';
 import type { VerificationLog, Event, TicketType } from '@/lib/types';
-import { fetchTicketTypesForEvent } from '@/lib/services/ticket.service';
+import { fetchTicketTypesForEvent, getTicketAvailabilityCount } from '@/lib/services/ticket.service';
 import { format } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
 
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
+
+interface TicketTypeSummary {
+    id: string;
+    name: string;
+    verifiedCount: number;
+    totalAvailable: number;
+}
 
 const VerificationBreakdownPage = () => {
   const [logs, setLogs] = useState<VerificationLog[]>([]);
@@ -126,6 +134,28 @@ const VerificationBreakdownPage = () => {
         totalTicketsVerified,
     };
   }, [filteredLogs]);
+
+  const ticketTypeSummary = useMemo((): TicketTypeSummary[] | null => {
+      if (eventFilter === 'all' || ticketTypes.length === 0) {
+        return null;
+      }
+
+      // Aggregate verified counts from logs
+      const verifiedCounts = filteredLogs.reduce((acc, log) => {
+          const ticketId = String(log.tickettype_id);
+          acc[ticketId] = (acc[ticketId] || 0) + log.ticket_count;
+          return acc;
+      }, {} as Record<string, number>);
+
+      // Map over all ticket types for the event to build the summary
+      return ticketTypes.map(tt => ({
+        id: tt.id,
+        name: tt.name,
+        verifiedCount: verifiedCounts[tt.id] || 0,
+        totalAvailable: tt.availability || 0, // Assuming this is the total sold
+      }));
+
+  }, [filteredLogs, ticketTypes, eventFilter]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
@@ -153,7 +183,7 @@ const VerificationBreakdownPage = () => {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Verifications</CardTitle>
-                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalVerifications}</div>
@@ -210,6 +240,46 @@ const VerificationBreakdownPage = () => {
             </SelectContent>
         </Select>
       </div>
+
+      {ticketTypeSummary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Percent className="mr-2 h-5 w-5" />
+              Verification Summary by Ticket Type
+            </CardTitle>
+            <CardDescription>
+              A breakdown of verified tickets for the selected event.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingTicketTypes ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="ml-2 text-muted-foreground">Loading summary...</p>
+              </div>
+            ) : ticketTypeSummary.length === 0 ? (
+                <p className="text-muted-foreground text-center">No ticket types found for this event.</p>
+            ) : (
+              ticketTypeSummary.map(summaryItem => {
+                const percentage = summaryItem.totalAvailable > 0 ? (summaryItem.verifiedCount / summaryItem.totalAvailable) * 100 : 0;
+                return (
+                  <div key={summaryItem.id}>
+                    <div className="flex justify-between items-center mb-1 text-sm">
+                      <span className="font-medium text-foreground">{summaryItem.name}</span>
+                      <span className="text-muted-foreground">
+                        {summaryItem.verifiedCount} / {summaryItem.totalAvailable} verified
+                      </span>
+                    </div>
+                    <Progress value={percentage} aria-label={`${summaryItem.name} verification progress`} />
+                    <p className="text-xs text-right text-muted-foreground mt-1">{percentage.toFixed(1)}%</p>
+                  </div>
+                )
+              })
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
