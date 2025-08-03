@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import RoleForm from '@/components/admin/RoleForm';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Mock data for roles until backend is ready
 interface Role {
