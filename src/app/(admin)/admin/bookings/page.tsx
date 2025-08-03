@@ -29,7 +29,6 @@ export default function AdminBookingsPage() {
   const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      // This function now fetches full booking details including line items
       const processedBookings = await adminGetAllBookings(); 
       setBookings(processedBookings);
     } catch (error) {
@@ -156,7 +155,7 @@ export default function AdminBookingsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Booking ID</TableHead>
-                    <TableHead>Event &amp; Ticket Breakdown</TableHead>
+                    <TableHead>Event &amp; Tickets</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Event Date</TableHead>
@@ -173,12 +172,8 @@ export default function AdminBookingsPage() {
                         <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
                         <TableCell className="font-medium whitespace-nowrap">
                             <div className="font-semibold">{booking.eventName}</div>
-                            {booking.bookedTickets && booking.bookedTickets.length > 0 && (
-                                <ul className="text-xs text-muted-foreground list-disc list-inside pl-2 mt-1">
-                                    {booking.bookedTickets.map(ticket => (
-                                        <li key={ticket.id}>{ticket.quantity} x {ticket.ticketTypeName}</li>
-                                    ))}
-                                </ul>
+                            {booking.tickettype && (
+                                <p className="text-xs text-muted-foreground">{booking.tickettype}</p>
                             )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">

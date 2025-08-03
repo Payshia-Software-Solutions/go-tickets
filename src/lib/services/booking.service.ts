@@ -367,9 +367,8 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
 };
 
 export const adminGetAllBookings = async (): Promise<Booking[]> => {
-  console.log(`[adminGetAllBookings] Fetching all booking summaries from: ${BOOKINGS_API_URL}`);
   if (!BOOKINGS_API_URL) {
-    console.error("[adminGetAllBookings] BOOKINGS_API_URL is not configured.");
+    console.error("BOOKINGS_API_URL is not configured.");
     return [];
   }
   try {
@@ -387,27 +386,20 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
       return [];
     }
 
-    console.log(`[adminGetAllBookings] Found ${apiBookings.length} booking summaries. Fetching full details for each...`);
-
-    // Fetch full details for each booking to get the bookedTickets array
-    const detailedBookingsPromises = apiBookings.map(summary => 
-      getBookingById(String(summary.id)).catch(e => {
-        console.error(`[adminGetAllBookings] Failed to fetch full details for booking ID ${summary.id}`, e);
-        return null; // Return null on error to filter out later
-      })
-    );
+    const bookings = apiBookings.map(transformApiBookingToAppBooking);
     
-    const resolvedBookings = (await Promise.all(detailedBookingsPromises)).filter(Boolean) as Booking[];
+    // The main list will now only have summary data.
+    // The bookedTickets array may be empty or contain only summary info.
+    // The UI should be updated to not expect the breakdown on this page.
 
-    console.log(`[adminGetAllBookings] Successfully resolved full details for ${resolvedBookings.length} bookings.`);
-
-    return resolvedBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+    return bookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
 
   } catch (error) {
     console.error("[adminGetAllBookings] Network or other error fetching/processing booking summaries:", error);
     return [];
   }
 };
+
 
 export const adminGetBookingSummaries = async (): Promise<Booking[]> => {
   if (!BOOKINGS_API_URL) {
