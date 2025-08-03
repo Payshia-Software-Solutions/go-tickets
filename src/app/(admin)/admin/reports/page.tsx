@@ -112,7 +112,7 @@ export default function AdminReportsPage() {
           const bookingDate = new Date(parentBooking.bookingDate);
           const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
           const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
-          const eventMatch = eventFilter === 'all' || parentBooking.eventId === eventFilter;
+          const eventMatch = eventFilter === 'all' || rawTicket.eventId === eventFilter;
           
           if (isInDateRange && statusMatch && eventMatch) {
             filteredTickets.push({
