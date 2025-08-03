@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, TrendingUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +24,7 @@ const adminNavItems = [
     children: [
       { href: '/admin/reports', label: 'Booking Report', icon: FileText },
       { href: '/admin/reports/tickets', label: 'Ticket Report', icon: BookCopy },
+      { href: '/admin/reports/event-summary', label: 'Event Summary', icon: TrendingUp },
     ]
   },
   { href: '/admin/verify-ticket', label: 'Verify Ticket', icon: QrCode },
@@ -65,9 +65,10 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
+                  <div className="flex items-center gap-3">
                     <item.icon className="h-5 w-5" />
                     <span className="flex-1 text-left">{item.label}</span>
-                    {/* The default chevron is now part of the AccordionTrigger, so we don't need a separate one here */}
+                  </div>
                 </AccordionTrigger>
                 <AccordionContent className="pl-6 pt-1 pb-0">
                   <div className="flex flex-col space-y-1 border-l border-muted-foreground/30 ml-1.5">
