@@ -167,8 +167,8 @@ export default function AdminTicketReportPage() {
   
   const reportSummary = useMemo(() => {
     const totalTicketsSold = reportData.reduce((sum, ticket) => sum + ticket.quantity, 0);
-    const paidTickets = reportData.filter(t => t.paymentStatus === 'paid');
-    const totalRevenue = paidTickets.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
+    // The reportData is already filtered by status, so we just need to sum up everything in it.
+    const totalRevenue = reportData.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
     return {
         totalTicketsSold,
         totalRevenue,
@@ -176,7 +176,7 @@ export default function AdminTicketReportPage() {
   }, [reportData]);
   
   const revenueByTicketType = useMemo((): EventRevenueSummary[] => {
-    const paidTickets = reportData.filter(t => t.paymentStatus === 'paid');
+    const paidTickets = reportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
 
     const summaryMap = new Map<string, { 
         eventName: string; 
@@ -361,7 +361,7 @@ export default function AdminTicketReportPage() {
                             <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
                         </div>
                          <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid)</p>
+                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue ({statusFilter === 'all' ? 'Paid Only' : 'in selection'})</p>
                             <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
                         </div>
                     </div>
@@ -468,3 +468,4 @@ export default function AdminTicketReportPage() {
     </div>
   );
 }
+
