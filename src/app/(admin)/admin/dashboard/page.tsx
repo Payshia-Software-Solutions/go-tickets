@@ -97,6 +97,7 @@ export default function AdminDashboardPage() {
     events: null as number | null,
     bookings: null as number | null,
     users: null as number | null,
+    categories: null as number | null,
   });
   const [isLoading, setIsLoading] = useState(true);
   
@@ -129,6 +130,7 @@ export default function AdminDashboardPage() {
           events: eventCount,
           bookings: paidBookings.length,
           users: userCount,
+          categories: new Set(allEvents.map(e => e.category)).size
         });
 
         setSalesData(processSalesData(paidBookings));
@@ -138,7 +140,7 @@ export default function AdminDashboardPage() {
 
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
-        setStats({ events: 0, bookings: 0, users: 0 }); // Show 0 on error
+        setStats({ events: 0, bookings: 0, users: 0, categories: 0 }); // Show 0 on error
         setSalesData([]);
         setCategoryData([]);
         setTopEvents([]);
@@ -196,27 +198,7 @@ export default function AdminDashboardPage() {
         <StatCard title="Total Events" value={stats.events} icon={BarChartIcon} note="Live data from server" href="/admin/events" />
         <StatCard title="Completed Bookings" value={stats.bookings} icon={DollarSign} note="Bookings with 'paid' status" href="/admin/bookings" />
         <StatCard title="Registered Users" value={stats.users} icon={Users} note="Live data from server" href="/admin/users"/>
-        
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center justify-between">
-                  <span>Manage Categories</span>
-                  <Tag className="h-4 w-4 text-muted-foreground" />
-              </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-grow">
-              <p className="text-xs text-muted-foreground mt-2">
-                  Organize your events by adding or editing categories.
-              </p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-                <Link href="/admin/categories">
-                    Go to Categories
-                </Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        <StatCard title="Event Categories" value={stats.categories} icon={Tag} note="Active categories" href="/admin/categories"/>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -377,5 +359,3 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-
-    
