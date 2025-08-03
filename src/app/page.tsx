@@ -99,12 +99,19 @@ export default function HomePage() {
       try {
         const event = await getAdminEventById('1');
         if (event) {
-          setFeaturedEvent(event);
-          const timer = setTimeout(() => {
-            setIsFeaturedModalOpen(true);
-            localStorage.setItem('featuredEventViewCount', String(viewCount + 1));
-          }, 1500);
-           return () => clearTimeout(timer);
+          const eventDate = new Date(event.date);
+          const now = new Date();
+          // Set hours, minutes, seconds, and milliseconds to 0 for today to compare dates only
+          now.setHours(0, 0, 0, 0);
+
+          if (eventDate >= now) {
+            setFeaturedEvent(event);
+            const timer = setTimeout(() => {
+              setIsFeaturedModalOpen(true);
+              localStorage.setItem('featuredEventViewCount', String(viewCount + 1));
+            }, 1500);
+            return () => clearTimeout(timer);
+          }
         }
       } catch (error) {
         console.error("Could not fetch featured event:", error);
