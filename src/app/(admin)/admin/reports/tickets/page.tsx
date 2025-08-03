@@ -118,6 +118,11 @@ export default function AdminTicketReportPage() {
         .map(rawTicket => {
             const parentBooking = bookingsMap.get(rawTicket.booking_id);
             if (!parentBooking) return null;
+            
+            const price = ticketPriceMap.get(rawTicket.tickettype_id);
+            if (price === undefined) {
+              console.warn(`Could not find price for tickettype_id: ${rawTicket.tickettype_id}. Defaulting to 0.`);
+            }
 
             return {
               id: rawTicket.id,
@@ -134,7 +139,7 @@ export default function AdminTicketReportPage() {
               attendeeName: parentBooking.userName || 'N/A',
               attendeeEmail: parentBooking.billingAddress?.email || 'N/A',
               paymentStatus: parentBooking.payment_status || 'pending',
-              pricePerTicket: ticketPriceMap.get(rawTicket.tickettype_id) || 0,
+              pricePerTicket: Number(price) || 0,
             };
         })
         .filter((ticket): ticket is EnrichedTicketRecord => {
