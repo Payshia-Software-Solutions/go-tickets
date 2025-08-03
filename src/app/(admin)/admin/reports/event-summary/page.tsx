@@ -4,7 +4,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Booking, Event, TicketType, VerificationLog } from '@/lib/types';
-import { adminGetAllEvents, fetchEventByIdFromApi, getBookingById } from '@/lib/mockData';
+import { adminGetAllEvents, fetchEventByIdFromApi } from '@/lib/mockData';
+import { adminGetAllBookings as fetchAllBookings } from '@/lib/services/booking.service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,12 +14,11 @@ import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Per
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
-import { BOOKINGS_API_URL } from '@/lib/constants';
+import { TICKET_TYPES_API_URL } from '@/lib/constants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 
 
-const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
 const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
 const ITEMS_PER_PAGE = 5;
@@ -87,24 +87,26 @@ export default function EventSummaryReportPage() {
     }
     setIsLoading(true);
     setReportData(null);
-    setCurrentPage(1); // Reset pagination on new report
+    setCurrentPage(1);
     setActiveTab("overview");
     try {
-        const [eventRes, bookingsRes, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
+        const [eventRes, allBookings, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
             fetchEventByIdFromApi(eventFilter),
-            fetch(`${BOOKINGS_API_URL}?eventId=${eventFilter}`).then(res => res.ok ? res.json() : []),
+            fetchAllBookings(),
             fetch(`${VERIFICATIONS_API_URL}?event_id=${eventFilter}`).then(res => res.ok ? res.json() : []),
             fetch(`${TICKET_TYPES_API_URL}?eventid=${eventFilter}`).then(res => res.ok ? res.json() : []),
             fetch(BOOKING_SHOWTIMES_API_URL).then(res => res.ok ? res.json() : [])
         ]);
 
-        const typedBookings = bookingsRes as Booking[];
-        const paidBookings = typedBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
-        const paidBookingIds = new Set(paidBookings.map(b => String(b.id)));
-        
-        const fullPaidBookings = await Promise.all(
-          paidBookings.map(b => getBookingById(b.id))
-        ).then(results => results.filter((b): b is Booking => b !== undefined));
+        const allPaidBookings = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
+        const eventBookingIds = new Set(
+            bookedShowtimesRes
+                .filter((st: any) => String(st.eventId) === eventFilter)
+                .map((st: any) => String(st.booking_id))
+        );
+
+        const eventPaidBookings = allPaidBookings.filter(b => eventBookingIds.has(String(b.id)));
+        const paidBookingIds = new Set(eventPaidBookings.map(b => String(b.id)));
         
         const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
             String(st.eventId) === eventFilter && paidBookingIds.has(String(st.booking_id))
@@ -112,7 +114,7 @@ export default function EventSummaryReportPage() {
 
         setReportData({
             event: eventRes,
-            bookings: fullPaidBookings,
+            bookings: eventPaidBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()),
             ticketTypes: ticketTypesRes.map((t: any) => ({...t, price: parseFloat(t.price)})),
             verifications: verificationsRes.map((v: any) => ({ ...v, ticket_count: parseInt(v.ticket_count, 10) || 0 })),
             bookedShowtimes: paidAndFilteredShowtimes,
