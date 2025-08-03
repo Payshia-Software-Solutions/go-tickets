@@ -257,7 +257,7 @@ const VerificationBreakdownPage = () => {
                 <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalVerifications}</div>
+                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalVerifications.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">Total unique check-in events logged for current filters.</p>
             </CardContent>
         </Card>
@@ -267,7 +267,7 @@ const VerificationBreakdownPage = () => {
                 <Ticket className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalTicketsVerified}</div>
+                <div className="text-2xl font-bold">{isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : summary.totalTicketsVerified.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">Total individual tickets admitted for current filters.</p>
             </CardContent>
         </Card>
@@ -339,7 +339,7 @@ const VerificationBreakdownPage = () => {
                     <div className="flex justify-between items-center mb-1 text-sm">
                       <span className="font-medium text-foreground">{summaryItem.name}</span>
                       <span className="text-muted-foreground">
-                        {summaryItem.verifiedCount} / {summaryItem.totalAvailable} verified
+                        {summaryItem.verifiedCount.toLocaleString()} / {summaryItem.totalAvailable.toLocaleString()} verified
                       </span>
                     </div>
                     <Progress value={percentage} aria-label={`${summaryItem.name} verification progress`} />
@@ -355,7 +355,7 @@ const VerificationBreakdownPage = () => {
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-                <CardTitle>Verification Logs ({filteredLogs.length})</CardTitle>
+                <CardTitle>Verification Logs ({filteredLogs.length.toLocaleString()})</CardTitle>
                 <CardDescription>All recorded ticket check-ins matching the current filters.</CardDescription>
             </div>
             <Button variant="outline" onClick={handleExport} disabled={filteredLogs.length === 0}>

@@ -137,7 +137,7 @@ export default function AdminBookingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Bookings ({filteredBookings.length})
+            {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Bookings ({filteredBookings.length.toLocaleString()})
           </CardTitle>
           <CardDescription>A list of all bookings made through the platform matching the filter.</CardDescription>
         </CardHeader>
@@ -193,7 +193,7 @@ export default function AdminBookingsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.eventDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toFixed(2) : 'N/A'}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}</TableCell>
                         <TableCell className="whitespace-nowrap">{new Date(booking.bookingDate).toLocaleString()}</TableCell>
                         <TableCell className="text-center">
                           <Button variant="outline" size="sm" asChild>
@@ -213,7 +213,7 @@ export default function AdminBookingsPage() {
         {totalPages > 1 && (
           <CardFooter className="flex items-center justify-between border-t pt-4">
              <div className="text-xs text-muted-foreground">
-              Showing <strong>{paginatedBookings.length}</strong> of <strong>{filteredBookings.length}</strong> bookings.
+              Showing <strong>{paginatedBookings.length}</strong> of <strong>{filteredBookings.length.toLocaleString()}</strong> bookings.
             </div>
             <div className="flex items-center space-x-2">
                <span className="text-sm text-muted-foreground">

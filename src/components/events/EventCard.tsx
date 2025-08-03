@@ -72,7 +72,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
           <p className="text-xs text-muted-foreground">Tickets</p>
           {minPrice !== null && canBook ? (
             <p className="text-md font-semibold text-foreground">
-              {minPrice === 0 ? 'Free' : `${minPrice.toFixed(0)} LKR`} Upwards
+              {minPrice === 0 ? 'Free' : `${minPrice.toLocaleString('en-US')} LKR`} Upwards
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">{canBook ? 'See Details' : 'Unavailable'}</p> 

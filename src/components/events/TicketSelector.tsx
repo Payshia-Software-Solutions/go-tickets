@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Event, ShowTime, TicketType } from '@/lib/types';
@@ -164,10 +163,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <h4 className="font-semibold text-lg">{availability.ticketType.name}</h4>
-                <p className="text-sm text-muted-foreground">LKR {availability.ticketType.price.toFixed(2)} each</p>
+                <p className="text-sm text-muted-foreground">LKR {availability.ticketType.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each</p>
                 {/* Find full description from event.ticketTypes if needed */}
                 {/* <p className="text-xs text-muted-foreground mt-1">{event.ticketTypes?.find(tt => tt.id === availability.ticketType.id)?.description}</p> */}
-                <p className="text-xs text-primary mt-1 hidden">{availability.availableCount} available for this showtime</p>
+                <p className="text-xs text-primary mt-1 hidden">{availability.availableCount.toLocaleString()} available for this showtime</p>
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -202,7 +201,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t">
         <div className="text-xl font-semibold">
-          Selection Total: LKR {currentTotal.toFixed(2)}
+          Selection Total: LKR {currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       </CardFooter>
     </Card>

@@ -156,7 +156,7 @@ export default function AdminTicketReportPage() {
 
       setReportData(enrichedAndFilteredTickets);
       setHasGeneratedReport(true);
-      toast({ title: "Report Generated", description: `Found ${enrichedAndFilteredTickets.length} individual ticket records matching your criteria.` });
+      toast({ title: "Report Generated", description: `Found ${enrichedAndFilteredTickets.length.toLocaleString()} individual ticket records matching your criteria.` });
     } catch (error) {
       console.error("Error generating ticket report:", error);
       toast({ title: "Error", description: error instanceof Error ? error.message : "Could not generate the ticket report.", variant: "destructive" });
@@ -167,8 +167,8 @@ export default function AdminTicketReportPage() {
   
   const reportSummary = useMemo(() => {
     const totalTicketsSold = reportData.reduce((sum, ticket) => sum + ticket.quantity, 0);
-    // The reportData is already filtered by status, so we just need to sum up everything in it.
-    const totalRevenue = reportData.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
+    const paidTickets = reportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
+    const totalRevenue = paidTickets.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
     return {
         totalTicketsSold,
         totalRevenue,
@@ -245,8 +245,8 @@ export default function AdminTicketReportPage() {
             escapeCsvCell(ticket.eventName),
             escapeCsvCell(ticket.ticketTypeName),
             escapeCsvCell(ticket.quantity),
-            escapeCsvCell(ticket.pricePerTicket.toFixed(2)),
-            escapeCsvCell((ticket.quantity * ticket.pricePerTicket).toFixed(2)),
+            escapeCsvCell(ticket.pricePerTicket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+            escapeCsvCell((ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
             escapeCsvCell(ticket.bookingId),
             escapeCsvCell(format(new Date(ticket.bookingDate), 'yyyy-MM-dd HH:mm')),
             escapeCsvCell(ticket.showtimeId),
@@ -358,11 +358,11 @@ export default function AdminTicketReportPage() {
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                         <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Ticket className="h-4 w-4"/>Total Tickets Sold</p>
-                            <p className="text-2xl font-bold">{reportSummary.totalTicketsSold}</p>
+                            <p className="text-2xl font-bold">{reportSummary.totalTicketsSold.toLocaleString()}</p>
                         </div>
                          <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue ({statusFilter === 'all' ? 'Paid Only' : 'in selection'})</p>
-                            <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid Only)</p>
+                            <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -385,8 +385,8 @@ export default function AdminTicketReportPage() {
                                                 <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1 bg-muted/50 rounded-md">
                                                     <span className="font-medium"><Ticket className="inline-block mr-2 h-4 w-4 text-muted-foreground"/>{ticket.typeName}</span>
                                                     <div className="text-right">
-                                                        <p className="font-semibold text-foreground">LKR {ticket.revenue.toFixed(2)}</p>
-                                                        <p className="text-xs text-muted-foreground">{ticket.count} sold</p>
+                                                        <p className="font-semibold text-foreground">LKR {ticket.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                                        <p className="text-xs text-muted-foreground">{ticket.count.toLocaleString()} sold</p>
                                                     </div>
                                                 </li>
                                             ))}
@@ -404,7 +404,7 @@ export default function AdminTicketReportPage() {
                     <div>
                         <CardTitle>Report Results</CardTitle>
                         <CardDescription>
-                            {reportData.length} ticket line items found.
+                            {reportData.length.toLocaleString()} ticket line items found.
                         </CardDescription>
                     </div>
                     <div className="flex gap-2 mt-4 md:mt-0 no-print">
@@ -439,7 +439,7 @@ export default function AdminTicketReportPage() {
                                           <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
                                         </TableCell>
                                          <TableCell className="whitespace-nowrap text-right">
-                                            LKR {(ticket.quantity * ticket.pricePerTicket).toFixed(2)}
+                                            LKR {(ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className={cn('capitalize', {
@@ -468,4 +468,3 @@ export default function AdminTicketReportPage() {
     </div>
   );
 }
-

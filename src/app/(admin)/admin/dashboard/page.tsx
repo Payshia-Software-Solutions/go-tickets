@@ -168,7 +168,7 @@ export default function AdminDashboardPage() {
             </>
           ) : (
             <>
-              <div className="text-2xl font-bold">{value ?? 'N/A'}</div>
+              <div className="text-2xl font-bold">{value?.toLocaleString() ?? 'N/A'}</div>
               <p className="text-xs text-muted-foreground">{note}</p>
             </>
           )}
@@ -220,8 +220,8 @@ export default function AdminDashboardPage() {
                   <BarChart data={salesData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                     <CartesianGrid vertical={false} />
                     <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={8} />
-                    <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `LKR ${Number(value).toLocaleString()}`} />
+                    <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => `LKR ${Number(value).toLocaleString()}`} />} />
                     <Bar dataKey="sales" fill="var(--color-sales)" radius={4} />
                   </BarChart>
                 </ChartContainer>
@@ -284,7 +284,7 @@ export default function AdminDashboardPage() {
                   {topEvents.map((event, index) => (
                     <li key={index} className="flex items-center justify-between">
                       <span className="font-medium text-sm truncate pr-4">{event.name}</span>
-                      <Badge variant="secondary">{event.count} Bookings</Badge>
+                      <Badge variant="secondary">{event.count.toLocaleString()} Bookings</Badge>
                     </li>
                   ))}
                 </ul>

@@ -135,7 +135,7 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
               ))}
               <div className="flex justify-between items-center font-bold text-lg border-t pt-3 mt-3">
                 <span>Total Due:</span>
-                <span>LKR {booking.totalPrice.toFixed(2)}</span>
+                <span>LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
             <PayNowButton bookingId={booking.id} />
@@ -190,7 +190,7 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
             ))}
             <div className="flex justify-between items-center font-bold text-lg border-t pt-3 mt-3">
               <span>Total Paid:</span>
-              <span>LKR {booking.totalPrice.toFixed(2)}</span>
+              <span>LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
              <p className="text-xs text-muted-foreground text-right pt-1">Booked on: {formattedBookingDate}</p>
           </div>

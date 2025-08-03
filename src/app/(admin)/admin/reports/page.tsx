@@ -115,7 +115,7 @@ export default function AdminReportsPage() {
       setReportData(filteredBookings);
       setTicketReportData(filteredTickets);
       setHasGeneratedReport(true);
-      toast({ title: "Report Generated", description: `Found ${filteredBookings.length} bookings and ${filteredTickets.length} ticket line items.` });
+      toast({ title: "Report Generated", description: `Found ${filteredBookings.length.toLocaleString()} bookings and ${filteredTickets.length.toLocaleString()} ticket line items.` });
     } catch (error) {
       console.error("Error generating report:", error);
       toast({ title: "Error", description: error instanceof Error ? error.message : "Could not generate the report.", variant: "destructive" });
@@ -319,19 +319,19 @@ export default function AdminReportsPage() {
                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                         <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm text-muted-foreground">Total Bookings</p>
-                            <p className="text-2xl font-bold">{reportSummary.totalBookings}</p>
+                            <p className="text-2xl font-bold">{reportSummary.totalBookings.toLocaleString()}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm text-muted-foreground">Total Sales (Paid)</p>
-                            <p className="text-2xl font-bold">LKR {reportSummary.totalSales.toFixed(2)}</p>
+                            <p className="text-2xl font-bold">LKR {reportSummary.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm text-muted-foreground">Paid Bookings</p>
-                            <p className="text-2xl font-bold">{reportSummary.paidBookings}</p>
+                            <p className="text-2xl font-bold">{reportSummary.paidBookings.toLocaleString()}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
                             <p className="text-sm text-muted-foreground">Pending/Other</p>
-                            <p className="text-2xl font-bold">{reportSummary.pendingBookings}</p>
+                            <p className="text-2xl font-bold">{reportSummary.pendingBookings.toLocaleString()}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -353,7 +353,7 @@ export default function AdminReportsPage() {
                                             {event.tickets.map((ticket, ticketIndex) => (
                                                 <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1 bg-muted/50 rounded-md">
                                                     <span><Ticket className="inline-block mr-2 h-4 w-4 text-muted-foreground"/>{ticket.typeName}</span>
-                                                    <Badge variant="secondary">{ticket.count} sold</Badge>
+                                                    <Badge variant="secondary">{ticket.count.toLocaleString()} sold</Badge>
                                                 </li>
                                             ))}
                                         </ul>
@@ -414,7 +414,7 @@ export default function AdminReportsPage() {
                                                 {booking.payment_status || 'pending'}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

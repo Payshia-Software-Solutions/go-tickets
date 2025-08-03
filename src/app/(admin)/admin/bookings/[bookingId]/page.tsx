@@ -139,7 +139,7 @@ export default function BookingDetailsPage() {
                         <p><strong>Date:</strong> {new Date(booking.eventDate).toLocaleString()}</p>
                         <p><strong>Location:</strong> {booking.eventLocation}</p>
                         <Separator className="my-2" />
-                        <p><strong>Total Price:</strong> LKR {booking.totalPrice.toFixed(2)}</p>
+                        <p><strong>Total Price:</strong> LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         <div className="flex items-center gap-2">
                           <strong>Payment Status:</strong> 
                           <Badge 

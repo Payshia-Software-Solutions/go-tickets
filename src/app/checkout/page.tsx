@@ -224,11 +224,11 @@ const CheckoutPage = () => {
                       Showtime ID: {item.showTimeId.substring(0,8)}...
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {item.quantity} x LKR {item.pricePerTicket.toFixed(2)}
+                      {item.quantity} x LKR {item.pricePerTicket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold">LKR {(item.quantity * item.pricePerTicket).toFixed(2)}</p>
+                    <p className="font-semibold">LKR {(item.quantity * item.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.ticketTypeId, item.showTimeId)} aria-label="Remove item" suppressHydrationWarning>
                       <Trash2 className="h-4 w-4 text-destructive"/>
                     </Button>
@@ -238,12 +238,12 @@ const CheckoutPage = () => {
               <Separator />
               <div className="flex justify-between">
                 <p>Subtotal</p>
-                <p>LKR {totalPrice.toFixed(2)}</p>
+                <p>LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <p>Total</p>
-                <p>LKR {finalTotal.toFixed(2)}</p>
+                <p>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </CardContent>
           </Card>
@@ -469,7 +469,7 @@ const CheckoutPage = () => {
             <CardContent className="space-y-4">
               <div className="flex justify-between font-bold text-xl">
                 <span>Total:</span>
-                <span>LKR {finalTotal.toFixed(2)}</span>
+                <span>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <p className="text-sm text-muted-foreground">You have {totalItems} item(s) in your cart.</p>
             </CardContent>
