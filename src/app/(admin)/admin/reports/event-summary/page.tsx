@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Booking, Event, TicketType, VerificationLog } from '@/lib/types';
-import { adminGetAllEvents, fetchEventByIdFromApi } from '@/lib/mockData';
+import { adminGetAllEvents, fetchEventByIdFromApi, getBookingById } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -73,14 +73,17 @@ export default function EventSummaryReportPage() {
         const paidBookings = typedBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
         const paidBookingIds = new Set(paidBookings.map(b => String(b.id)));
         
-        // Filter bookedShowtimes to only include those from paid bookings for the selected event
+        const fullPaidBookings = await Promise.all(
+          paidBookings.map(b => getBookingById(b.id))
+        ).then(results => results.filter((b): b is Booking => b !== undefined));
+        
         const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
             String(st.eventId) === eventFilter && paidBookingIds.has(String(st.booking_id))
         );
 
         setReportData({
             event: eventRes,
-            bookings: paidBookings,
+            bookings: fullPaidBookings,
             ticketTypes: ticketTypesRes.map((t: any) => ({...t, price: parseFloat(t.price)})),
             verifications: verificationsRes.map((v: any) => ({ ...v, ticket_count: parseInt(v.ticket_count, 10) || 0 })),
             bookedShowtimes: paidAndFilteredShowtimes,
@@ -100,12 +103,10 @@ export default function EventSummaryReportPage() {
 
     const summaryMap = new Map<string, Omit<TicketSummary, 'typeName'>>();
 
-    // Initialize with all ticket types for the event
     reportData.ticketTypes.forEach(tt => {
         summaryMap.set(tt.id, { sold: 0, verified: 0, revenue: 0 });
     });
 
-    // Collate sales data from the filtered bookedShowtimes
     reportData.bookedShowtimes.forEach(showtime => {
         const ticketInfo = summaryMap.get(String(showtime.tickettype_id));
         if (ticketInfo) {
@@ -116,7 +117,6 @@ export default function EventSummaryReportPage() {
         }
     });
     
-    // Collate verification data
     reportData.verifications.forEach(log => {
         const ticketInfo = summaryMap.get(String(log.tickettype_id));
         if (ticketInfo) {
