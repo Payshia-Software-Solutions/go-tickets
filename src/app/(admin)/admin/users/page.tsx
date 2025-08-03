@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, Users } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, Users, ShieldCheck } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +22,13 @@ import { useToast } from '@/hooks/use-toast';
 import { adminGetAllUsers, adminCreateUser, updateUser, deleteUser } from '@/lib/services/user.service';
 import UserForm from '@/components/admin/UserForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRouter } from 'next/navigation';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -195,6 +197,9 @@ export default function AdminUsersPage() {
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
                         <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => router.push(`/admin/users/${user.id}/privileges`)}>
+                          <ShieldCheck className="h-4 w-4 mr-2" /> Privileges
+                        </Button>
                         <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(user)} title="Edit User">
                             <Edit className="h-4 w-4" />
                         </Button>
