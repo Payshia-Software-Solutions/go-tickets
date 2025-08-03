@@ -8,11 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { BOOKINGS_API_URL } from '@/lib/constants';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+
 
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
@@ -25,7 +28,7 @@ interface ReportData {
   bookings: Booking[];
   ticketTypes: TicketType[];
   verifications: VerificationLog[];
-  bookedShowtimes: any[]; // Add this to store the new data
+  bookedShowtimes: any[]; 
 }
 
 interface TicketSummary {
@@ -150,8 +153,16 @@ export default function EventSummaryReportPage() {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return reportData.bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [reportData, currentPage]);
+  
+  const paginatedVerifications = useMemo(() => {
+    if (!reportData) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return reportData.verifications.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [reportData, currentPage]);
 
-  const totalPages = reportData ? Math.ceil(reportData.bookings.length / ITEMS_PER_PAGE) : 0;
+
+  const totalBookingPages = reportData ? Math.ceil(reportData.bookings.length / ITEMS_PER_PAGE) : 0;
+  const totalVerificationPages = reportData ? Math.ceil(reportData.verifications.length / ITEMS_PER_PAGE) : 0;
 
 
   return (
@@ -195,143 +206,219 @@ export default function EventSummaryReportPage() {
       )}
 
       {reportData && (
-        <div className="space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>{reportData.event?.name}</CardTitle>
-                    <CardDescription>High-level statistics for this event.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Paid Bookings</p>
-                        <p className="text-2xl font-bold">{reportData.bookings.length.toLocaleString()}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Tickets Sold</p>
-                        <p className="text-2xl font-bold">{reportTotals.totalTicketsSold.toLocaleString()}</p>
-                    </div>
-                     <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Tickets Verified</p>
-                        <p className="text-2xl font-bold">{reportTotals.totalTicketsVerified.toLocaleString()}</p>
-                    </div>
-                    <div className="p-4 bg-muted rounded-lg">
-                        <p className="text-sm text-muted-foreground">Total Revenue (Paid)</p>
-                        <p className="text-2xl font-bold">LKR {reportTotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    </div>
-                </CardContent>
-            </Card>
+        <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="bookings">Paid Bookings</TabsTrigger>
+              <TabsTrigger value="verifications">Verifications</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview" className="mt-4">
+                <div className="space-y-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{reportData.event?.name}</CardTitle>
+                            <CardDescription>High-level statistics for this event.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            <div className="p-4 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground">Total Paid Bookings</p>
+                                <p className="text-2xl font-bold">{reportData.bookings.length.toLocaleString()}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground">Total Tickets Sold</p>
+                                <p className="text-2xl font-bold">{reportTotals.totalTicketsSold.toLocaleString()}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground">Tickets Verified</p>
+                                <p className="text-2xl font-bold">{reportTotals.totalTicketsVerified.toLocaleString()}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                                <p className="text-sm text-muted-foreground">Total Revenue (Paid)</p>
+                                <p className="text-2xl font-bold">LKR {reportTotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Ticket Breakdown</CardTitle>
-                    <CardDescription>Sales, revenue, and verification data for each ticket type.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                            <TableRow>
-                                <TableHead>Ticket Type</TableHead>
-                                <TableHead className="text-center">Sold</TableHead>
-                                <TableHead className="text-center">Verified</TableHead>
-                                <TableHead>Verification Progress</TableHead>
-                                <TableHead className="text-right">Revenue (LKR)</TableHead>
-                            </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                            {ticketSummary.map((summary, index) => {
-                                const percentage = summary.sold > 0 ? (summary.verified / summary.sold) * 100 : 0;
-                                return (
-                                <TableRow key={index}>
-                                    <TableCell className="font-medium">{summary.typeName}</TableCell>
-                                    <TableCell className="text-center">{summary.sold.toLocaleString()}</TableCell>
-                                    <TableCell className="text-center">{summary.verified.toLocaleString()}</TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Progress value={percentage} className="w-full" />
-                                            <span className="text-xs text-muted-foreground w-12 text-right">{percentage.toFixed(0)}%</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono">{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                </TableRow>
-                                );
-                            })}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
-
-             <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> All Paid Bookings</CardTitle>
-                    <CardDescription>A list of all paid bookings for this event.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {paginatedBookings.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-4">No paid bookings found for this event.</p>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader><TableRow>
-                                    <TableHead>Booking ID</TableHead>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead className="text-center">Actions</TableHead>
-                                </TableRow></TableHeader>
-                                <TableBody>
-                                    {paginatedBookings.map(booking => (
-                                        <TableRow key={booking.id}>
-                                            <TableCell className="font-mono text-xs">{booking.id}</TableCell>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Ticket Breakdown</CardTitle>
+                            <CardDescription>Sales, revenue, and verification data for each ticket type.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Ticket Type</TableHead>
+                                        <TableHead className="text-center">Sold</TableHead>
+                                        <TableHead className="text-center">Verified</TableHead>
+                                        <TableHead>Verification Progress</TableHead>
+                                        <TableHead className="text-right">Revenue (LKR)</TableHead>
+                                    </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                    {ticketSummary.map((summary, index) => {
+                                        const percentage = summary.sold > 0 ? (summary.verified / summary.sold) * 100 : 0;
+                                        return (
+                                        <TableRow key={index}>
+                                            <TableCell className="font-medium">{summary.typeName}</TableCell>
+                                            <TableCell className="text-center">{summary.sold.toLocaleString()}</TableCell>
+                                            <TableCell className="text-center">{summary.verified.toLocaleString()}</TableCell>
                                             <TableCell>
-                                                <div className="font-medium">{booking.userName}</div>
-                                                <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <Progress value={percentage} className="w-full" />
+                                                    <span className="text-xs text-muted-foreground w-12 text-right">{percentage.toFixed(0)}%</span>
+                                                </div>
                                             </TableCell>
-                                            <TableCell className="text-right">LKR {booking.totalPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}</TableCell>
-                                            <TableCell className="text-center">
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <Link href={`/admin/bookings/${booking.id}`}><FileText className="mr-2 h-3.5 w-3.5"/> Details</Link>
-                                                </Button>
-                                            </TableCell>
+                                            <TableCell className="text-right font-mono">{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                        );
+                                    })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </TabsContent>
+            <TabsContent value="bookings" className="mt-4">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> All Paid Bookings</CardTitle>
+                        <CardDescription>A list of all paid bookings for this event.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {paginatedBookings.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-4">No paid bookings found for this event.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader><TableRow>
+                                        <TableHead>Booking ID</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead className="text-center">Actions</TableHead>
+                                    </TableRow></TableHeader>
+                                    <TableBody>
+                                        {paginatedBookings.map(booking => (
+                                            <TableRow key={booking.id}>
+                                                <TableCell className="font-mono text-xs">{booking.id}</TableCell>
+                                                <TableCell>
+                                                    <div className="font-medium">{booking.userName}</div>
+                                                    <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                                                </TableCell>
+                                                <TableCell className="text-right">LKR {booking.totalPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}</TableCell>
+                                                <TableCell className="text-center">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/admin/bookings/${booking.id}`}><FileText className="mr-2 h-3.5 w-3.5"/> Details</Link>
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                    {totalBookingPages > 1 && (
+                    <CardFooter className="flex items-center justify-between border-t pt-4">
+                        <div className="text-xs text-muted-foreground">
+                        Showing <strong>{paginatedBookings.length}</strong> of <strong>{reportData.bookings.length.toLocaleString()}</strong> bookings.
                         </div>
+                        <div className="flex items-center space-x-2">
+                        <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalBookingPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronLeft className="mr-2 h-4 w-4" />
+                            Previous
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalBookingPages))}
+                            disabled={currentPage === totalBookingPages}
+                        >
+                            Next
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                        </Button>
+                        </div>
+                    </CardFooter>
                     )}
-                </CardContent>
-                 {totalPages > 1 && (
-                  <CardFooter className="flex items-center justify-between border-t pt-4">
-                     <div className="text-xs text-muted-foreground">
-                      Showing <strong>{paginatedBookings.length}</strong> of <strong>{reportData.bookings.length.toLocaleString()}</strong> bookings.
-                    </div>
-                    <div className="flex items-center space-x-2">
-                       <span className="text-sm text-muted-foreground">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                        disabled={currentPage === 1}
-                      >
-                        <ChevronLeft className="mr-2 h-4 w-4" />
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardFooter>
-                )}
-            </Card>
-        </div>
+                </Card>
+            </TabsContent>
+            <TabsContent value="verifications" className="mt-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><ClipboardCheck className="mr-2 h-5 w-5"/> Verification Log</CardTitle>
+                        <CardDescription>A log of all check-ins for this event.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {paginatedVerifications.length === 0 ? (
+                             <p className="text-center text-muted-foreground py-4">No verifications found for this event.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader><TableRow>
+                                        <TableHead>Booking ID</TableHead>
+                                        <TableHead>Ticket Type</TableHead>
+                                        <TableHead className="text-center">Count</TableHead>
+                                        <TableHead>Checked In By</TableHead>
+                                        <TableHead>Time</TableHead>
+                                    </TableRow></TableHeader>
+                                    <TableBody>
+                                        {paginatedVerifications.map(log => (
+                                            <TableRow key={log.id}>
+                                                <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
+                                                <TableCell>{reportData.ticketTypes.find(tt => tt.id === String(log.tickettype_id))?.name || `ID: ${log.tickettype_id}`}</TableCell>
+                                                <TableCell className="text-center">{log.ticket_count}</TableCell>
+                                                <TableCell>{log.checking_by}</TableCell>
+                                                <TableCell>{format(new Date(log.checking_time), 'PPp')}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                    {totalVerificationPages > 1 && (
+                    <CardFooter className="flex items-center justify-between border-t pt-4">
+                        <div className="text-xs text-muted-foreground">
+                        Showing <strong>{paginatedVerifications.length}</strong> of <strong>{reportData.verifications.length.toLocaleString()}</strong> logs.
+                        </div>
+                        <div className="flex items-center space-x-2">
+                        <span className="text-sm text-muted-foreground">
+                            Page {currentPage} of {totalVerificationPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronLeft className="mr-2 h-4 w-4" />
+                            Previous
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalVerificationPages))}
+                            disabled={currentPage === totalVerificationPages}
+                        >
+                            Next
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                        </Button>
+                        </div>
+                    </CardFooter>
+                    )}
+                </Card>
+            </TabsContent>
+        </Tabs>
       )}
     </div>
   );
