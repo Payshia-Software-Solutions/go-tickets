@@ -378,10 +378,10 @@ const VerificationBreakdownPage = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Event Name</TableHead>
-                                <TableHead>Ticket Type</TableHead>
                                 <TableHead>Booking ID</TableHead>
+                                <TableHead>Ticket Type</TableHead>
                                 <TableHead>Tickets Verified</TableHead>
+                                <TableHead>Event Name</TableHead>
                                 <TableHead>Checked In By</TableHead>
                                 <TableHead>Checked In Time</TableHead>
                             </TableRow>
@@ -389,10 +389,10 @@ const VerificationBreakdownPage = () => {
                         <TableBody>
                             {filteredLogs.map((log) => (
                                 <TableRow key={log.id}>
-                                    <TableCell className="font-medium">{log.eventName}</TableCell>
-                                    <TableCell>{log.ticketTypeName}</TableCell>
                                     <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
+                                    <TableCell>{log.ticketTypeName}</TableCell>
                                     <TableCell className="text-center">{log.ticket_count}</TableCell>
+                                    <TableCell className="font-medium">{log.eventName}</TableCell>
                                     <TableCell>{log.checking_by}</TableCell>
                                     <TableCell>{format(new Date(log.checking_time), "PPp")}</TableCell>
                                 </TableRow>
