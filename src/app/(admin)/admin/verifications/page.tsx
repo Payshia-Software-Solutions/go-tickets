@@ -1,0 +1,179 @@
+
+"use client";
+
+import { useEffect, useState, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Loader2, ClipboardCheck, Search } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { adminGetAllEvents } from '@/lib/mockData';
+import type { VerificationLog, Event } from '@/lib/types';
+import { format } from 'date-fns';
+
+const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
+
+const VerificationBreakdownPage = () => {
+  const [logs, setLogs] = useState<VerificationLog[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [eventFilter, setEventFilter] = useState('all');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [verificationsResponse, eventsResponse] = await Promise.all([
+          fetch(VERIFICATIONS_API_URL),
+          adminGetAllEvents()
+        ]);
+        
+        if (!verificationsResponse.ok) {
+          throw new Error('Failed to fetch verification logs');
+        }
+        const rawLogs: Omit<VerificationLog, 'eventName'>[] = await verificationsResponse.json();
+        const allEvents = eventsResponse;
+        
+        const eventMap = new Map(allEvents.map(e => [String(e.id), e.name]));
+        
+        const enhancedLogs = rawLogs.map(log => ({
+          ...log,
+          ticket_count: parseInt(String(log.ticket_count), 10) || 0,
+          eventName: eventMap.get(String(log.event_id)) || `Event ID: ${log.event_id}`,
+        }));
+
+        setLogs(enhancedLogs.sort((a,b) => new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime()));
+        setEvents(allEvents);
+
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast({
+          title: "Error Fetching Data",
+          description: "Could not load verification logs or events.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+        document.title = 'Verification Breakdown | GoTickets.lk Admin';
+    }
+    fetchData();
+  }, [toast]);
+
+  const filteredLogs = useMemo(() => {
+    let filtered = logs;
+
+    if (eventFilter !== 'all') {
+      filtered = filtered.filter(log => String(log.event_id) === eventFilter);
+    }
+
+    if (searchQuery.trim() !== '') {
+      const lowercasedQuery = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(log =>
+        String(log.booking_id).includes(lowercasedQuery) ||
+        log.checking_by.toLowerCase().includes(lowercasedQuery) ||
+        log.eventName?.toLowerCase().includes(lowercasedQuery)
+      );
+    }
+    
+    return filtered;
+  }, [logs, eventFilter, searchQuery]);
+  
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+  };
+  
+  const handleEventFilterChange = (value: string) => {
+    setEventFilter(value);
+  };
+
+  return (
+    <div className="space-y-8">
+      <header>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
+            <ClipboardCheck className="mr-3 h-8 w-8" /> Verification Breakdown
+        </h1>
+        <p className="text-muted-foreground">A detailed log of all ticket check-ins.</p>
+      </header>
+
+       <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative w-full md:w-1/2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search by booking ID, event name, checker..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="pl-10"
+          />
+        </div>
+         <Select value={eventFilter} onValueChange={handleEventFilterChange} disabled={isLoading}>
+            <SelectTrigger className="w-full md:w-1/2">
+                <SelectValue placeholder="Filter by event..." />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">All Events</SelectItem>
+                {events.map(event => (
+                    <SelectItem key={event.id} value={String(event.id)}>
+                        {event.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+      </div>
+
+      <Card>
+        <CardHeader>
+            <CardTitle>Verification Logs ({filteredLogs.length})</CardTitle>
+            <CardDescription>All recorded ticket check-ins matching the current filters.</CardDescription>
+        </CardHeader>
+        <CardContent>
+             {isLoading ? (
+                <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Loading verification logs...</p>
+                </div>
+             ) : filteredLogs.length === 0 ? (
+                <div className="text-center py-10">
+                    <ClipboardCheck className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No verification logs found for the selected filters.</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Event Name</TableHead>
+                                <TableHead>Booking ID</TableHead>
+                                <TableHead>Tickets Verified</TableHead>
+                                <TableHead>Checked In By</TableHead>
+                                <TableHead>Checked In Time</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredLogs.map((log) => (
+                                <TableRow key={log.id}>
+                                    <TableCell className="font-medium">{log.eventName}</TableCell>
+                                    <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
+                                    <TableCell className="text-center">{log.ticket_count}</TableCell>
+                                    <TableCell>{log.checking_by}</TableCell>
+                                    <TableCell>{format(new Date(log.checking_time), "PPp")}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default VerificationBreakdownPage;

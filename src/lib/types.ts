@@ -296,3 +296,16 @@ export interface BookedTicketItem {
 export interface CartItem extends BookedTicketItem {
   eventName: string;
 }
+
+// --- Verification Related ---
+export interface VerificationLog {
+    id: string;
+    booking_id: string;
+    event_id: string;
+    showtime_id: string;
+    tickettype_id: string;
+    ticket_count: number;
+    checking_time: string;
+    checking_by: string;
+    eventName?: string; // This will be populated client-side
+}
