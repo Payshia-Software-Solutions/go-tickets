@@ -82,7 +82,7 @@ export default function EventSummaryReportPage() {
             event: eventRes,
             bookings: paidBookings,
             ticketTypes: ticketTypesRes.map((t: any) => ({...t, price: parseFloat(t.price)})),
-            verifications: verificationsRes,
+            verifications: verificationsRes.map((v: any) => ({ ...v, ticket_count: parseInt(v.ticket_count, 10) || 0 })),
             bookedShowtimes: paidAndFilteredShowtimes,
         });
 
@@ -293,4 +293,3 @@ export default function EventSummaryReportPage() {
     </div>
   );
 }
-
