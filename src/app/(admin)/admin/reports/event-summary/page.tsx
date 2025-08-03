@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText } from 'lucide-react';
+import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -17,6 +17,8 @@ import { BOOKINGS_API_URL } from '@/lib/constants';
 const TICKET_TYPES_API_URL = "https://gotickets-server.payshia.com/ticket-types";
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
 const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
+const ITEMS_PER_PAGE = 5;
+
 
 interface ReportData {
   event: Event | null;
@@ -39,6 +41,8 @@ export default function EventSummaryReportPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const { toast } = useToast();
+  const [currentPage, setCurrentPage] = useState(1);
+
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -60,6 +64,7 @@ export default function EventSummaryReportPage() {
     }
     setIsLoading(true);
     setReportData(null);
+    setCurrentPage(1); // Reset pagination on new report
     try {
         const [eventRes, bookingsRes, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
             fetchEventByIdFromApi(eventFilter),
@@ -139,6 +144,14 @@ export default function EventSummaryReportPage() {
         totalTicketsVerified: ticketSummary.reduce((sum, s) => sum + s.verified, 0),
     }
   }, [ticketSummary]);
+
+  const paginatedBookings = useMemo(() => {
+    if (!reportData) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return reportData.bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [reportData, currentPage]);
+
+  const totalPages = reportData ? Math.ceil(reportData.bookings.length / ITEMS_PER_PAGE) : 0;
 
 
   return (
@@ -251,11 +264,11 @@ export default function EventSummaryReportPage() {
 
              <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> Recent Bookings</CardTitle>
-                    <CardDescription>A list of the most recent paid bookings for this event.</CardDescription>
+                    <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5"/> All Paid Bookings</CardTitle>
+                    <CardDescription>A list of all paid bookings for this event.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {reportData.bookings.length === 0 ? (
+                    {paginatedBookings.length === 0 ? (
                         <p className="text-center text-muted-foreground py-4">No paid bookings found for this event.</p>
                     ) : (
                         <div className="overflow-x-auto">
@@ -267,7 +280,7 @@ export default function EventSummaryReportPage() {
                                     <TableHead className="text-center">Actions</TableHead>
                                 </TableRow></TableHeader>
                                 <TableBody>
-                                    {reportData.bookings.slice(0, 10).map(booking => (
+                                    {paginatedBookings.map(booking => (
                                         <TableRow key={booking.id}>
                                             <TableCell className="font-mono text-xs">{booking.id}</TableCell>
                                             <TableCell>
@@ -287,6 +300,36 @@ export default function EventSummaryReportPage() {
                         </div>
                     )}
                 </CardContent>
+                 {totalPages > 1 && (
+                  <CardFooter className="flex items-center justify-between border-t pt-4">
+                     <div className="text-xs text-muted-foreground">
+                      Showing <strong>{paginatedBookings.length}</strong> of <strong>{reportData.bookings.length.toLocaleString()}</strong> bookings.
+                    </div>
+                    <div className="flex items-center space-x-2">
+                       <span className="text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="mr-2 h-4 w-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                )}
             </Card>
         </div>
       )}
