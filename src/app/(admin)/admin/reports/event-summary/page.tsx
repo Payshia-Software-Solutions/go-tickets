@@ -90,7 +90,7 @@ export default function EventSummaryReportPage() {
     setCurrentPage(1);
     setActiveTab("overview");
     try {
-        const [eventRes, allBookings, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
+        const [eventRes, allPaidBookings, verificationsRes, ticketTypesRes, bookedShowtimesRes] = await Promise.all([
             fetchEventByIdFromApi(eventFilter),
             fetchAllBookings(),
             fetch(`${VERIFICATIONS_API_URL}?event_id=${eventFilter}`).then(res => res.ok ? res.json() : []),
@@ -98,14 +98,13 @@ export default function EventSummaryReportPage() {
             fetch(BOOKING_SHOWTIMES_API_URL).then(res => res.ok ? res.json() : [])
         ]);
 
-        const allPaidBookings = allBookings.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
         const eventBookingIds = new Set(
             bookedShowtimesRes
                 .filter((st: any) => String(st.eventId) === eventFilter)
                 .map((st: any) => String(st.booking_id))
         );
 
-        const eventPaidBookings = allPaidBookings.filter(b => eventBookingIds.has(String(b.id)));
+        const eventPaidBookings = allPaidBookings.filter(b => eventBookingIds.has(String(b.id)) && (b.payment_status || 'pending').toLowerCase() === 'paid');
         const paidBookingIds = new Set(eventPaidBookings.map(b => String(b.id)));
         
         const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
@@ -266,7 +265,7 @@ export default function EventSummaryReportPage() {
 
       {reportData && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="bookings">Paid Bookings</TabsTrigger>
               <TabsTrigger value="tickets">Booked Tickets</TabsTrigger>
