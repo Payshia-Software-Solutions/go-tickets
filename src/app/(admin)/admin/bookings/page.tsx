@@ -265,7 +265,7 @@ export default function AdminBookingsPage() {
                 disabled={currentPage === totalPages}
               >
                 Next
-                <ChevronRight className="mr-2 h-4 w-4" />
+                <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </CardFooter>
