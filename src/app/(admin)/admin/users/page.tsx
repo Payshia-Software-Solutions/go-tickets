@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, CheckCircle, XCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, UserCog, CheckCircle, XCircle, Users } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -155,6 +155,9 @@ export default function AdminUsersPage() {
     }
   };
 
+  const adminUsers = users.filter(u => u.isAdmin);
+  const normalUsers = users.filter(u => !u.isAdmin);
+
   if (isLoading && users.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -164,12 +167,59 @@ export default function AdminUsersPage() {
     );
   }
 
+  const renderUserTable = (userList: User[], title: string, description: string, icon: React.ReactNode) => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center">
+            {icon}
+            <span className="ml-2">{title} ({userList.length})</span>
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {userList.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No users in this category.</p>
+        ) : (
+            <div className="overflow-x-auto">
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {userList.map((user) => (
+                    <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.name || "-"}</TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(user)} title="Edit User">
+                            <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(user)} title="Delete User">
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+            </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
-            <UserCog className="mr-3 h-7 w-7 sm:h-8 sm:w-8" /> Manage Users
+            <Users className="mr-3 h-7 w-7 sm:h-8 sm:w-8" /> Manage Users
           </h1>
           <p className="text-muted-foreground">View, create, edit, or delete user accounts.</p>
         </div>
@@ -178,47 +228,8 @@ export default function AdminUsersPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users ({users.length})</CardTitle>
-          <CardDescription>A list of all registered users in the system.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Admin</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name || "-"}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell className="text-center">
-                      {user.isAdmin ? <CheckCircle className="h-5 w-5 text-green-500"/> : <XCircle className="h-5 w-5 text-muted-foreground"/>}
-                    </TableCell>
-                    <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="icon" onClick={() => handleOpenEditModal(user)} title="Edit User">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(user)} title="Delete User">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {renderUserTable(adminUsers, "Administrators", "Users with administrative privileges.", <UserCog className="h-5 w-5"/>)}
+      {renderUserTable(normalUsers, "Normal Users", "Standard users without admin access.", <Users className="h-5 w-5"/>)}
       
       {/* Create User Dialog */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
