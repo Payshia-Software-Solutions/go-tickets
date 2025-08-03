@@ -9,7 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { adminGetAllEvents } from '@/lib/mockData';
-import type { VerificationLog, Event } from '@/lib/types';
+import type { VerificationLog, Event, TicketType } from '@/lib/types';
+import { fetchTicketTypesForEvent } from '@/lib/services/ticket.service';
 import { format } from 'date-fns';
 
 const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
@@ -17,11 +18,14 @@ const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-veri
 const VerificationBreakdownPage = () => {
   const [logs, setLogs] = useState<VerificationLog[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [ticketTypes, setTicketTypes] = useState<TicketType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingTicketTypes, setIsLoadingTicketTypes] = useState(false);
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
+  const [ticketTypeFilter, setTicketTypeFilter] = useState('all');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,12 +70,39 @@ const VerificationBreakdownPage = () => {
     }
     fetchData();
   }, [toast]);
+  
+  useEffect(() => {
+    if (eventFilter === 'all') {
+      setTicketTypes([]);
+      setTicketTypeFilter('all');
+      return;
+    }
+    
+    const fetchEventTicketTypes = async () => {
+      setIsLoadingTicketTypes(true);
+      try {
+        const types = await fetchTicketTypesForEvent(eventFilter);
+        setTicketTypes(types);
+      } catch (error) {
+        console.error("Error fetching ticket types for event:", error);
+        toast({ title: "Error", description: "Could not fetch ticket types for the selected event."});
+        setTicketTypes([]);
+      } finally {
+        setIsLoadingTicketTypes(false);
+      }
+    }
+    fetchEventTicketTypes();
+  }, [eventFilter, toast]);
 
   const filteredLogs = useMemo(() => {
     let filtered = logs;
 
     if (eventFilter !== 'all') {
       filtered = filtered.filter(log => String(log.event_id) === eventFilter);
+    }
+    
+    if (ticketTypeFilter !== 'all') {
+      filtered = filtered.filter(log => String(log.tickettype_id) === ticketTypeFilter);
     }
 
     if (searchQuery.trim() !== '') {
@@ -84,7 +115,7 @@ const VerificationBreakdownPage = () => {
     }
     
     return filtered;
-  }, [logs, eventFilter, searchQuery]);
+  }, [logs, eventFilter, ticketTypeFilter, searchQuery]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
@@ -92,7 +123,12 @@ const VerificationBreakdownPage = () => {
   
   const handleEventFilterChange = (value: string) => {
     setEventFilter(value);
+    setTicketTypeFilter('all');
   };
+
+  const handleTicketTypeFilterChange = (value: string) => {
+    setTicketTypeFilter(value);
+  }
 
   return (
     <div className="space-y-8">
@@ -104,17 +140,17 @@ const VerificationBreakdownPage = () => {
       </header>
 
        <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative w-full md:w-1/2">
+        <div className="relative w-full md:w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by booking ID, event name, checker..."
+            placeholder="Search booking ID, checker..."
             value={searchQuery}
             onChange={handleSearchChange}
             className="pl-10"
           />
         </div>
          <Select value={eventFilter} onValueChange={handleEventFilterChange} disabled={isLoading}>
-            <SelectTrigger className="w-full md:w-1/2">
+            <SelectTrigger className="w-full md:w-1/3">
                 <SelectValue placeholder="Filter by event..." />
             </SelectTrigger>
             <SelectContent>
@@ -122,6 +158,20 @@ const VerificationBreakdownPage = () => {
                 {events.map(event => (
                     <SelectItem key={event.id} value={String(event.id)}>
                         {event.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+        <Select value={ticketTypeFilter} onValueChange={handleTicketTypeFilterChange} disabled={isLoadingTicketTypes || eventFilter === 'all'}>
+            <SelectTrigger className="w-full md:w-1/3">
+                <SelectValue placeholder="Filter by ticket type..." />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">All Ticket Types</SelectItem>
+                {isLoadingTicketTypes && <div className="p-2 text-sm text-muted-foreground flex items-center justify-center"><Loader2 className="h-4 w-4 mr-2 animate-spin"/> Loading...</div>}
+                {!isLoadingTicketTypes && ticketTypes.map(tt => (
+                    <SelectItem key={tt.id} value={String(tt.id)}>
+                        {tt.name}
                     </SelectItem>
                 ))}
             </SelectContent>
