@@ -1,10 +1,11 @@
 
-import { getEventBySlug } from '@/lib/mockData'; // Updated to use API fetching
+import { getEventBySlug } from '@/lib/mockData';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { Metadata, ResolvingMetadata } from 'next';
 import EventDetailsClientView from '@/components/events/EventDetailsClientView';
+import { SITE_URL } from '@/lib/constants';
 
 interface EventDetailsPageProps {
   params: { slug: string };
@@ -14,7 +15,7 @@ export async function generateMetadata(
   { params }: EventDetailsPageProps,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const event = await getEventBySlug(params.slug); // Fetches from API
+  const event = await getEventBySlug(params.slug);
 
   if (!event) {
     return {
@@ -22,36 +23,48 @@ export async function generateMetadata(
     };
   }
 
-  const previousImages = (await parent).openGraph?.images || [];
+  const cleanDescription = event.description?.replace(/<[^>]*>?/gm, '').substring(0, 160) || `Details for ${event.name}`;
+  const pageUrl = `${SITE_URL}/events/${event.slug}`;
+  
+  // Ensure the image URL is absolute
+  let absoluteImageUrl = event.imageUrl || `${SITE_URL}/og-default.png`;
+  if (absoluteImageUrl.startsWith('/')) {
+    absoluteImageUrl = `${SITE_URL}${absoluteImageUrl}`;
+  }
 
   return {
     title: event.name,
-    description: event.description?.substring(0, 160) || "Event details for " + event.name,
+    description: cleanDescription,
+    alternates: {
+      canonical: pageUrl,
+    },
     openGraph: {
       title: event.name,
-      description: event.description?.substring(0, 100) || "Event details",
+      description: cleanDescription,
+      url: pageUrl,
+      siteName: 'GoTickets.lk',
       images: [
         {
-          url: event.imageUrl || '/og-default.png', 
-          width: 800,
-          height: 450,
+          url: absoluteImageUrl,
+          width: 1200,
+          height: 630,
           alt: event.name,
         },
-        ...previousImages,
       ],
-      type: 'article',
+      type: 'article', // More specific than 'website' for an event page
+      locale: 'en_US',
     },
     twitter: {
       card: 'summary_large_image',
       title: event.name,
-      description: event.description?.substring(0, 100) || "Event details",
-      images: [event.imageUrl || '/og-default.png'],
+      description: cleanDescription,
+      images: [absoluteImageUrl],
     },
   };
 }
 
 export default async function EventDetailsPage({ params: { slug } }: EventDetailsPageProps) {
-  const event = await getEventBySlug(slug); // Fetches from API
+  const event = await getEventBySlug(slug);
 
   if (!event) {
     return (
@@ -65,6 +78,47 @@ export default async function EventDetailsPage({ params: { slug } }: EventDetail
         </div>
     );
   }
+  
+  // JSON-LD Structured Data for Rich Search Results
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: event.name,
+    startDate: event.date,
+    endDate: event.date, // Assuming single day event for simplicity; could be adapted if end date is available
+    location: {
+      '@type': 'Place',
+      name: event.venueName,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: event.venueAddress || event.location,
+        addressLocality: event.location.split(',')[0].trim(),
+        addressCountry: 'LK', // Assuming Sri Lanka
+      },
+    },
+    image: [event.imageUrl],
+    description: event.description?.replace(/<[^>]*>?/gm, '').substring(0, 500) || `Details for ${event.name}`,
+    offers: {
+      '@type': 'AggregateOffer',
+      url: `${SITE_URL}/events/${event.slug}/book`,
+      priceCurrency: 'LKR',
+      lowPrice: event.ticketTypes ? Math.min(...event.ticketTypes.map(t => t.price)) : 0,
+      highPrice: event.ticketTypes ? Math.max(...event.ticketTypes.map(t => t.price)) : 0,
+    },
+    organizer: {
+        '@type': 'Organization',
+        name: event.organizer?.name || 'GoTickets.lk',
+        url: event.organizer?.website || SITE_URL,
+    }
+  };
 
-  return <EventDetailsClientView event={event} />;
+  return (
+    <>
+      <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <EventDetailsClientView event={event} />
+    </>
+  );
 }
