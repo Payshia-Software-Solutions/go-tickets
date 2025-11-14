@@ -68,10 +68,10 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                         <div className="text-center">
                             {canBook ? (
                                 <>
-                                    <span className="block text-4xl font-extrabold leading-tight text-accent">Grab Your Ticket Early!</span>
-                                    <div className="mt-2 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
+                                    <span className="block text-4xl font-extrabold leading-tight text-accent">10% OFF</span>
+                                    <div className="mt-1 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
                                         <Percent className="h-4 w-4" />
-                                        <span>Plus, get a 10% discount on all online bookings.</span>
+                                        <span>For all online bookings! Grab your ticket early.</span>
                                     </div>
                                 </>
                             ) : (
