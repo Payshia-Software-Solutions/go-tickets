@@ -75,7 +75,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
     const quantityKey = generateQuantityKey(ticketTypeId, selectedShowTime.id);
     const currentLocalQuantity = quantities[quantityKey] || 0;
     let newQuantity = Math.max(0, currentLocalQuantity + change);
-    const discountedPrice = ticketTypeForAvailability.price * (1 - ONLINE_DISCOUNT_PERCENTAGE / 100);
+    const price = ticketTypeForAvailability.price;
 
     if (newQuantity > maxAvailability) {
         toast({
@@ -108,13 +108,12 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
             // Find it from the event's master list.
             const fullTicketType = event.ticketTypes?.find(tt => tt.id === ticketTypeId);
             if (fullTicketType) {
-                 const ticketTypeWithDiscount = { ...fullTicketType, price: discountedPrice };
-                addToCart(event, ticketTypeWithDiscount, newQuantity, selectedShowTime.id, selectedShowTime.dateTime);
+                addToCart(event, fullTicketType, newQuantity, selectedShowTime.id, selectedShowTime.dateTime);
                 fpixel.track('AddToCart', {
                   content_name: event.name,
                   content_ids: [fullTicketType.id],
                   content_type: 'product',
-                  value: discountedPrice * newQuantity,
+                  value: price * newQuantity,
                   currency: 'LKR',
                 });
                  toast({
@@ -140,8 +139,8 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
 
   const currentTotal = selectedShowTime.ticketAvailabilities.reduce((acc, avail) => {
     const quantity = quantities[generateQuantityKey(avail.ticketType.id, selectedShowTime.id)] || 0;
-    const discountedPrice = avail.ticketType.price * (1 - ONLINE_DISCOUNT_PERCENTAGE / 100);
-    return acc + (quantity * discountedPrice);
+    const price = avail.ticketType.price;
+    return acc + (quantity * price);
   }, 0);
 
   if (!selectedShowTime) {
@@ -171,8 +170,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
       </CardHeader>
       <CardContent className="space-y-6">
         {selectedShowTime.ticketAvailabilities.map((availability) => {
-            const originalPrice = availability.ticketType.price;
-            const discountedPrice = originalPrice * (1 - ONLINE_DISCOUNT_PERCENTAGE / 100);
+            const price = availability.ticketType.price;
 
             return (
               <div key={availability.ticketType.id} className="p-4 border rounded-lg bg-muted/20">
@@ -181,7 +179,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
                     <h4 className="font-semibold text-lg">{availability.ticketType.name}</h4>
                     <div className="flex items-baseline gap-2">
                         <p className="text-md text-foreground font-semibold">
-                            LKR {discountedPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each
+                            LKR {price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each
                         </p>
                     </div>
                     <p className="text-xs text-primary mt-1 hidden">{availability.availableCount.toLocaleString()} available for this showtime</p>

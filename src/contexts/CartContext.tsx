@@ -57,7 +57,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ticketTypeId: ticketType.id,
             ticketTypeName: ticketType.name,
             quantity,
-            pricePerTicket: ticketType.price, // This is now the discounted price
+            pricePerTicket: ticketType.price,
             showTimeId: showTimeId,
             showTimeDateTime: showTimeDateTime,
           }

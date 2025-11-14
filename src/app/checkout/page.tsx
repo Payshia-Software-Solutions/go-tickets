@@ -107,7 +107,7 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      document.title = 'Checkout | Event Horizon Tickets';
+      document.title = 'Checkout | GoTickets.lk';
     }
     if (totalItems > 0) {
       fpixel.track('InitiateCheckout', {
@@ -116,7 +116,7 @@ const CheckoutPage = () => {
         num_items: totalItems
       });
     }
-  }, []);
+  }, [totalPrice, totalItems]);
 
   const handleConfirmBooking = async (formBillingData: BillingAddress) => {
     if (cart.length === 0) {
@@ -152,7 +152,7 @@ const CheckoutPage = () => {
       const paymentHtml = await createBooking({
         userId: finalUserId,
         cart,
-        totalPrice,
+        totalPrice: finalTotal, // Use the final total from the display
         billingAddress: billingDataForBooking,
         isGuest: finalIsGuest
       });
@@ -206,7 +206,6 @@ const CheckoutPage = () => {
     );
   }
 
-  // Since ticket prices in cart are already discounted, totalPrice is the final total.
   const finalTotal = totalPrice;
 
   return (
@@ -240,15 +239,13 @@ const CheckoutPage = () => {
                 </div>
               ))}
               <Separator />
-              <div className="flex justify-between">
-                <p>Subtotal (includes {ONLINE_DISCOUNT_PERCENTAGE}% discount)</p>
-                <p>LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-              <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <p>Total</p>
                 <p>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
+               <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
+                    <Percent className="mr-1.5 h-4 w-4" /> Online Payment Discount Applied
+                </Badge>
             </CardContent>
           </Card>
 
