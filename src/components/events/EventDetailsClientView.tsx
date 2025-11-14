@@ -7,7 +7,7 @@ import * as fpixel from '@/lib/fpixel';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase, Ban } from 'lucide-react';
+import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase, Ban, Percent } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -170,8 +170,15 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                 {event.showTimes && event.showTimes.length > 0 ? (
                     <Card className="shadow-lg">
                     <CardHeader>
-                        <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes &amp; Tickets</CardTitle>
-                        <CardDescription>Select tickets for your preferred showtime on the booking page.</CardDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                            <div>
+                                <CardTitle className="flex items-center"><Clock className="mr-2 h-6 w-6 text-primary" /> Showtimes &amp; Tickets</CardTitle>
+                                <CardDescription>Select tickets for your preferred showtime on the booking page.</CardDescription>
+                            </div>
+                             <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
+                                <Percent className="mr-1.5 h-4 w-4" /> 10% OFF Online
+                            </Badge>
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         {event.showTimes.map((showTime, index) => {
