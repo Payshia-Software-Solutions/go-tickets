@@ -218,7 +218,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t">
         <div className="text-xl font-semibold">
-          Selection Total: LKR {currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          Total: LKR {currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       </CardFooter>
     </Card>
