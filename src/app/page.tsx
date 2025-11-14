@@ -97,7 +97,7 @@ export default function HomePage() {
       }
 
       try {
-        const event = await getAdminEventById('1');
+        const event = await getAdminEventById('10');
         if (event) {
           const eventDate = new Date(event.date);
           const now = new Date();
