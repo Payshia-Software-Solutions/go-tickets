@@ -45,6 +45,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (existingItemIndex > -1) {
         const updatedCart = [...prevCart];
         updatedCart[existingItemIndex].quantity += quantity;
+        updatedCart[existingItemIndex].pricePerTicket = ticketType.price; // Ensure price is updated
         return updatedCart;
       } else {
         return [
@@ -56,7 +57,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ticketTypeId: ticketType.id,
             ticketTypeName: ticketType.name,
             quantity,
-            pricePerTicket: ticketType.price,
+            pricePerTicket: ticketType.price, // This is now the discounted price
             showTimeId: showTimeId,
             showTimeDateTime: showTimeDateTime,
           }
@@ -70,11 +71,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateQuantity = (ticketTypeId: string, showTimeId: string, quantity: number) => {
-    setCart(prevCart =>
-      prevCart.map(item =>
-        (item.ticketTypeId === ticketTypeId && item.showTimeId === showTimeId) ? { ...item, quantity: Math.max(0, quantity) } : item
-      ).filter(item => item.quantity > 0) // Remove if quantity is 0
-    );
+    setCart(prevCart => {
+      const updatedCart = prevCart.map(item => {
+        if (item.ticketTypeId === ticketTypeId && item.showTimeId === showTimeId) {
+          return { ...item, quantity: Math.max(0, quantity) };
+        }
+        return item;
+      });
+      return updatedCart.filter(item => item.quantity > 0); // Remove if quantity is 0
+    });
   };
 
   const clearCart = () => {
@@ -99,4 +104,3 @@ export const useCart = () => {
   }
   return context;
 };
-

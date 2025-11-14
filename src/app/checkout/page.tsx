@@ -17,9 +17,10 @@ import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft, Percent } from 'lucide-react';
 import Link from 'next/link';
 import * as fpixel from '@/lib/fpixel';
+import { Badge } from '@/components/ui/badge';
 
 const defaultBillingValues: BillingAddress = {
   firstName: "",
@@ -33,6 +34,8 @@ const defaultBillingValues: BillingAddress = {
   postalCode: "",
   country: "",
 };
+
+const ONLINE_DISCOUNT_PERCENTAGE = 10;
 
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
@@ -203,6 +206,7 @@ const CheckoutPage = () => {
     );
   }
 
+  // Since ticket prices in cart are already discounted, totalPrice is the final total.
   const finalTotal = totalPrice;
 
   return (
@@ -237,7 +241,7 @@ const CheckoutPage = () => {
               ))}
               <Separator />
               <div className="flex justify-between">
-                <p>Subtotal</p>
+                <p>Subtotal (includes {ONLINE_DISCOUNT_PERCENTAGE}% discount)</p>
                 <p>LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <Separator />
@@ -471,6 +475,9 @@ const CheckoutPage = () => {
                 <span>Total:</span>
                 <span>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
+                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800">
+                    <Percent className="mr-1.5 h-4 w-4" /> Online Payment Discount Applied
+                </Badge>
               <p className="text-sm text-muted-foreground">You have {totalItems} item(s) in your cart.</p>
             </CardContent>
             <CardFooter>
