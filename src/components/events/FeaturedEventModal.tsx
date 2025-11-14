@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Event } from '@/lib/types';
-import { Ticket, Zap, CalendarDays, MapPin, Ban } from 'lucide-react';
+import { Ticket, Zap, CalendarDays, MapPin, Ban, Percent } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 interface FeaturedEventModalProps {
@@ -68,8 +68,11 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                         <div className="text-center">
                             {canBook ? (
                                 <>
-                                    <span className="block text-5xl font-extrabold leading-tight text-accent">50%</span>
-                                    <span className="text-sm text-muted-foreground">of tickets already sold!</span>
+                                    <span className="block text-4xl font-extrabold leading-tight text-accent">Grab Your Ticket Early!</span>
+                                    <div className="mt-2 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
+                                        <Percent className="h-4 w-4" />
+                                        <span>Plus, get a 10% discount on all online bookings.</span>
+                                    </div>
                                 </>
                             ) : (
                                 <>
