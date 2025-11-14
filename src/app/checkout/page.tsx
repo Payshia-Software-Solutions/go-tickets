@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useCart } from '@/contexts/CartContext';
@@ -244,7 +245,7 @@ const CheckoutPage = () => {
                 <p>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
-                    <Percent className="mr-1.5 h-4 w-4" /> Online Payment Discount Applied
+                    <Percent className="mr-1.5 h-4 w-4" /> 10% Online Payment Discount Applied
                 </Badge>
             </CardContent>
           </Card>
@@ -472,8 +473,8 @@ const CheckoutPage = () => {
                 <span>Total:</span>
                 <span>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800">
-                    <Percent className="mr-1.5 h-4 w-4" /> Online Payment Discount Applied
+                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
+                    <Percent className="mr-1.5 h-4 w-4" /> 10% Online Payment Discount Applied
                 </Badge>
               <p className="text-sm text-muted-foreground">You have {totalItems} item(s) in your cart.</p>
             </CardContent>
@@ -496,3 +497,5 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
+
+    
