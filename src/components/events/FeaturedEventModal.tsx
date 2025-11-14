@@ -47,7 +47,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="grid w-[calc(100vw-2rem)] max-w-sm gap-0 overflow-hidden rounded-lg p-0 md:max-w-2xl md:grid-cols-2">
-        <div className="relative aspect-square w-full bg-muted/50">
+        <div className="relative aspect-square w-full bg-muted/50 md:aspect-auto">
            <Image
               src={event.imageUrl}
               alt={event.name}
