@@ -180,17 +180,9 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
                   <div>
                     <h4 className="font-semibold text-lg">{availability.ticketType.name}</h4>
                     <div className="flex items-baseline gap-2">
-                        {originalPrice > 0 && discountedPrice < originalPrice && (
-                            <p className="text-sm text-muted-foreground line-through">
-                                LKR {originalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                        )}
                         <p className="text-md text-foreground font-semibold">
                             LKR {discountedPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each
                         </p>
-                         {originalPrice > 0 && discountedPrice < originalPrice && (
-                            <Badge variant="destructive" className="text-xs">{ONLINE_DISCOUNT_PERCENTAGE}% Off</Badge>
-                         )}
                     </div>
                     <p className="text-xs text-primary mt-1 hidden">{availability.availableCount.toLocaleString()} available for this showtime</p>
                   </div>
