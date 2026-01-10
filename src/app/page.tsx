@@ -97,11 +97,11 @@ export default function HomePage() {
       }
 
       try {
-        const event = await getAdminEventById('10');
-        if (event) {
+        const latestEvents = await getUpcomingEvents(1);
+        if (latestEvents.length > 0) {
+          const event = latestEvents[0];
           const eventDate = new Date(event.date);
           const now = new Date();
-          // Set hours, minutes, seconds, and milliseconds to 0 for today to compare dates only
           now.setHours(0, 0, 0, 0);
 
           if (eventDate >= now) {
