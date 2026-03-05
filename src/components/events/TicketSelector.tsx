@@ -6,19 +6,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { MinusCircle, PlusCircle, AlertTriangle, Percent } from 'lucide-react';
+import { MinusCircle, PlusCircle, AlertTriangle } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as fpixel from '@/lib/fpixel';
-import { Badge } from '../ui/badge';
-
-interface TicketSelectorProps {
-  event: Event;
-  selectedShowTime: ShowTime;
-}
-
-const ONLINE_DISCOUNT_PERCENTAGE = 10;
 
 const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime }) => {
   const { cart, addToCart, updateQuantity } = useCart();
@@ -156,17 +148,10 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
   return (
     <Card className="w-full">
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-                <CardTitle>Select Your Tickets</CardTitle>
-                <CardDescription>
-                    For showtime: {new Date(selectedShowTime.dateTime).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.
-                </CardDescription>
-            </div>
-            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800">
-                <Percent className="mr-1.5 h-4 w-4" /> Online Payments get {ONLINE_DISCOUNT_PERCENTAGE}% OFF
-            </Badge>
-        </div>
+        <CardTitle>Select Your Tickets</CardTitle>
+        <CardDescription>
+            For showtime: {new Date(selectedShowTime.dateTime).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {selectedShowTime.ticketAvailabilities.map((availability) => {

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useCart } from '@/contexts/CartContext';
@@ -12,16 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createBooking, createUser as apiCreateUser, getUserByEmail } from '@/lib/mockData';
-import type { BillingAddress, CartItem } from '@/lib/types';
+import { createBooking } from '@/lib/mockData';
+import type { BillingAddress } from '@/lib/types';
 import { BillingAddressSchema } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Trash2, ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft, Percent } from 'lucide-react';
+import { ShoppingCart, Loader2, ShieldCheck, UserPlus, LogIn, UserCheck, ArrowLeft, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import * as fpixel from '@/lib/fpixel';
-import { Badge } from '@/components/ui/badge';
 
 const defaultBillingValues: BillingAddress = {
   firstName: "",
@@ -36,11 +34,9 @@ const defaultBillingValues: BillingAddress = {
   country: "",
 };
 
-const ONLINE_DISCOUNT_PERCENTAGE = 10;
-
 const CheckoutPage = () => {
   const { cart, totalPrice, totalItems, clearCart, removeFromCart } = useCart();
-  const { user, loading: authLoading, updateUser } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -48,7 +44,6 @@ const CheckoutPage = () => {
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
   const [saveNewAddress, setSaveNewAddress] = useState(true);
 
-  // New state for guest checkout flow
   const [isGuestCheckout, setIsGuestCheckout] = useState(false);
 
   const billingForm = useForm<BillingAddress>({
@@ -134,7 +129,6 @@ const CheckoutPage = () => {
     if (user) {
       finalUserId = user.id;
     } else if (isGuestCheckout) {
-      // Use a predefined guest user ID as requested, instead of creating a new user.
       finalUserId = '1';
     } else {
       toast({
@@ -146,14 +140,13 @@ const CheckoutPage = () => {
       return;
     }
 
-    // Always use the data from the form, which may have been edited by the user.
     const billingDataForBooking = formBillingData;
 
     try {
       const paymentHtml = await createBooking({
         userId: finalUserId,
         cart,
-        totalPrice: finalTotal, // Use the final total from the display
+        totalPrice: totalPrice,
         billingAddress: billingDataForBooking,
         isGuest: finalIsGuest
       });
@@ -181,7 +174,6 @@ const CheckoutPage = () => {
     }
   };
   
-  const isFormReadOnly = useDefaultAddress && hasSavedBillingAddress;
   const isBillingFormVisible = user || isGuestCheckout;
   const submitButtonDisabled = isProcessing || cart.length === 0 || !isBillingFormVisible;
 
@@ -206,8 +198,6 @@ const CheckoutPage = () => {
       </div>
     );
   }
-
-  const finalTotal = totalPrice;
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -242,11 +232,8 @@ const CheckoutPage = () => {
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <p>Total</p>
-                <p>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p>LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
-               <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
-                    <Percent className="mr-1.5 h-4 w-4" /> 10% Online Payment Discount Applied
-                </Badge>
             </CardContent>
           </Card>
 
@@ -471,11 +458,8 @@ const CheckoutPage = () => {
             <CardContent className="space-y-4">
               <div className="flex justify-between font-bold text-xl">
                 <span>Total:</span>
-                <span>LKR {finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800 w-fit">
-                    <Percent className="mr-1.5 h-4 w-4" /> 10% Online Payment Discount Applied
-                </Badge>
               <p className="text-sm text-muted-foreground">You have {totalItems} item(s) in your cart.</p>
             </CardContent>
             <CardFooter>
@@ -497,5 +481,3 @@ const CheckoutPage = () => {
 };
 
 export default CheckoutPage;
-
-    

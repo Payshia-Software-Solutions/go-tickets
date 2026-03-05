@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Event } from '@/lib/types';
-import { Ticket, Zap, CalendarDays, MapPin, Ban, Percent } from 'lucide-react';
+import { Ticket, Zap, CalendarDays, MapPin, Ban } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 interface FeaturedEventModalProps {
@@ -65,22 +65,12 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                             <Zap className="h-5 w-5 animate-pulse" />
                             {canBook ? "Hurry Up! Tickets are selling fast!" : "This event has now sold out!"}
                         </p>
-                        <div className="text-center">
-                            {canBook ? (
-                                <>
-                                    <span className="block text-4xl font-extrabold leading-tight text-accent">10% OFF</span>
-                                    <div className="mt-1 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
-                                        <Percent className="h-4 w-4" />
-                                        <span>For all online bookings! Grab your ticket early.</span>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <span className="block text-4xl font-extrabold leading-tight text-accent">All Tickets</span>
-                                    <span className="text-sm text-muted-foreground">are now sold out.</span>
-                                </>
-                            )}
-                        </div>
+                        {!canBook && (
+                            <div className="text-center">
+                                <span className="block text-4xl font-extrabold leading-tight text-accent">All Tickets</span>
+                                <span className="text-sm text-muted-foreground">are now sold out.</span>
+                            </div>
+                        )}
                     </div>
                 </DialogDescription>
             </DialogHeader>
