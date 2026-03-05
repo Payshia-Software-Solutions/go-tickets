@@ -47,7 +47,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="grid w-[calc(100vw-2rem)] max-w-sm gap-0 overflow-hidden rounded-lg p-0 md:max-w-2xl md:grid-cols-2">
-        <div className="relative aspect-square w-full bg-muted/50 md:aspect-auto">
+        <div className="relative aspect-square w-full bg-muted/50">
            <Image
               src={event.imageUrl}
               alt={event.name}
@@ -56,9 +56,9 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
               data-ai-hint="event concert festival"
             />
         </div>
-        <div className="flex flex-col justify-between p-4">
+        <div className="flex flex-col justify-between p-6">
             <DialogHeader className="text-left">
-                <DialogTitle className="font-headline text-xl font-bold">{event.name}</DialogTitle>
+                <DialogTitle className="font-headline text-2xl font-bold text-primary">{event.name}</DialogTitle>
                 <DialogDescription asChild>
                     <div className="space-y-2 pt-2">
                         <p className="flex items-center gap-2 font-semibold text-red-500 dark:text-red-400">
@@ -66,7 +66,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                             {canBook ? "Hurry Up! Tickets are selling fast!" : "This event has now sold out!"}
                         </p>
                         {!canBook && (
-                            <div className="text-center">
+                            <div className="text-center py-4">
                                 <span className="block text-4xl font-extrabold leading-tight text-accent">All Tickets</span>
                                 <span className="text-sm text-muted-foreground">are now sold out.</span>
                             </div>
@@ -74,30 +74,30 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
                     </div>
                 </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2 py-2">
+            <div className="space-y-3 py-4">
                 <div className="flex items-center text-sm">
-                    <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <span className="text-foreground">{formattedDate}</span>
+                    <CalendarDays className="mr-3 h-5 w-5 text-muted-foreground" />
+                    <span className="text-foreground font-medium">{formattedDate}</span>
                 </div>
                  <div className="flex items-center text-sm">
-                    <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <MapPin className="mr-3 h-5 w-5 text-muted-foreground" />
                     <span className="text-foreground">{event.venueName || event.location}</span>
                 </div>
-                <p className="pt-1 text-sm text-muted-foreground">
+                <p className="pt-2 text-sm text-muted-foreground leading-relaxed">
                     Don't miss out on one of the hottest events of the year. Grab your tickets before they're all gone.
                 </p>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch sm:justify-end">
                  {canBook ? (
-                    <Button asChild type="button" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                    <Button asChild type="button" size="lg" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                         <Link href={`/events/${event.slug}/book`} onClick={() => onOpenChange(false)}>
-                        <Ticket className="mr-2 h-4 w-4"/>
+                        <Ticket className="mr-2 h-5 w-5"/>
                         Buy Tickets Now
                         </Link>
                     </Button>
                  ) : (
-                    <Button type="button" disabled className="w-full">
-                        <Ban className="mr-2 h-4 w-4"/>
+                    <Button type="button" disabled size="lg" className="w-full">
+                        <Ban className="mr-2 h-5 w-5"/>
                         Sold Out
                     </Button>
                  )}
