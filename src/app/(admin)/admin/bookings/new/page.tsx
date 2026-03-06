@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, ArrowLeft, Ticket, CalendarDays, User, MapPin, CheckCircle, MinusCircle, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -177,7 +178,7 @@ export default function AdminNewBookingPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <FormLabel>Event</FormLabel>
+                <Label>Event</Label>
                 <Select value={selectedEventId || ""} onValueChange={setSelectedEventId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose an event..." />
@@ -193,7 +194,7 @@ export default function AdminNewBookingPage() {
               {eventDetails && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="space-y-2">
-                    <FormLabel>Showtime</FormLabel>
+                    <Label>Showtime</Label>
                     <Select value={selectedShowtimeId || ""} onValueChange={setSelectedShowtimeId}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose a showtime..." />
@@ -208,7 +209,7 @@ export default function AdminNewBookingPage() {
 
                   {selectedShowtime && (
                     <div className="space-y-3 pt-4">
-                      <FormLabel>Ticket Quantities</FormLabel>
+                      <Label>Ticket Quantities</Label>
                       {selectedShowtime.ticketAvailabilities.map(avail => (
                         <div key={avail.ticketType.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
                           <div>
