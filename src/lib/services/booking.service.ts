@@ -34,6 +34,7 @@ interface RawApiBooking {
   updatedAt?: string;
   showtime?: string;
   tickettype?: string;
+  booked_type?: 'online' | 'manualy';
   // Direct billing fields as requested by user
   first_name?: string;
   last_name?: string;
@@ -107,6 +108,7 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     totalPrice: parsedPrice,
     billingAddress: billingAddress,
     payment_status: apiBooking.payment_status || 'pending',
+    booked_type: apiBooking.booked_type || 'online',
     bookedTickets: rawBookedTicketsArray.map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
       bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id),
@@ -190,6 +192,7 @@ export const createBooking = async (
     billing_postal_code: billingAddress.postalCode,
     billing_country: billingAddress.country,
     guest: isGuest ? 1 : 0,
+    booked_type: 'online', // New field added here
     booking_event: booking_event_payload,
     booking_showtime: booking_showtime_payload
   };
@@ -350,6 +353,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
             eventName: apiBooking.eventName,
             qrCodeValue: apiBooking.qrCodeValue,
             payment_status: apiBooking.payment_status || 'pending',
+            booked_type: apiBooking.booked_type || 'online',
             createdAt: parseApiDateString(apiBooking.createdAt),
             updatedAt: parseApiDateString(apiBooking.updatedAt),
             billingAddress: billingAddress,
@@ -387,10 +391,6 @@ export const adminGetAllBookings = async (): Promise<Booking[]> => {
 
     const bookings = apiBookings.map(transformApiBookingToAppBooking);
     
-    // The main list will now only have summary data.
-    // The bookedTickets array may be empty or contain only summary info.
-    // The UI should be updated to not expect the breakdown on this page.
-
     return bookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
 
   } catch (error) {

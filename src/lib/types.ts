@@ -22,7 +22,7 @@ export interface User {
   password?: string;
   name?: string | null;
   phoneNumber?: string | null;
-  isAdmin: boolean; // Changed to non-optional
+  isAdmin: boolean;
   billingAddress?: Partial<BillingAddress> | null;
   createdAt?: string;
   updatedAt?: string;
@@ -43,12 +43,6 @@ export const SignupFormSchema = z.object({
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
-}).refine(data => {
-  const billingFields = [data.billing_street, data.billing_city, data.billing_state, data.billing_postal_code, data.billing_country];
-  const filledFields = billingFields.filter(field => field && field.trim() !== "").length;
-  if (filledFields > 0 && filledFields < 5) {
-  }
-  return true;
 });
 
 export type SignupFormData = z.infer<typeof SignupFormSchema>;
@@ -158,7 +152,7 @@ export type ShowTimeTicketAvailabilityFormData = z.infer<typeof ShowTimeTicketAv
 export const ShowTimeFormSchema = z.object({
   id: z.string().optional(),
   dateTime: z.date({ required_error: "Show date and time is required" }),
-  ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema), // Removed min(1) for flexibility in form
+  ticketAvailabilities: z.array(ShowTimeTicketAvailabilityFormSchema),
 });
 export type ShowTimeFormData = z.infer<typeof ShowTimeFormSchema>;
 
@@ -204,7 +198,7 @@ export interface Event {
   ticketTypes?: TicketType[];
   showTimes?: ShowTime[];
   mapLink?: string | null;
-  accept_booking?: string; // Added this line
+  accept_booking?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -240,8 +234,8 @@ export const EventFormSchema = z.object({
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
-  ticketTypes: z.array(TicketTypeFormSchema), // Removed min(1) to allow creation with no tickets initially
-  showTimes: z.array(ShowTimeFormSchema), // Removed min(1) to allow creation with no showtimes initially
+  ticketTypes: z.array(TicketTypeFormSchema),
+  showTimes: z.array(ShowTimeFormSchema),
 });
 export type EventFormData = z.infer<typeof EventFormSchema>;
 
@@ -256,7 +250,7 @@ export interface BookedTicket {
   quantity: number;
   pricePerTicket: number;
   eventNsid: string;
-  checkedInCount?: number; // Added to track check-ins
+  checkedInCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -273,11 +267,12 @@ export interface Booking {
   qrCodeValue: string;
   totalPrice: number;
   billingAddress: Partial<BillingAddress>;
-  bookedTickets: BookedTicket[]; // May be empty if summary view
-  showtime?: string; // From API, e.g., "14:00:00"
-  tickettype?: string; // From API, e.g., "Early Bird, Regular"
-  payment_status?: string; // e.g. 'paid', 'pending', 'failed'
-  scannedAt?: string | null; // ISO string when the ticket was scanned
+  bookedTickets: BookedTicket[];
+  showtime?: string;
+  tickettype?: string;
+  payment_status?: string;
+  booked_type: 'online' | 'manualy'; // Added field
+  scannedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -307,5 +302,5 @@ export interface VerificationLog {
     ticket_count: number;
     checking_time: string;
     checking_by: string;
-    eventName?: string; // This will be populated client-side
+    eventName?: string;
 }
