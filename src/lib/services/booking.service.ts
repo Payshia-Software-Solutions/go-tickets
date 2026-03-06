@@ -136,12 +136,13 @@ export const createBooking = async (
     billingAddress: BillingAddress;
     isGuest: boolean;
     booked_type?: 'online' | 'manualy';
+    payment_status?: string;
   }
 ): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const { userId, cart, totalPrice, billingAddress, isGuest, booked_type = 'online' } = bookingData;
+  const { userId, cart, totalPrice, billingAddress, isGuest, booked_type = 'online', payment_status } = bookingData;
 
   if (cart.length === 0) {
     throw new Error("Cannot create a booking with an empty cart.");
@@ -193,6 +194,7 @@ export const createBooking = async (
     billing_country: billingAddress.country,
     guest: isGuest ? 1 : 0,
     booked_type: booked_type,
+    payment_status: payment_status || (booked_type === 'manualy' ? 'paid' : 'pending'),
     booking_event: booking_event_payload,
     booking_showtime: booking_showtime_payload
   };

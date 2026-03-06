@@ -17,10 +17,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminNewBookingPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user: currentAdmin } = useAuth();
   
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
@@ -127,14 +129,15 @@ export default function AdminNewBookingPage() {
 
     setIsSubmitting(true);
     try {
-      // The API returns HTML for payment redirect. For manual, we ignore it and redirect to bookings.
+      // Create manual booking with payment_status 'paid'
       await createBooking({
-        userId: '1', // System user or admin ID
+        userId: currentAdmin?.id || '1',
         cart,
         totalPrice,
         billingAddress: billingData,
         isGuest: true,
-        booked_type: 'manualy'
+        booked_type: 'manualy',
+        payment_status: 'paid'
       });
 
       toast({ title: "Success", description: "Manual booking created successfully." });
