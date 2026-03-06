@@ -45,10 +45,10 @@ export default function AdminNewBookingPage() {
       email: "",
       phone_number: "",
       nic: "",
-      street: "Manual Entry",
-      city: "N/A",
-      state: "N/A",
-      postalCode: "00000",
+      street: "",
+      city: "",
+      state: "",
+      postalCode: "",
       country: "Sri Lanka",
     },
   });
@@ -131,7 +131,6 @@ export default function AdminNewBookingPage() {
 
     setIsSubmitting(true);
     try {
-      // Create manual booking with payment_status 'paid'
       await createBooking({
         userId: currentAdmin?.id || '1',
         cart,
@@ -161,7 +160,7 @@ export default function AdminNewBookingPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
       <header>
         <Button variant="outline" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
@@ -247,33 +246,58 @@ export default function AdminNewBookingPage() {
             </CardContent>
           </Card>
 
-          {/* Step 2: Attendee Info */}
+          {/* Step 2: Attendee Info (Synced with front-end checkout) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center"><User className="mr-2 h-5 w-5"/> 2. Attendee Details</CardTitle>
+              <CardTitle className="text-lg flex items-center"><User className="mr-2 h-5 w-5"/> 2. Attendee & Billing Details</CardTitle>
             </CardHeader>
             <CardContent>
               <Form {...billingForm}>
-                <form className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <form className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={billingForm.control} name="firstName" render={({ field }) => (
-                      <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field}/></FormControl><FormMessage/></FormItem>
                     )}/>
                     <FormField control={billingForm.control} name="lastName" render={({ field }) => (
-                      <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field}/></FormControl><FormMessage/></FormItem>
                     )}/>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={billingForm.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="you@example.com" {...field}/></FormControl><FormMessage/></FormItem>
                     )}/>
                     <FormField control={billingForm.control} name="phone_number" render={({ field }) => (
-                      <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="0771234567" {...field}/></FormControl><FormMessage/></FormItem>
                     )}/>
                   </div>
+                  
                   <FormField control={billingForm.control} name="nic" render={({ field }) => (
-                    <FormItem><FormLabel>NIC (Optional)</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>
+                    <FormItem><FormLabel>NIC (Optional)</FormLabel><FormControl><Input placeholder="e.g., 952345678V" {...field}/></FormControl><FormMessage/></FormItem>
                   )}/>
+
+                  <Separator />
+
+                  <FormField control={billingForm.control} name="street" render={({ field }) => (
+                    <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field}/></FormControl><FormMessage/></FormItem>
+                  )}/>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={billingForm.control} name="city" render={({ field }) => (
+                      <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="Anytown" {...field}/></FormControl><FormMessage/></FormItem>
+                    )}/>
+                    <FormField control={billingForm.control} name="state" render={({ field }) => (
+                      <FormItem><FormLabel>State / Province</FormLabel><FormControl><Input placeholder="CA" {...field}/></FormControl><FormMessage/></FormItem>
+                    )}/>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={billingForm.control} name="postalCode" render={({ field }) => (
+                      <FormItem><FormLabel>Postal / Zip Code</FormLabel><FormControl><Input placeholder="90210" {...field}/></FormControl><FormMessage/></FormItem>
+                    )}/>
+                    <FormField control={billingForm.control} name="country" render={({ field }) => (
+                      <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="Sri Lanka" {...field}/></FormControl><FormMessage/></FormItem>
+                    )}/>
+                  </div>
                 </form>
               </Form>
             </CardContent>
