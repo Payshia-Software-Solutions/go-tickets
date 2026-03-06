@@ -91,39 +91,39 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
                     {item.children.map(child => {
                       const isChildActive = pathname === child.href;
                       return (
-                         <Link key={child.href} href={child.href} legacyBehavior>
-                           <a
-                              onClick={handleLinkClick}
-                              className={cn(
-                                'flex items-center space-x-3 pl-4 pr-3 py-2 rounded-r-md text-sm font-medium transition-colors border-l-2',
-                                isChildActive
-                                  ? 'bg-primary/10 text-primary border-primary'
-                                  : 'text-muted-foreground hover:bg-muted hover:text-foreground border-transparent'
-                              )}
-                            >
-                              <child.icon className="h-4 w-4" />
-                              <span>{child.label}</span>
-                            </a>
-                          </Link>
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={handleLinkClick}
+                          className={cn(
+                            'flex items-center space-x-3 pl-4 pr-3 py-2 rounded-r-md text-sm font-medium transition-colors border-l-2',
+                            isChildActive
+                              ? 'bg-primary/10 text-primary border-primary'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground border-transparent'
+                          )}
+                        >
+                          <child.icon className="h-4 w-4" />
+                          <span>{child.label}</span>
+                        </Link>
                       );
                     })}
                   </div>
                 </AccordionContent>
               </AccordionItem>
             ) : (
-              <Link key={item.href} href={item.href} legacyBehavior>
-                <a
-                  onClick={handleLinkClick}
-                  className={cn(
-                    'flex items-center space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
-                     isLinkActive(item)
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </a>
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={handleLinkClick}
+                className={cn(
+                  'flex items-center space-x-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+                   isLinkActive(item)
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
               </Link>
             )
           ))}
@@ -137,8 +137,12 @@ export default function AdminSidebar({ onLinkClick }: AdminSidebarProps) {
             </Button>
             <ThemeToggle />
         </div>
-         <Link href="/" legacyBehavior>
-            <a onClick={handleLinkClick} className="mt-2 text-xs text-center block text-muted-foreground hover:text-primary">Back to Site</a>
+        <Link
+          href="/"
+          onClick={handleLinkClick}
+          className="mt-2 text-xs text-center block text-muted-foreground hover:text-primary"
+        >
+          Back to Site
         </Link>
       </div>
     </aside>
