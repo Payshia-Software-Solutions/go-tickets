@@ -38,6 +38,7 @@ export default function AdminNewBookingPage() {
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
+    mode: "onChange",
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -326,7 +327,7 @@ export default function AdminNewBookingPage() {
               <Button 
                 className="w-full" 
                 size="lg" 
-                disabled={isSubmitting || totalPrice === 0 || !billingForm.formState.isValid}
+                disabled={isSubmitting || totalPrice === 0}
                 onClick={billingForm.handleSubmit(onSubmit)}
               >
                 {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <CheckCircle className="h-4 w-4 mr-2"/>}
