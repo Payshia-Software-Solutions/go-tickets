@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -174,7 +175,7 @@ const TicketVerificationPage = () => {
     setIsCommitting(true);
     try {
       const checkinPromises = checkInPayloads.map(payload =>
-        fetch('https://gotickets-server.payshia.com/tickets-verifications', {
+        fetch('https://qa-server-goticket.payshia.com/tickets-verifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),

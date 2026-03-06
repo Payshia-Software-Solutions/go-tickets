@@ -172,7 +172,7 @@ interface AvailabilityResponse {
 }
 
 export const getTicketAvailabilityCount = async (eventId: string, showtimeId: string, ticketTypeId: string): Promise<number> => {
-    const url = `https://gotickets-server.payshia.com/events/get/booked-tickets-count/?eventId=${eventId}&showtimeId=${showtimeId}&ticketTypeId=${ticketTypeId}`;
+    const url = `https://qa-server-goticket.payshia.com/events/get/booked-tickets-count/?eventId=${eventId}&showtimeId=${showtimeId}&ticketTypeId=${ticketTypeId}`;
     try {
         const response = await fetch(url);
         if (!response.ok) {

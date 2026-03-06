@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 
-const EXTERNAL_CATEGORY_API_URL = "https://gotickets-server.payshia.com/categories";
+const EXTERNAL_CATEGORY_API_URL = "https://qa-server-goticket.payshia.com/categories";
 
 export async function GET() {
   try {

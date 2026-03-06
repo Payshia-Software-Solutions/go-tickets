@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ITEMS_PER_PAGE = 10;
-const BOOKING_EVENTS_API_URL = "https://gotickets-server.payshia.com/booking-events";
+const BOOKING_EVENTS_API_URL = "https://qa-server-goticket.payshia.com/booking-events";
 
 interface BookingEventLink {
     id: string;

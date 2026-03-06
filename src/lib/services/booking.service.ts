@@ -1,5 +1,4 @@
 
-
 import type { Booking, BookedTicket, BillingAddress, CartItem } from '@/lib/types';
 import { BOOKINGS_API_URL } from '@/lib/constants';
 import { parseApiDateString, generateId } from './api.service';
@@ -223,7 +222,7 @@ export const reInitiatePayment = async (bookingId: string): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const url = `https://gotickets-server.payshia.com/bookings/initiatePayment/${bookingId}/`;
+  const url = `https://qa-server-goticket.payshia.com/bookings/initiatePayment/${bookingId}/`;
   console.log(`[reInitiatePayment] Attempting to re-initiate payment for booking ${bookingId} at: ${url}`);
   
   try {
@@ -258,7 +257,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         return undefined;
     }
 
-    const fullBookingUrl = `https://gotickets-server.payshia.com/bookings/full/${id}`;
+    const fullBookingUrl = `https://qa-server-goticket.payshia.com/bookings/full/${id}`;
     console.log(`[getBookingById] Fetching full booking details from: ${fullBookingUrl}`);
 
     try {
@@ -308,7 +307,7 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
                         }
                         const eventDetails = await fetchEventByIdFromApi(String(event.eventId));
                         
-                        const verificationUrl = `https://gotickets-server.payshia.com/tickets-verifications/total?booking_id=${ticket.booking_id}&event_id=${event.eventId}&showtime_id=${ticket.showtime_id}&tickettype_id=${ticket.tickettype_id}`;
+                        const verificationUrl = `https://qa-server-goticket.payshia.com/tickets-verifications/total?booking_id=${ticket.booking_id}&event_id=${event.eventId}&showtime_id=${ticket.showtime_id}&tickettype_id=${ticket.tickettype_id}`;
                         let checkedInCount = 0;
                         try {
                             const verificationResponse = await fetch(verificationUrl);
@@ -523,4 +522,3 @@ export const getBookingByQrCode = async (qrCodeValue: string): Promise<Booking |
     return undefined;
   }
 };
-

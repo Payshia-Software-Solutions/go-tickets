@@ -1,5 +1,4 @@
 
-      
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -19,8 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 
 
-const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
-const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
+const VERIFICATIONS_API_URL = 'https://qa-server-goticket.payshia.com/tickets-verifications/';
+const BOOKING_SHOWTIMES_API_URL = "https://qa-server-goticket.payshia.com/booking-showtimes";
 const ITEMS_PER_PAGE = 5;
 
 
@@ -501,5 +500,3 @@ const PaginationControls = ({ currentPage, totalPages, onPageChange, itemCount, 
     </div>
   </CardFooter>
 );
-
-    
