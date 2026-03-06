@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText, Search } from 'lucide-react';
+import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText, Search, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -149,9 +149,16 @@ export default function AdminBookingsPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
-        <p className="text-muted-foreground">View and manage all event bookings.</p>
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline">Manage Bookings</h1>
+          <p className="text-muted-foreground">View and manage all event bookings.</p>
+        </div>
+        <Button asChild>
+          <Link href="/admin/bookings/new">
+            <PlusCircle className="mr-2 h-4 w-4" /> New Manual Booking
+          </Link>
+        </Button>
       </header>
       
       <div className="flex flex-col md:flex-row gap-4">

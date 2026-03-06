@@ -135,18 +135,18 @@ export const createBooking = async (
     totalPrice: number;
     billingAddress: BillingAddress;
     isGuest: boolean;
+    booked_type?: 'online' | 'manualy';
   }
 ): Promise<string> => {
   if (!BOOKINGS_API_URL) {
     throw new Error("BOOKINGS_API_URL is not configured.");
   }
-  const { userId, cart, totalPrice, billingAddress, isGuest } = bookingData;
+  const { userId, cart, totalPrice, billingAddress, isGuest, booked_type = 'online' } = bookingData;
 
   if (cart.length === 0) {
     throw new Error("Cannot create a booking with an empty cart.");
   }
 
-  // Group cart items by eventId to summarize ticket counts for the `booking_event` payload.
   const eventTicketCounts = cart.reduce((acc, item) => {
       if (!acc[item.eventId]) {
           acc[item.eventId] = 0;
@@ -192,7 +192,7 @@ export const createBooking = async (
     billing_postal_code: billingAddress.postalCode,
     billing_country: billingAddress.country,
     guest: isGuest ? 1 : 0,
-    booked_type: 'online', // New field added here
+    booked_type: booked_type,
     booking_event: booking_event_payload,
     booking_showtime: booking_showtime_payload
   };
