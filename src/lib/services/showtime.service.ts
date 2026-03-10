@@ -5,8 +5,8 @@ import { parseApiDateString } from './api.service';
 import { format } from 'date-fns';
 
 interface ApiShowTimeFlat {
-  id: string;
-  eventId?: string;
+  id: string | number;
+  eventId?: string | number;
   dateTime: string;
   createdAt?: string;
   updatedAt?: string;
@@ -32,8 +32,8 @@ export const getShowTimesForEvent = async (eventId: string): Promise<ShowTime[]>
     }
     const apiShowTimes: ApiShowTimeFlat[] = await response.json();
     return apiShowTimes.map(st => ({
-      id: st.id,
-      eventId: st.eventId || eventId,
+      id: String(st.id),
+      eventId: String(st.eventId || eventId),
       dateTime: parseApiDateString(st.dateTime) || new Date().toISOString(),
       ticketAvailabilities: [],
       createdAt: parseApiDateString(st.createdAt),
@@ -71,7 +71,7 @@ export const createShowTime = async (eventId: string, data: AddShowTimeFormData)
 
     return {
         id: String(newShowTimeResponse.showtimeId),
-        dateTime: data.dateTime.toISOString(), // Return dateTime as ISO string for consistency
+        dateTime: data.dateTime.toISOString(), 
     };
 };
 

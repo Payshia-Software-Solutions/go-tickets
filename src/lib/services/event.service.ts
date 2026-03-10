@@ -1,5 +1,4 @@
 
-
 import type { Event, Organizer, EventFormData, CoreEventFormData, ShowTime, ShowTimeTicketAvailability } from '@/lib/types';
 import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -9,7 +8,7 @@ import { createShowTime, deleteShowTime, getShowTimesForEvent, updateShowTime } 
 import { format } from 'date-fns';
 
 interface ApiEventFlat {
-  id: string;
+  id: string | number;
   name: string;
   slug: string;
   date: string;
@@ -19,7 +18,7 @@ interface ApiEventFlat {
   imageUrl: string;
   venueName: string;
   venueAddress?: string | null;
-  organizerId: string;
+  organizerId: string | number;
   organizer?: Organizer;
   accept_booking?: string;
   createdAt?: string;
@@ -27,8 +26,8 @@ interface ApiEventFlat {
 }
 
 interface ApiShowTimeFlat {
-  id: string;
-  eventId?: string;
+  id: string | number;
+  eventId?: string | number;
   dateTime: string;
   createdAt?: string;
   updatedAt?: string;
@@ -41,7 +40,7 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
   }
 
   return {
-    id: apiEvent.id,
+    id: String(apiEvent.id),
     name: apiEvent.name,
     slug: apiEvent.slug,
     date: parseApiDateString(apiEvent.date) || new Date().toISOString(),
@@ -51,10 +50,11 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
     imageUrl: finalImageUrl,
     venueName: apiEvent.venueName,
     venueAddress: apiEvent.venueAddress,
-    organizerId: apiEvent.organizerId,
+    organizerId: String(apiEvent.organizerId),
     accept_booking: apiEvent.accept_booking,
     organizer: apiEvent.organizer ? {
         ...apiEvent.organizer,
+        id: String(apiEvent.organizer.id),
         createdAt: parseApiDateString(apiEvent.organizer.createdAt),
         updatedAt: parseApiDateString(apiEvent.organizer.updatedAt),
     } : undefined,
@@ -214,22 +214,22 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
         
         for (const basicSt of basicShowTimesFromApi) {
           const detailedShowTime: ShowTime = {
-            id: basicSt.id,
-            eventId: basicSt.eventId || eventBase.id,
+            id: String(basicSt.id),
+            eventId: String(basicSt.eventId || eventBase.id),
             dateTime: parseApiDateString(basicSt.dateTime) || new Date().toISOString(),
             ticketAvailabilities: [],
             createdAt: parseApiDateString(basicSt.createdAt),
             updatedAt: parseApiDateString(basicSt.updatedAt),
           };
 
-          const ticketsForThisShowtime = masterTicketTypes.filter(tt => tt.showtimeId === basicSt.id);
+          const ticketsForThisShowtime = masterTicketTypes.filter(tt => tt.showtimeId === detailedShowTime.id);
 
           detailedShowTime.ticketAvailabilities = await Promise.all(
             ticketsForThisShowtime.map(async (tt) => {
-                const availableCount = await getTicketAvailabilityCount(eventBase.id, basicSt.id, tt.id);
+                const availableCount = await getTicketAvailabilityCount(eventBase.id, detailedShowTime.id, tt.id);
                 return {
-                    id: `sta-${basicSt.id}-${tt.id}`,
-                    showTimeId: basicSt.id,
+                    id: `sta-${detailedShowTime.id}-${tt.id}`,
+                    showTimeId: detailedShowTime.id,
                     ticketTypeId: tt.id,
                     ticketType: { id: tt.id, name: tt.name, price: tt.price },
                     availableCount: availableCount,
@@ -453,7 +453,7 @@ export const updateEvent = async (
 
   // Deletions
   for (const idToDelete of initialShowTimeIds) {
-    if (!finalShowTimeIds.has(idToDelete)) {
+    if (!finalTicketTypeIds.has(idToDelete)) {
       console.log(`[updateEvent] Deleting showtime ID: ${idToDelete}`);
       promises.push(deleteShowTime(idToDelete));
     }

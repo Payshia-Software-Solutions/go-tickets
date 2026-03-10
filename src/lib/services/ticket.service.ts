@@ -4,13 +4,13 @@ import { TICKET_TYPES_API_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
 
 interface ApiTicketTypeFromEndpoint {
-    id: string;
+    id: string | number;
     eventId?: string | number;
-    showtimeId?: string | null;
+    showtimeId?: string | number | null;
     name: string;
-    price: string; 
+    price: string | number; 
     description?: string | null;
-    availability?: string;
+    availability?: string | number;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -37,20 +37,16 @@ export const fetchTicketTypesForEvent = async (eventId: string): Promise<TicketT
       return [];
     }
     const apiTicketTypes: ApiTicketTypeFromEndpoint[] = await response.json();
-    console.log(`Received ${apiTicketTypes.length} ticket types from API for event ${eventId}.`);
     
     const filteredApiTicketTypes = apiTicketTypes.filter(tt => String(tt.eventId) === String(eventId));
-    if (filteredApiTicketTypes.length !== apiTicketTypes.length) {
-        console.warn(`Client-side filter applied for ticket types of event ${eventId}. Initial: ${apiTicketTypes.length}, Filtered: ${filteredApiTicketTypes.length}. API might not be filtering correctly by eventid.`);
-    }
 
     return filteredApiTicketTypes.map(tt => ({
       id: String(tt.id),
       eventId: String(tt.eventId),
       showtimeId: tt.showtimeId ? String(tt.showtimeId) : null,
       name: tt.name,
-      price: parseFloat(tt.price) || 0,
-      availability: parseInt(tt.availability || '0', 10),
+      price: parseFloat(String(tt.price)) || 0,
+      availability: parseInt(String(tt.availability || '0'), 10),
       description: tt.description || null,
       createdAt: parseApiDateString(tt.createdAt),
       updatedAt: parseApiDateString(tt.updatedAt),
@@ -71,10 +67,6 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
       showtimeId: data.showtimeId ? parseInt(data.showtimeId, 10) : undefined,
     };
 
-    console.log(`[createTicketType] Creating ticket type definition.`);
-    console.log(`  - URL: POST ${TICKET_TYPES_API_URL}`);
-    console.log('  - Payload:', JSON.stringify(payload, null, 2));
-
     const response = await fetch(TICKET_TYPES_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +82,6 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         throw new Error("API did not return an ID for the newly created ticket type.");
     }
 
-    // Construct the TicketType object to return, based on the input data and the new ID
     return {
         id: String(newTicketTypeResponse.id),
         eventId: eventId,
@@ -99,7 +90,7 @@ export const createTicketType = async (eventId: string, data: TicketTypeFormData
         price: data.price,
         availability: data.availability,
         description: data.description || null,
-        createdAt: new Date().toISOString(), // The API doesn't return this, so we'll approximate
+        createdAt: new Date().toISOString(), 
         updatedAt: new Date().toISOString(),
     };
 };
@@ -118,8 +109,6 @@ export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFor
       showtimeId: data.showtimeId ? parseInt(data.showtimeId, 10) : undefined,
     };
 
-    console.log(`[updateTicketType] Updating ticket type. URL: PUT ${url}`, 'Payload:', payload);
-
     const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -135,8 +124,8 @@ export const updateTicketType = async (ticketTypeId: string, data: TicketTypeFor
         eventId: updatedTicketType.eventId ? String(updatedTicketType.eventId) : undefined,
         showtimeId: updatedTicketType.showtimeId ? String(updatedTicketType.showtimeId) : null,
         name: updatedTicketType.name,
-        price: parseFloat(updatedTicketType.price) || 0,
-        availability: parseInt(updatedTicketType.availability || '0', 10),
+        price: parseFloat(String(updatedTicketType.price)) || 0,
+        availability: parseInt(String(updatedTicketType.availability || '0'), 10),
         description: updatedTicketType.description || null,
         createdAt: parseApiDateString(updatedTicketType.createdAt),
         updatedAt: parseApiDateString(updatedTicketType.updatedAt),
@@ -148,7 +137,6 @@ export const deleteTicketType = async (ticketTypeId: string): Promise<boolean> =
     throw new Error("TICKET_TYPES_API_URL is not defined.");
   }
   const url = `${TICKET_TYPES_API_URL}/${ticketTypeId}`;
-  console.log(`[deleteTicketType] Deleting ticket type. URL: DELETE ${url}`);
   try {
     const response = await fetch(url, {
       method: 'DELETE',
@@ -157,7 +145,6 @@ export const deleteTicketType = async (ticketTypeId: string): Promise<boolean> =
       const errorBody = await response.json().catch(() => ({ message: `Failed to delete ticket type ${ticketTypeId} and parse error response.` }));
       throw new Error(errorBody.message || `API error deleting ticket type ${ticketTypeId}: ${response.status}`);
     }
-    console.log(`[deleteTicketType] Successfully deleted ticket type ${ticketTypeId}.`);
     return true;
   } catch (error) {
     console.error(`[deleteTicketType] Error deleting ticket type ${ticketTypeId}:`, error);
@@ -177,7 +164,7 @@ export const getTicketAvailabilityCount = async (eventId: string, showtimeId: st
         const response = await fetch(url);
         if (!response.ok) {
             console.error(`Failed to fetch availability for t:${ticketTypeId} s:${showtimeId} e:${eventId}. Status: ${response.status}`);
-            return 0; // Default to 0 if API fails
+            return 0; 
         }
         const data: AvailabilityResponse = await response.json();
         return data.available || 0;

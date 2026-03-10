@@ -1,3 +1,4 @@
+
 import type { Organizer, OrganizerFormData } from '@/lib/types';
 import { ORGANIZERS_API_URL } from '@/lib/constants';
 import { parseApiDateString } from './api.service';
@@ -44,7 +45,7 @@ export const adminGetAllOrganizers = async (): Promise<Organizer[]> => {
   }
 };
 
-export const getOrganizerById = async (id: string): Promise<Organizer | null> => {
+export const getOrganizerById = async (id: string | number): Promise<Organizer | null> => {
   if (!id || id === "undefined" || id === "null") {
     console.warn("getOrganizerById called with invalid ID:", id);
     return null;
@@ -85,7 +86,7 @@ export const createOrganizer = async (data: OrganizerFormData): Promise<Organize
   }
 };
 
-export const updateOrganizer = async (organizerId: string, data: OrganizerFormData): Promise<Organizer | null> => {
+export const updateOrganizer = async (organizerId: string | number, data: OrganizerFormData): Promise<Organizer | null> => {
   try {
     const response = await fetch(`${ORGANIZERS_API_URL}/${organizerId}`, {
       method: 'PUT',
@@ -106,7 +107,7 @@ export const updateOrganizer = async (organizerId: string, data: OrganizerFormDa
   }
 };
 
-export const deleteOrganizer = async (organizerId: string): Promise<boolean> => {
+export const deleteOrganizer = async (organizerId: string | number): Promise<boolean> => {
   try {
     const response = await fetch(`${ORGANIZERS_API_URL}/${organizerId}`, {
       method: 'DELETE',
