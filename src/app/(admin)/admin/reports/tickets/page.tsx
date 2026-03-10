@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -49,6 +48,7 @@ interface EnrichedTicketRecord {
   attendeeEmail: string; // From parent booking
   paymentStatus: string; // From parent booking
   pricePerTicket: number; // Added for revenue calculation
+  bookedType: string;
 }
 
 interface EventRevenueSummary {
@@ -68,6 +68,7 @@ export default function AdminTicketReportPage() {
   });
   const [eventFilter, setEventFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [bookedTypeFilter, setBookedTypeFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   const [reportData, setReportData] = useState<EnrichedTicketRecord[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -140,6 +141,7 @@ export default function AdminTicketReportPage() {
               attendeeEmail: parentBooking.billingAddress?.email || 'N/A',
               paymentStatus: parentBooking.payment_status || 'pending',
               pricePerTicket: Number(price) || 0,
+              bookedType: parentBooking.booked_type,
             };
         })
         .filter((ticket): ticket is EnrichedTicketRecord => {
@@ -150,8 +152,9 @@ export default function AdminTicketReportPage() {
             const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
             const eventMatch = eventFilter === 'all' || ticket.eventId === eventFilter;
             const statusMatch = statusFilter === 'all' || ticket.paymentStatus.toLowerCase() === statusFilter;
+            const typeMatch = bookedTypeFilter === 'all' || ticket.bookedType === bookedTypeFilter;
 
-            return isInDateRange && eventMatch && statusMatch;
+            return isInDateRange && eventMatch && statusMatch && typeMatch;
         });
 
       setReportData(enrichedAndFilteredTickets);
@@ -228,6 +231,7 @@ export default function AdminTicketReportPage() {
       "Attendee Name",
       "Attendee Email",
       "Payment Status",
+      "Booking Type"
     ];
 
     const escapeCsvCell = (cell: any) => {
@@ -253,6 +257,7 @@ export default function AdminTicketReportPage() {
             escapeCsvCell(ticket.attendeeName),
             escapeCsvCell(ticket.attendeeEmail),
             escapeCsvCell(ticket.paymentStatus),
+            escapeCsvCell(ticket.bookedType === 'manualy' ? 'Manual' : 'Online'),
         ];
         csvRows.push(row.join(","));
     });
@@ -290,7 +295,7 @@ export default function AdminTicketReportPage() {
           <CardTitle>Report Filters</CardTitle>
           <CardDescription>Select criteria to generate your report.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium">Date Range (Booking Date)</label>
              <Popover>
@@ -336,6 +341,19 @@ export default function AdminTicketReportPage() {
                   <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="booked-type" className="text-sm font-medium">Booking Type</label>
+             <Select value={bookedTypeFilter} onValueChange={setBookedTypeFilter}>
+                <SelectTrigger id="booked-type" className="w-full">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="manualy">Manual</SelectItem>
                 </SelectContent>
               </Select>
           </div>
@@ -423,6 +441,7 @@ export default function AdminTicketReportPage() {
                                 <TableHead>Attendee</TableHead>
                                 <TableHead>Total Price</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Type</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -448,6 +467,11 @@ export default function AdminTicketReportPage() {
                                                 'bg-red-100 text-red-800 border-red-200': ticket.paymentStatus === 'failed',
                                             })}>
                                                 {ticket.paymentStatus}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="capitalize">
+                                                {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>

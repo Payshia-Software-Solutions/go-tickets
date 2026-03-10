@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -46,11 +45,13 @@ interface EnrichedTicketRecord {
   attendeeName: string;
   attendeeEmail: string;
   showtime: string;
+  bookedType: string;
 }
 
 
 export default function EventSummaryReportPage() {
   const [eventFilter, setEventFilter] = useState('');
+  const [bookedTypeFilter, setBookedTypeFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -103,7 +104,11 @@ export default function EventSummaryReportPage() {
                 .map((st: any) => String(st.booking_id))
         );
 
-        const eventPaidBookings = allPaidBookings.filter(b => eventBookingIds.has(String(b.id)) && (b.payment_status || 'pending').toLowerCase() === 'paid');
+        const eventPaidBookings = allPaidBookings.filter(b => 
+            eventBookingIds.has(String(b.id)) && 
+            (b.payment_status || 'pending').toLowerCase() === 'paid' &&
+            (bookedTypeFilter === 'all' || b.booked_type === bookedTypeFilter)
+        );
         const paidBookingIds = new Set(eventPaidBookings.map(b => String(b.id)));
         
         const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
@@ -184,6 +189,7 @@ export default function EventSummaryReportPage() {
         attendeeName: parentBooking?.userName || 'N/A',
         attendeeEmail: parentBooking?.billingAddress?.email || 'N/A',
         showtime: format(new Date(st.showtime), 'PPp'),
+        bookedType: parentBooking?.booked_type || 'online',
       };
     }).sort((a, b) => new Date(b.showtime).getTime() - new Date(a.showtime).getTime());
   }, [reportData]);
@@ -233,19 +239,35 @@ export default function EventSummaryReportPage() {
 
       <Card className="no-print">
         <CardHeader>
-          <CardTitle>Select Event</CardTitle>
+          <CardTitle>Report Criteria</CardTitle>
         </CardHeader>
-        <CardContent>
-             <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger id="event" className="w-full md:w-1/2">
-                  <SelectValue placeholder="Select an event..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {events.map(event => (
-                    <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="space-y-2">
+                <label htmlFor="event" className="text-sm font-medium">Event</label>
+                <Select value={eventFilter} onValueChange={setEventFilter}>
+                    <SelectTrigger id="event" className="w-full">
+                    <SelectValue placeholder="Select an event..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {events.map(event => (
+                        <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+             </div>
+             <div className="space-y-2">
+                <label htmlFor="booked-type" className="text-sm font-medium">Booking Type</label>
+                <Select value={bookedTypeFilter} onValueChange={setBookedTypeFilter}>
+                    <SelectTrigger id="booked-type" className="w-full">
+                    <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="manualy">Manual</SelectItem>
+                    </SelectContent>
+                </Select>
+             </div>
         </CardContent>
         <CardFooter>
             <Button onClick={handleGenerateReport} disabled={isLoading || !eventFilter}>
@@ -355,6 +377,7 @@ export default function EventSummaryReportPage() {
                                         <TableHead>Booking ID</TableHead>
                                         <TableHead>Customer</TableHead>
                                         <TableHead className="text-right">Amount</TableHead>
+                                        <TableHead>Type</TableHead>
                                         <TableHead className="text-center">Actions</TableHead>
                                     </TableRow></TableHeader>
                                     <TableBody>
@@ -366,6 +389,11 @@ export default function EventSummaryReportPage() {
                                                     <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
                                                 </TableCell>
                                                 <TableCell className="text-right">LKR {booking.totalPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="capitalize">
+                                                        {booking.booked_type === 'manualy' ? 'Manual' : 'Online'}
+                                                    </Badge>
+                                                </TableCell>
                                                 <TableCell className="text-center">
                                                     <Button variant="outline" size="sm" asChild>
                                                         <Link href={`/admin/bookings/${booking.id}`}><FileText className="mr-2 h-3.5 w-3.5"/> Details</Link>
@@ -398,6 +426,7 @@ export default function EventSummaryReportPage() {
                                         <TableHead>Ticket Type</TableHead>
                                         <TableHead className="text-center">Quantity</TableHead>
                                         <TableHead>Showtime</TableHead>
+                                        <TableHead>Booking Type</TableHead>
                                     </TableRow></TableHeader>
                                     <TableBody>
                                         {paginatedTickets.map(ticket => (
@@ -409,6 +438,11 @@ export default function EventSummaryReportPage() {
                                                 <TableCell className="font-medium">{ticket.ticketTypeName}</TableCell>
                                                 <TableCell className="text-center">{ticket.quantity}</TableCell>
                                                 <TableCell>{ticket.showtime}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="capitalize">
+                                                        {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
+                                                    </Badge>
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
