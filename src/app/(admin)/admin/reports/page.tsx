@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -12,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search, Ticket, BarChart3, Star } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Printer, Download, Search, Ticket, BarChart3, Star, LayoutList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +58,7 @@ export default function AdminReportsPage() {
   });
   const [eventFilter, setEventFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [bookedTypeFilter, setBookedTypeFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [reportData, setReportData] = useState<Booking[]>([]);
@@ -112,8 +112,9 @@ export default function AdminReportsPage() {
           const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
           const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
           const eventMatch = eventFilter === 'all' || rawTicket.eventId === eventFilter;
+          const typeMatch = bookedTypeFilter === 'all' || parentBooking.booked_type === bookedTypeFilter;
           
-          if (isInDateRange && statusMatch && eventMatch) {
+          if (isInDateRange && statusMatch && eventMatch && typeMatch) {
             filteredTickets.push({
               bookingId: rawTicket.booking_id,
               eventId: rawTicket.eventId,
@@ -199,6 +200,7 @@ export default function AdminReportsPage() {
       "Attendee Email",
       "Attendee Phone",
       "Payment Status",
+      "Booking Type",
       "Total Price (LKR)"
     ];
 
@@ -222,6 +224,7 @@ export default function AdminReportsPage() {
             escapeCsvCell(booking.billingAddress?.email),
             escapeCsvCell(booking.billingAddress?.phone_number),
             escapeCsvCell(booking.payment_status || 'pending'),
+            escapeCsvCell(booking.booked_type === 'manualy' ? 'Manual' : 'Online'),
             escapeCsvCell(booking.totalPrice.toFixed(2))
         ];
         csvRows.push(row.join(","));
@@ -260,7 +263,7 @@ export default function AdminReportsPage() {
           <CardTitle>Report Filters</CardTitle>
           <CardDescription>Select criteria to generate your report.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium">Date Range (Booking Date)</label>
              <Popover>
@@ -325,6 +328,19 @@ export default function AdminReportsPage() {
                   <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="booked-type" className="text-sm font-medium">Booking Type</label>
+             <Select value={bookedTypeFilter} onValueChange={setBookedTypeFilter}>
+                <SelectTrigger id="booked-type" className="w-full">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="manualy">Manual</SelectItem>
                 </SelectContent>
               </Select>
           </div>
@@ -418,7 +434,7 @@ export default function AdminReportsPage() {
                                 <TableHead>Booking ID</TableHead>
                                 <TableHead>Event</TableHead>
                                 <TableHead>Attendee</TableHead>
-                                <TableHead>Contact</TableHead>
+                                <TableHead>Type</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Total Price</TableHead>
                             </TableRow>
@@ -431,10 +447,14 @@ export default function AdminReportsPage() {
                                         <div className="font-medium">{booking.eventName}</div>
                                         <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
                                         </TableCell>
-                                        <TableCell className="whitespace-nowrap">{booking.userName}</TableCell>
+                                        <TableCell className="whitespace-nowrap">
+                                            <div className="font-medium">{booking.userName}</div>
+                                            <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                                        </TableCell>
                                         <TableCell>
-                                        <div className="whitespace-nowrap">{booking.billingAddress?.email}</div>
-                                        <div className="text-xs text-muted-foreground whitespace-nowrap">{booking.billingAddress?.phone_number}</div>
+                                            <Badge variant="outline" className="capitalize">
+                                                {booking.booked_type === 'manualy' ? 'Manual' : 'Online'}
+                                            </Badge>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className={cn('capitalize', {
