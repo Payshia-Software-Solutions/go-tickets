@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { TICKET_TYPES_API_URL } from '@/lib/constants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 
 const VERIFICATIONS_API_URL = 'https://qa-server-goticket.payshia.com/tickets-verifications/';
