@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { TICKET_TYPES_API_URL } from '@/lib/constants';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-const BOOKING_SHOWTIMES_API_URL = "https://qa-server-goticket.payshia.com/booking-showtimes";
+const BOOKING_SHOWTIMES_API_URL = "https://gotickets-server.payshia.com/booking-showtimes";
 
 interface RawBookedShowtime {
   id: string;

@@ -1,6 +1,6 @@
 
 // API Base URL from environment variable
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://qa-server-goticket.payshia.com';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://gotickets-server.payshia.com';
 export const CONTENT_PROVIDER_URL = "https://content-provider.gotickets.lk";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 

@@ -16,7 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { TICKET_TYPES_API_URL } from '@/lib/constants';
 
-const VERIFICATIONS_API_URL = 'https://qa-server-goticket.payshia.com/tickets-verifications/';
+const VERIFICATIONS_API_URL = 'https://gotickets-server.payshia.com/tickets-verifications/';
 
 interface TicketTypeSummary {
     id: string;
