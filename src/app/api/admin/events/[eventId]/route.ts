@@ -4,7 +4,7 @@ import { getAdminEventById, updateEvent, deleteEvent } from '@/lib/mockData';
 import { EventFormSchema } from '@/lib/types';
 
 interface Context {
-  params: { eventId: string };
+  params: Promise<{ eventId: string }>;
 }
 
 // Interface for the raw show time object from the request body before date parsing
@@ -23,20 +23,22 @@ interface RawShowTimeInput {
 
 
 export async function GET(request: Request, { params }: Context) {
+  const { eventId } = await params;
   try {
-    const event = await getAdminEventById(params.eventId);
+    const event = await getAdminEventById(eventId);
     if (!event) {
       return NextResponse.json({ message: 'Event not found' }, { status: 404 });
     }
     return NextResponse.json(event);
   } catch (error: unknown) {
-    console.error(`API Error fetching event ${params.eventId}:`, error);
+    console.error(`API Error fetching event ${eventId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch event';
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request, { params }: Context) {
+  const { eventId } = await params;
   try {
     const body = await request.json();
 
@@ -53,33 +55,34 @@ export async function PUT(request: Request, { params }: Context) {
     const validatedData = EventFormSchema.safeParse(bodyWithParsedDates);
 
     if (!validatedData.success) {
-      console.error(`API Validation Error updating event ${params.eventId}:`, validatedData.error.flatten().fieldErrors);
+      console.error(`API Validation Error updating event ${eventId}:`, validatedData.error.flatten().fieldErrors);
       return NextResponse.json(
         { message: 'Invalid event data provided', errors: validatedData.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
-    const initialEvent = await getAdminEventById(params.eventId);
+    const initialEvent = await getAdminEventById(eventId);
     if (!initialEvent) {
       return NextResponse.json({ message: 'Event not found' }, { status: 404 });
     }
 
-    await updateEvent(params.eventId, validatedData.data, initialEvent, null);
+    await updateEvent(eventId, validatedData.data, initialEvent, null);
     return NextResponse.json({ message: 'Event updated successfully' });
   } catch (error: unknown) {
-    console.error(`API Error updating event ${params.eventId}:`, error);
+    console.error(`API Error updating event ${eventId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to update event';
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request, { params }: Context) {
+  const { eventId } = await params;
   try {
-    await deleteEvent(params.eventId);
+    await deleteEvent(eventId);
     return NextResponse.json({ message: 'Event deleted successfully' }, { status: 200 });
   } catch (error: unknown) {
-    console.error(`API Error deleting event ${params.eventId}:`, error);
+    console.error(`API Error deleting event ${eventId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to delete event';
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }

@@ -8,14 +8,15 @@ import EventDetailsClientView from '@/components/events/EventDetailsClientView';
 import { SITE_URL } from '@/lib/constants';
 
 interface EventDetailsPageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata(
   { params }: EventDetailsPageProps,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const event = await getEventBySlug(params.slug);
+  const { slug } = await params;
+  const event = await getEventBySlug(slug);
 
   if (!event) {
     return {
@@ -63,7 +64,8 @@ export async function generateMetadata(
   };
 }
 
-export default async function EventDetailsPage({ params: { slug } }: EventDetailsPageProps) {
+export default async function EventDetailsPage({ params }: EventDetailsPageProps) {
+  const { slug } = await params;
   const event = await getEventBySlug(slug);
 
   if (!event) {
