@@ -11,20 +11,21 @@ import { Separator } from '@/components/ui/separator';
 import PayNowButton from '@/components/PayNowButton';
 import DownloadTicketActions from '@/components/events/DownloadTicketButton';
 import QRCode from '@/components/QRCode';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import type { Booking } from '@/lib/types';
 import * as fpixel from '@/lib/fpixel';
 
 interface BookingConfirmationPageProps {
-  searchParams: { order_id?: string };
+  searchParams: Promise<{ order_id?: string }>;
 }
 
 export default function BookingConfirmationPage({ searchParams }: BookingConfirmationPageProps) {
+  const resolvedSearchParams = use(searchParams);
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const bookingId = searchParams.order_id;
+  const bookingId = resolvedSearchParams.order_id;
 
   useEffect(() => {
     document.title = isLoading ? 'Loading Booking...' : (booking ? `Booking ${booking.id}` : 'Booking Not Found');
