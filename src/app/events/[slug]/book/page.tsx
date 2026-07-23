@@ -15,7 +15,7 @@ import { useEffect, useState, use } from 'react';
 import { format, parseISO } from 'date-fns';
 
 interface BookEventPageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 // Helper to safely parse date strings from API
@@ -84,7 +84,7 @@ export default function BookEventPage({ params }: BookEventPageProps) {
     );
   }
 
-  if (event === null) {
+  if (event === null || event === undefined) {
     return (
       <div className="container mx-auto py-12 text-center">
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />

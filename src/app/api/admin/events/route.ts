@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     }
     
     // The createEvent function handles the call to the external API
-    const newEventId = await createEvent(validatedData.data);
+    const newEventId = await createEvent(validatedData.data, null);
     
     // The client expects a JSON object with the newEventId
     return NextResponse.json({ newEventId }, { status: 201 });

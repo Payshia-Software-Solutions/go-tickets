@@ -48,7 +48,7 @@ interface EnrichedTicketRecord {
   attendeeEmail: string; // From parent booking
   paymentStatus: string; // From parent booking
   pricePerTicket: number; // Added for revenue calculation
-  bookedType: string;
+  bookedType: 'online' | 'manualy';
 }
 
 interface EventRevenueSummary {
@@ -117,21 +117,21 @@ export default function AdminTicketReportPage() {
       
       const enrichedAndFilteredTickets: EnrichedTicketRecord[] = allBookedShowtimes
         .map(rawTicket => {
-            const parentBooking = bookingsMap.get(rawTicket.booking_id);
+            const parentBooking = bookingsMap.get(String(rawTicket.booking_id));
             if (!parentBooking) return null;
             
-            const price = ticketPriceMap.get(rawTicket.tickettype_id);
+            const price = ticketPriceMap.get(String(rawTicket.tickettype_id));
             if (price === undefined) {
               console.warn(`Could not find price for tickettype_id: ${rawTicket.tickettype_id}. Defaulting to 0.`);
             }
 
             return {
               id: rawTicket.id,
-              bookingId: rawTicket.booking_id,
-              eventId: rawTicket.eventId,
+              bookingId: String(rawTicket.booking_id),
+              eventId: String(rawTicket.eventId),
               showtimeId: rawTicket.showtime_id,
               ticketTypeName: rawTicket.ticket_type,
-              ticketTypeId: rawTicket.tickettype_id,
+              ticketTypeId: String(rawTicket.tickettype_id),
               quantity: parseInt(rawTicket.ticket_count, 10) || 0,
               showtimeDateTime: rawTicket.showtime,
               // Enriched data

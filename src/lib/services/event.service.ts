@@ -139,7 +139,7 @@ export const getUpcomingEvents = async (limit: number = 8): Promise<Event[]> => 
 export const getPopularEvents = async (limit: number = 4): Promise<Event[]> => {
   const allEvents = await fetchEventsFromApi();
    return allEvents
-    .sort((a, b) => ((b.ticketTypes?.length || 0) + (b.showTimes?.length || 0)) - ((a.ticketTypes?.length || 0) + a.showTimes?.length || 0))
+    .sort((a, b) => ((b.ticketTypes?.length || 0) + (b.showTimes?.length || 0)) - ((a.ticketTypes?.length || 0) + (a.showTimes?.length || 0)))
     .slice(0, limit);
 };
 

@@ -12,6 +12,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import * as fpixel from '@/lib/fpixel';
 
+interface TicketSelectorProps {
+  event: Event;
+  selectedShowTime: ShowTime | null;
+}
+
 const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime }) => {
   const { cart, addToCart, updateQuantity } = useCart();
   const { toast } = useToast();
@@ -63,6 +68,7 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
     maxAvailability: number, 
     change: number
   ) => {
+    if (!selectedShowTime) return;
     const ticketTypeId = ticketTypeForAvailability.id;
     const quantityKey = generateQuantityKey(ticketTypeId, selectedShowTime.id);
     const currentLocalQuantity = quantities[quantityKey] || 0;
@@ -129,12 +135,6 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
     }
   };
 
-  const currentTotal = selectedShowTime.ticketAvailabilities.reduce((acc, avail) => {
-    const quantity = quantities[generateQuantityKey(avail.ticketType.id, selectedShowTime.id)] || 0;
-    const price = avail.ticketType.price;
-    return acc + (quantity * price);
-  }, 0);
-
   if (!selectedShowTime) {
     return (
         <Alert variant="destructive">
@@ -144,6 +144,12 @@ const TicketSelector: React.FC<TicketSelectorProps> = ({ event, selectedShowTime
         </Alert>
     );
   }
+
+  const currentTotal = selectedShowTime.ticketAvailabilities.reduce((acc, avail) => {
+    const quantity = quantities[generateQuantityKey(avail.ticketType.id, selectedShowTime.id)] || 0;
+    const price = avail.ticketType.price;
+    return acc + (quantity * price);
+  }, 0);
 
   return (
     <Card className="w-full">

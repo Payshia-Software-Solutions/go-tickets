@@ -105,26 +105,26 @@ export default function AdminReportsPage() {
       const includedBookingIds = new Set<string>();
 
       allBookedShowtimes.forEach(rawTicket => {
-          const parentBooking = bookingsMap.get(rawTicket.booking_id);
+          const parentBooking = bookingsMap.get(String(rawTicket.booking_id));
           if (!parentBooking) return;
 
           const bookingDate = new Date(parentBooking.bookingDate);
           const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
           const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
-          const eventMatch = eventFilter === 'all' || rawTicket.eventId === eventFilter;
+          const eventMatch = eventFilter === 'all' || String(rawTicket.eventId) === eventFilter;
           const typeMatch = bookedTypeFilter === 'all' || parentBooking.booked_type === bookedTypeFilter;
           
           if (isInDateRange && statusMatch && eventMatch && typeMatch) {
             filteredTickets.push({
-              bookingId: rawTicket.booking_id,
-              eventId: rawTicket.eventId,
+              bookingId: String(rawTicket.booking_id),
+              eventId: String(rawTicket.eventId),
               eventName: parentBooking.eventName,
               ticketTypeName: rawTicket.ticket_type,
               quantity: parseInt(rawTicket.ticket_count, 10) || 0,
               paymentStatus: parentBooking.payment_status || 'pending',
               bookingDate: parentBooking.bookingDate,
             });
-            includedBookingIds.add(rawTicket.booking_id);
+            includedBookingIds.add(String(rawTicket.booking_id));
           }
       });
       

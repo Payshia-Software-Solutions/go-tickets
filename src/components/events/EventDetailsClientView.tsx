@@ -204,7 +204,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                             ) : (
                                 <p className="text-sm text-muted-foreground">No specific ticket information for this showtime.</p>
                             )}
-                            {index < event.showTimes.length - 1 && <Separator className="my-4" />}
+                             {index < (event.showTimes?.length || 0) - 1 && <Separator className="my-4" />}
                             </div>
                         );
                         })}

@@ -31,7 +31,7 @@ interface LoginResult {
 }
 
 const mapApiUserToAppUser = (apiUser: RawApiUser): User => {
-  let billingAddress: BillingAddress | null = null;
+  let billingAddress: Partial<BillingAddress> | null = null;
   if (
     apiUser.billing_street ||
     apiUser.billing_city ||
@@ -272,7 +272,10 @@ export const adminCreateUser = async (data: AdminUserFormData): Promise<User> =>
   return mapApiUserToAppUser(newApiUser);
 };
 
-export const updateUser = async (userId: string, dataToUpdate: Partial<AdminUserFormData>): Promise<User | null> => {
+export const updateUser = async (
+  userId: string,
+  dataToUpdate: Partial<Omit<AdminUserFormData, 'name'> & { name?: string | null; billingAddress?: Partial<BillingAddress> | null }>
+): Promise<User | null> => {
   if (API_BASE_URL && USERS_API_URL) {
     const apiPayload: Partial<RawApiUser & { password?: string }> = {};
 

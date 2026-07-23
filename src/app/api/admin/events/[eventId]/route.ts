@@ -60,12 +60,13 @@ export async function PUT(request: Request, { params }: Context) {
       );
     }
 
-    const updated = await updateEvent(params.eventId, validatedData.data);
-    if (!updated) {
-      // updateEvent might throw specific errors (e.g., about bookings) which will be caught below
-      return NextResponse.json({ message: 'Event not found or update failed (no specific error from service)' }, { status: 404 });
+    const initialEvent = await getAdminEventById(params.eventId);
+    if (!initialEvent) {
+      return NextResponse.json({ message: 'Event not found' }, { status: 404 });
     }
-    return NextResponse.json(updated);
+
+    await updateEvent(params.eventId, validatedData.data, initialEvent, null);
+    return NextResponse.json({ message: 'Event updated successfully' });
   } catch (error: unknown) {
     console.error(`API Error updating event ${params.eventId}:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to update event';
