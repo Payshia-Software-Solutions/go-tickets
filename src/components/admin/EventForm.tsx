@@ -22,7 +22,7 @@ import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
 import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Image from "next/image";
-import { getEventCategories, deleteTicketType, createShowTime, createTicketType } from "@/lib/mockData";
+import { getEventCategories, deleteTicketType, createShowTime, createTicketType, deleteShowTime, loginUserWithApi, adminGetAllOrganizers } from "@/lib/mockData";
 import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -35,9 +35,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import ShowTimeForm from "./ShowTimeForm";
 import TicketTypeForm from "./TicketTypeForm";
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
@@ -81,6 +82,19 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
   const [isAddTicketTypeDialogOpen, setAddTicketTypeDialogOpen] = useState(false);
   const [isSubmittingTicketType, setIsSubmittingTicketType] = useState(false);
   const [currentTargetShowtimeId, setCurrentTargetShowtimeId] = useState<string | null>(null);
+
+  const { user } = useAuth();
+  const [bookedShowtimeIds, setBookedShowtimeIds] = useState<Set<string>>(new Set());
+  const [bookedTicketTypeIds, setBookedTicketTypeIds] = useState<Set<string>>(new Set());
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState<{
+    type: 'showtime' | 'ticketType';
+    index: number;
+    id?: string;
+    name: string;
+  } | null>(null);
 
   const form = useForm<EventFormData>({
     resolver: zodResolver(EventFormSchema),
@@ -147,17 +161,32 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         const catData = await getEventCategories();
         setCategories(catData);
 
-        const orgResponse = await fetch(`${API_BASE_URL}/organizers`);
-        if (!orgResponse.ok) throw new Error('Failed to fetch organizers');
-        const orgData = await orgResponse.json();
+        const orgData = await adminGetAllOrganizers();
         setOrganizers(orgData);
+
+        if (initialData?.id) {
+          const bookingShowtimesRes = await fetch("https://gotickets-server.payshia.com/booking-showtimes");
+          if (bookingShowtimesRes.ok) {
+             const bookingShowtimes = await bookingShowtimesRes.json();
+             const showtimeIds = new Set<string>();
+             const tickettypeIds = new Set<string>();
+             bookingShowtimes.forEach((st: any) => {
+                if (st.eventId && String(st.eventId) === String(initialData.id)) {
+                   showtimeIds.add(String(st.showtime_id));
+                   tickettypeIds.add(String(st.tickettype_id));
+                }
+             });
+             setBookedShowtimeIds(showtimeIds);
+             setBookedTicketTypeIds(tickettypeIds);
+          }
+        }
       } catch (error) {
         console.error("Error fetching form dropdown data:", error);
         toast({ title: "Error", description: "Could not load necessary data for the form.", variant: "destructive" });
       }
     };
     fetchDropdownData();
-  }, [toast]);
+  }, [toast, initialData?.id]);
   
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
@@ -346,25 +375,12 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!ticketToDelete) return;
-    setIsDeletingTicketType(true);
-    const { id: ticketTypeId, index } = ticketToDelete;
-
-    if (!ticketTypeId || ticketTypeId.startsWith('temp-')) {
-      removeTicketType(index);
-      toast({ title: "Ticket Type Removed", description: "The new ticket type has been removed from the form." });
-      setIsDeletingTicketType(false);
-      setIsDeleteDialogOpen(false);
-      setTicketToDelete(null);
-      return;
-    }
-    
+  const proceedToDeleteTicketType = async (ticketTypeId: string, index: number) => {
     try {
       await deleteTicketType(ticketTypeId);
       toast({
         title: "Ticket Type Deleted",
-        description: `"${ticketToDelete.name}" has been permanently deleted.`,
+        description: `"${ticketToDelete?.name}" has been permanently deleted.`,
       });
       removeTicketType(index);
     } catch (error) {
@@ -373,10 +389,101 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
         description: error instanceof Error ? error.message : "This ticket type might be in use and cannot be deleted.",
         variant: "destructive",
       });
-    } finally {
-      setIsDeletingTicketType(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!ticketToDelete) return;
+    const { id: ticketTypeId, index } = ticketToDelete;
+
+    if (!ticketTypeId || ticketTypeId.startsWith('temp-')) {
+      removeTicketType(index);
+      toast({ title: "Ticket Type Removed", description: "The new ticket type has been removed from the form." });
       setIsDeleteDialogOpen(false);
       setTicketToDelete(null);
+      return;
+    }
+    
+    if (bookedTicketTypeIds.has(String(ticketTypeId))) {
+      setPendingDeleteAction({
+        type: 'ticketType',
+        index,
+        id: ticketTypeId,
+        name: ticketToDelete.name
+      });
+      setIsDeleteDialogOpen(false);
+      setIsPasswordDialogOpen(true);
+      return;
+    }
+
+    setIsDeletingTicketType(true);
+    await proceedToDeleteTicketType(ticketTypeId, index);
+    setIsDeletingTicketType(false);
+    setIsDeleteDialogOpen(false);
+    setTicketToDelete(null);
+  };
+
+  const handleDeleteShowtime = (index: number) => {
+    const showtime = form.getValues(`showTimes.${index}`);
+    const showtimeId = showtime.id;
+    if (showtimeId && bookedShowtimeIds.has(String(showtimeId))) {
+      setPendingDeleteAction({
+        type: 'showtime',
+        index,
+        id: String(showtimeId),
+        name: format(new Date(showtime.dateTime), "PPP p")
+      });
+      setIsPasswordDialogOpen(true);
+    } else {
+      removeShowTime(index);
+    }
+  };
+
+  const handleVerifyPasswordAndDelete = async () => {
+    if (!user?.email) {
+      toast({ title: "Verification Failed", description: "No authenticated administrator session found.", variant: "destructive" });
+      return;
+    }
+    if (!adminPassword) {
+      toast({ title: "Password Required", description: "Please enter your password.", variant: "destructive" });
+      return;
+    }
+
+    setIsVerifyingPassword(true);
+    try {
+      const result = await loginUserWithApi(user.email, adminPassword);
+      if (!result) {
+        throw new Error("Invalid password. Please try again.");
+      }
+
+      if (pendingDeleteAction) {
+        if (pendingDeleteAction.type === 'showtime') {
+          if (pendingDeleteAction.id) {
+             await deleteShowTime(pendingDeleteAction.id);
+          }
+          removeShowTime(pendingDeleteAction.index);
+          toast({ title: "Showtime Deleted", description: `Showtime "${pendingDeleteAction.name}" has been deleted.` });
+        } else if (pendingDeleteAction.type === 'ticketType') {
+          if (pendingDeleteAction.id) {
+             await deleteTicketType(pendingDeleteAction.id);
+          }
+          removeTicketType(pendingDeleteAction.index);
+          toast({ title: "Ticket Type Deleted", description: `Ticket type "${pendingDeleteAction.name}" has been deleted.` });
+        }
+      }
+
+      setIsPasswordDialogOpen(false);
+      setAdminPassword("");
+      setPendingDeleteAction(null);
+    } catch (error) {
+      console.error("Password verification failed:", error);
+      toast({
+        title: "Verification Failed",
+        description: error instanceof Error ? error.message : "Invalid password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsVerifyingPassword(false);
     }
   };
 
@@ -696,7 +803,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
               <FormDescription>Add specific dates and times for the event. For each showtime, set the number of available tickets for each type you defined earlier.</FormDescription>
               <div className="space-y-4">
                 {showTimeFields.map((field, index) => (
-                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={removeShowTime} openAddTicketTypeDialog={openAddTicketTypeDialog} />
+                  <ShowTimeSubForm key={field.id} form={form} showtimeIndex={index} removeShowTime={handleDeleteShowtime} openAddTicketTypeDialog={openAddTicketTypeDialog} />
                 ))}
                 {showTimeFields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No showtimes defined. Add one to get started.</p>}
               </div>
@@ -769,7 +876,13 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     <p><span className="font-semibold">Name:</span> {ticketToDelete?.name}</p>
                     <p><span className="font-semibold">ID:</span> <code className="text-xs font-mono">{ticketToDelete?.id || 'N/A (new)'}</code></p>
                 </div>
-                Deleting a ticket type definition may fail if it is currently in use by a showtime.
+                {ticketToDelete?.id && bookedTicketTypeIds.has(String(ticketToDelete.id)) ? (
+                  <div className="text-destructive font-semibold my-2 p-2 border border-destructive/50 bg-destructive/10 rounded-md">
+                    ⚠️ WARNING: This ticket type has active customer bookings! Deleting it will cause data corruption. If you proceed, administrator password verification will be required.
+                  </div>
+                ) : (
+                  <p>Deleting a ticket type definition may fail if it is currently in use by a showtime.</p>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -785,6 +898,42 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-destructive">
+                <AlertTriangle className="mr-2 h-5 w-5" /> Critical Action: Password Verification
+              </DialogTitle>
+              <DialogDescription>
+                You are attempting to delete a showtime or ticket type with **active customer bookings**. 
+                Deleting this will orphaned existing bookings! Please enter your administrator password to confirm this action.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Administrator Password</label>
+                <Input 
+                  type="password" 
+                  placeholder="Enter administrator password" 
+                  value={adminPassword} 
+                  onChange={(e) => setAdminPassword(e.target.value)} 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsPasswordDialogOpen(false);
+                setAdminPassword("");
+                setPendingDeleteAction(null);
+              }} disabled={isVerifyingPassword}>Cancel</Button>
+              <Button variant="destructive" onClick={handleVerifyPasswordAndDelete} disabled={isVerifyingPassword}>
+                {isVerifyingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify & Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isAddShowTimeDialogOpen} onOpenChange={setAddShowTimeDialogOpen}>
             <DialogContent>

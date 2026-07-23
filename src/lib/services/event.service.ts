@@ -453,7 +453,7 @@ export const updateEvent = async (
 
   // Deletions
   for (const idToDelete of initialShowTimeIds) {
-    if (!finalTicketTypeIds.has(idToDelete)) {
+    if (!finalShowTimeIds.has(idToDelete)) {
       console.log(`[updateEvent] Deleting showtime ID: ${idToDelete}`);
       promises.push(deleteShowTime(idToDelete));
     }
