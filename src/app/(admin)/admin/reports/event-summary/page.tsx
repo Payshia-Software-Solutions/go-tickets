@@ -139,13 +139,13 @@ export default function EventSummaryReportPage() {
     const summaryMap = new Map<string, Omit<TicketSummary, 'typeName'>>();
 
     reportData.ticketTypes.forEach(tt => {
-        summaryMap.set(tt.id, { sold: 0, verified: 0, revenue: 0 });
+        summaryMap.set(String(tt.id), { sold: 0, verified: 0, revenue: 0 });
     });
 
     reportData.bookedShowtimes.forEach(showtime => {
         const ticketInfo = summaryMap.get(String(showtime.tickettype_id));
         if (ticketInfo) {
-            const price = reportData.ticketTypes.find(tt => tt.id === String(showtime.tickettype_id))?.price || 0;
+            const price = reportData.ticketTypes.find(tt => String(tt.id) === String(showtime.tickettype_id))?.price || 0;
             const quantity = parseInt(showtime.ticket_count, 10) || 0;
             ticketInfo.sold += quantity;
             ticketInfo.revenue += quantity * price;
@@ -160,7 +160,7 @@ export default function EventSummaryReportPage() {
     });
 
     return Array.from(summaryMap.entries()).map(([ticketTypeId, summary]) => ({
-      typeName: reportData.ticketTypes.find(tt => tt.id === ticketTypeId)?.name || 'Unknown Type',
+      typeName: reportData.ticketTypes.find(tt => String(tt.id) === ticketTypeId)?.name || 'Unknown Type',
       ...summary
     })).sort((a,b) => a.typeName.localeCompare(b.typeName));
 
@@ -178,14 +178,14 @@ export default function EventSummaryReportPage() {
   const enrichedTicketRecords = useMemo((): EnrichedTicketRecord[] => {
     if (!reportData) return [];
     
-    const bookingMap = new Map(reportData.bookings.map(b => [b.id, b]));
+    const bookingMap = new Map(reportData.bookings.map(b => [String(b.id), b]));
 
     return reportData.bookedShowtimes.map((st: any) => {
       const parentBooking = bookingMap.get(String(st.booking_id));
       return {
-        id: st.id,
+        id: String(st.id),
         bookingId: String(st.booking_id),
-        ticketTypeName: reportData.ticketTypes.find(tt => tt.id === String(st.tickettype_id))?.name || 'Unknown Type',
+        ticketTypeName: reportData.ticketTypes.find(tt => String(tt.id) === String(st.tickettype_id))?.name || 'Unknown Type',
         quantity: parseInt(st.ticket_count, 10) || 0,
         attendeeName: parentBooking?.userName || 'N/A',
         attendeeEmail: parentBooking?.billingAddress?.email || 'N/A',
@@ -477,7 +477,7 @@ export default function EventSummaryReportPage() {
                                         {paginatedVerifications.map(log => (
                                             <TableRow key={log.id}>
                                                 <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
-                                                <TableCell>{reportData.ticketTypes.find(tt => tt.id === String(log.tickettype_id))?.name || `ID: ${log.tickettype_id}`}</TableCell>
+                                                <TableCell>{reportData.ticketTypes.find(tt => String(tt.id) === String(log.tickettype_id))?.name || `ID: ${log.tickettype_id}`}</TableCell>
                                                 <TableCell className="text-center">{log.ticket_count}</TableCell>
                                                 <TableCell>{log.checking_by}</TableCell>
                                                 <TableCell>{format(new Date(log.checking_time), 'PPp')}</TableCell>
