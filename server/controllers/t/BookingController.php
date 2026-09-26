@@ -1321,7 +1321,7 @@ class BookingController
     </div>
 
     <div class="footer">
-        GoTickets.lk &bull; Grand Silver Ray, Pelmadulla, Sri Lanka &bull; Support: support@gotickets.lk | +94 71 678 7700<br>
+        GoTickets.lk &bull; Grand Silver Ray, Pelmadulla, Sri Lanka &bull; Support: support@gotickets.lk | +94 71 910 7700<br>
         &copy; ' . date('Y') . ' GoTickets.lk. All rights reserved.
     </div>
 
