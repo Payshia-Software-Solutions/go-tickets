@@ -738,23 +738,37 @@ class BookingController
         $mail = new PHPMailer(true);
 
         try {
-            // Server settings
+            // Server settings from environment
             $mail->isSMTP();
-            $mail->Host = 'mail.gotickets.lk';  // SMTP server
+            $mail->Host = env('SMTP_HOST', 'mail.gotickets.lk');
             $mail->SMTPAuth = true;
-            $mail->Username = 'no-reply@gotickets.lk';  // SMTP username
-            $mail->Password = 'B3aalFq%rPgezPE7';  // SMTP password
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;  // Use implicit TLS encryption
-            $mail->Port = 465;  // TCP port for SMTP
+            $mail->Username = env('SMTP_USERNAME', 'no-reply@gotickets.lk');
+            $mail->Password = env('SMTP_PASSWORD', 'B3aalFq%rPgezPE7');
+            
+            $smtpPort = (int)env('SMTP_PORT', 465);
+            $mail->Port = $smtpPort;
+            if ($smtpPort === 465) {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else if ($smtpPort === 587) {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            }
 
-            // Recipients
-            $mail->setFrom('no-reply@gotickets.lk', 'GoTickets.lk | Discover Your Next Event');
-            $mail->addAddress($customerEmail); // Add the customer's email
-            // $mail->addCC('thilinaruwan112@gmail.com');
-            $mail->addCC('reservation@silverray.lk');
-            $mail->addCC('chalanik@silverray.lk');
-            $mail->addCC('sanjayad@silverray.lk');
-            $mail->addCC('shanilka@silverray.lk');
+            // Sender and primary recipient
+            $fromEmail = env('SMTP_FROM_EMAIL', 'no-reply@gotickets.lk');
+            $fromName  = env('SMTP_FROM_NAME', 'GoTickets.lk | Discover Your Next Event');
+            $mail->setFrom($fromEmail, $fromName);
+            $mail->addAddress($customerEmail);
+
+            // Optional CC emails from environment (comma-separated)
+            $ccList = env('SMTP_CC_EMAILS', 'reservation@silverray.lk,chalanik@silverray.lk,sanjayad@silverray.lk,shanilka@silverray.lk');
+            if (!empty($ccList)) {
+                $ccEmails = array_map('trim', explode(',', $ccList));
+                foreach ($ccEmails as $cc) {
+                    if (!empty($cc) && filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                        $mail->addCC($cc);
+                    }
+                }
+            }
 
             // Generate email content
             $emailContent = $this->generateBookingEmailHTML($orderData);
