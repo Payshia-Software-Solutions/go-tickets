@@ -534,7 +534,7 @@ class BookingController
                     'event_location' => $bookingInfo['eventLocation'],
                     'booking_date' => $bookingInfo['bookingDate'], // When booking was made
                     'customer_name' => $bookingInfo['user_billing_info']['name'],
-                    'customer_email' => $bookingInfo['eventDate'],
+                    'customer_email' => $bookingInfo['email'],
                     'view_ticket_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
                     'view_bookings_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
                     'home_url' => 'https://gotickets.silverray.lk'
@@ -618,7 +618,7 @@ class BookingController
             'event_location' => $bookingInfo['eventLocation'],
             'booking_date' => $bookingInfo['bookingDate'], // When booking was made
             'customer_name' => $bookingInfo['user_billing_info']['name'],
-            'customer_email' => $bookingInfo['eventDate'],
+            'customer_email' => $bookingInfo['email'],
             'view_ticket_url' => 'https://gotickets.lk/booking-confirmation?order_id=' . $bookingId,
             'view_bookings_url' => 'https://gotickets.lk/booking-confirmation?order_id=' . $bookingId,
             'home_url' => 'https://gotickets.lk'
