@@ -13,7 +13,7 @@ import {
   CheckCircle, Minus, Plus, CreditCard, UploadCloud, 
   FileText, X, AlertCircle, Banknote, DollarSign, Clock,
   ChevronDown, ChevronUp, Phone, Mail, Building2, Sparkles,
-  Receipt, ShieldCheck, Check
+  Receipt, ShieldCheck, Check, Gift
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { adminGetAllEvents, getAdminEventById, createBooking } from '@/lib/mockData';
@@ -71,9 +71,19 @@ export default function AdminNewBookingPage() {
   const [paymentNotes, setPaymentNotes] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isComplimentary = paymentMethod === 'Complimentary';
+
+  useEffect(() => {
+    if (isComplimentary) {
+      setPaymentStatusMode('paid');
+      setCustomAmountPaid('');
+    }
+  }, [isComplimentary]);
+
   const isSlipRequired = useMemo(() => {
+    if (isComplimentary) return false;
     return (paymentStatusMode !== 'pending') && (paymentMethod === 'Bank Transfer' || paymentMethod === 'Direct Cash Deposit');
-  }, [paymentStatusMode, paymentMethod]);
+  }, [isComplimentary, paymentStatusMode, paymentMethod]);
 
   const billingForm = useForm<ManualBookingFormData>({
     resolver: zodResolver(ManualBookingFormSchema),
@@ -157,15 +167,17 @@ export default function AdminNewBookingPage() {
 
   // Payment amounts calculation
   const effectivePaidAmount = useMemo(() => {
+    if (isComplimentary) return 0; // Customer paid LKR 0 (Free invitation)
     if (paymentStatusMode === 'paid') return totalPrice;
     if (paymentStatusMode === 'pending') return 0;
     const parsed = parseFloat(customAmountPaid);
     return isNaN(parsed) ? 0 : Math.max(0, Math.min(totalPrice, parsed));
-  }, [paymentStatusMode, customAmountPaid, totalPrice]);
+  }, [isComplimentary, paymentStatusMode, customAmountPaid, totalPrice]);
 
   const balanceDue = useMemo(() => {
+    if (isComplimentary) return 0; // Balance is 0 for complimentary
     return Math.max(0, totalPrice - effectivePaidAmount);
-  }, [totalPrice, effectivePaidAmount]);
+  }, [isComplimentary, totalPrice, effectivePaidAmount]);
 
   const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -237,9 +249,10 @@ export default function AdminNewBookingPage() {
         uploadedSlipUrl = uploadResult.filePath;
       }
 
-      const paymentStatusValue = 
+      const paymentStatusValue = isComplimentary ? 'Paid' : (
         paymentStatusMode === 'paid' ? 'Paid' : 
-        (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'pending');
+        (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'pending')
+      );
 
       const billingPayload: BillingAddress = {
         firstName: formData.firstName,
@@ -262,11 +275,11 @@ export default function AdminNewBookingPage() {
         isGuest: true,
         booked_type: 'manualy',
         payment_status: paymentStatusValue,
-        amount_paid: effectivePaidAmount,
-        balance_amount: balanceDue,
+        amount_paid: isComplimentary ? 0 : effectivePaidAmount,
+        balance_amount: isComplimentary ? 0 : balanceDue,
         payment_method: paymentMethod,
         payment_slip: uploadedSlipUrl,
-        payment_notes: paymentNotes || (paymentReference ? `Ref: ${paymentReference}` : undefined),
+        payment_notes: paymentNotes || (isComplimentary ? 'Complimentary VIP / Free Pass' : (paymentReference ? `Ref: ${paymentReference}` : undefined)),
       });
 
       let bookingId = '';
@@ -703,63 +716,76 @@ export default function AdminNewBookingPage() {
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Payment Status
                 </Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentStatusMode('paid');
-                      setCustomAmountPaid('');
-                    }}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      paymentStatusMode === 'paid'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 ring-2 ring-emerald-600/20'
-                        : 'border-border bg-card hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1 font-semibold text-xs">
-                      <Check className="h-3.5 w-3.5 text-emerald-600" /> Full Paid
+                {isComplimentary ? (
+                  <div className="p-3 rounded-lg border border-purple-300 bg-purple-50/80 dark:bg-purple-950/40 dark:border-purple-800 flex items-center justify-between text-xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-purple-900 dark:text-purple-200">100% Complimentary Free Pass</p>
+                        <p className="text-[11px] text-purple-700 dark:text-purple-300">Admission ticket will be issued with full 100% waiver (LKR 0.00 Due).</p>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">100% Upfront</div>
-                  </button>
+                    <Badge className="bg-purple-600 hover:bg-purple-600 text-white font-mono text-[10px]">100% FREE</Badge>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentStatusMode('paid');
+                        setCustomAmountPaid('');
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        paymentStatusMode === 'paid'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 ring-2 ring-emerald-600/20'
+                          : 'border-border bg-card hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 font-semibold text-xs">
+                        <Check className="h-3.5 w-3.5 text-emerald-600" /> Full Paid
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">100% Upfront</div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentStatusMode('partially_paid');
-                      if (!customAmountPaid && totalPrice > 0) {
-                        setCustomAmountPaid((totalPrice / 2).toString());
-                      }
-                    }}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      paymentStatusMode === 'partially_paid'
-                        ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 ring-2 ring-amber-500/20'
-                        : 'border-border bg-card hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1 font-semibold text-xs">
-                      <Clock className="h-3.5 w-3.5 text-amber-600" /> Advance
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Installment</div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentStatusMode('partially_paid');
+                        if (!customAmountPaid && totalPrice > 0) {
+                          setCustomAmountPaid((totalPrice / 2).toString());
+                        }
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        paymentStatusMode === 'partially_paid'
+                          ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 ring-2 ring-amber-500/20'
+                          : 'border-border bg-card hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 font-semibold text-xs">
+                        <Clock className="h-3.5 w-3.5 text-amber-600" /> Advance
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Installment</div>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentStatusMode('pending');
-                      setCustomAmountPaid('');
-                    }}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      paymentStatusMode === 'pending'
-                        ? 'border-rose-500 bg-rose-50 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300 ring-2 ring-rose-500/20'
-                        : 'border-border bg-card hover:bg-muted/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1 font-semibold text-xs">
-                      <AlertCircle className="h-3.5 w-3.5 text-rose-600" /> Pending
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">Pay Later</div>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentStatusMode('pending');
+                        setCustomAmountPaid('');
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        paymentStatusMode === 'pending'
+                          ? 'border-rose-500 bg-rose-50 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300 ring-2 ring-rose-500/20'
+                          : 'border-border bg-card hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 font-semibold text-xs">
+                        <AlertCircle className="h-3.5 w-3.5 text-rose-600" /> Pending
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Pay Later</div>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Payment Method & Paid Amount (2-col grid) */}
@@ -776,7 +802,7 @@ export default function AdminNewBookingPage() {
                       <SelectItem value="Cash">Cash in Hand</SelectItem>
                       <SelectItem value="Card / POS">Credit / Debit Card (POS)</SelectItem>
                       <SelectItem value="Cheque">Cheque</SelectItem>
-                      <SelectItem value="Complimentary">Complimentary / Free</SelectItem>
+                      <SelectItem value="Complimentary">Complimentary / Free Pass</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
@@ -785,7 +811,7 @@ export default function AdminNewBookingPage() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <Label className="text-xs font-semibold">Amount Paid (LKR)</Label>
-                    {paymentStatusMode === 'partially_paid' && totalPrice > 0 && (
+                    {!isComplimentary && paymentStatusMode === 'partially_paid' && totalPrice > 0 && (
                       <div className="flex gap-1">
                         <button
                           type="button"
@@ -812,12 +838,14 @@ export default function AdminNewBookingPage() {
                     )}
                   </div>
                   <Input 
-                    type="number" 
-                    min="0"
-                    max={totalPrice}
-                    placeholder={paymentStatusMode === 'paid' ? totalPrice.toString() : "0.00"} 
-                    value={paymentStatusMode === 'paid' ? totalPrice : (paymentStatusMode === 'pending' ? '0' : customAmountPaid)}
-                    disabled={paymentStatusMode !== 'partially_paid'}
+                    type="text" 
+                    placeholder={isComplimentary ? "0.00 (Free Pass)" : (paymentStatusMode === 'paid' ? totalPrice.toString() : "0.00")} 
+                    value={
+                      isComplimentary 
+                        ? '0.00 (100% Free Waiver)' 
+                        : (paymentStatusMode === 'paid' ? totalPrice : (paymentStatusMode === 'pending' ? '0' : customAmountPaid))
+                    }
+                    disabled={isComplimentary || paymentStatusMode !== 'partially_paid'}
                     onChange={(e) => setCustomAmountPaid(e.target.value)}
                     className="h-9 text-xs font-mono font-bold"
                   />
@@ -918,14 +946,16 @@ export default function AdminNewBookingPage() {
                 <Badge 
                   variant="outline" 
                   className={`text-[11px] font-semibold uppercase px-2 py-0.5 ${
-                    paymentStatusMode === 'paid' 
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' 
-                      : (paymentStatusMode === 'partially_paid' 
-                        ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300' 
-                        : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300')
+                    isComplimentary
+                      ? 'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950 dark:text-purple-300'
+                      : paymentStatusMode === 'paid' 
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' 
+                        : (paymentStatusMode === 'partially_paid' 
+                          ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300' 
+                          : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300')
                   }`}
                 >
-                  {paymentStatusMode === 'paid' ? 'Fully Paid' : (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'Pending')}
+                  {isComplimentary ? 'Complimentary Pass' : (paymentStatusMode === 'paid' ? 'Fully Paid' : (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'Pending'))}
                 </Badge>
               </div>
             </CardHeader>
@@ -975,39 +1005,79 @@ export default function AdminNewBookingPage() {
 
               {/* Financial Ledger (Total / Paid / Balance) */}
               <div className="space-y-2 border-t pt-3 font-mono">
-                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                  <span>Total Amount:</span>
-                  <span className="text-sm font-bold text-foreground">
-                    LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs text-emerald-600 dark:text-emerald-400">
-                  <span className="flex items-center gap-1">
-                    <Check className="h-3 w-3" /> Amount Paid:
-                  </span>
-                  <span className="font-bold">
-                    LKR {effectivePaidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs border-t pt-2">
-                  <span className="font-semibold text-foreground">Balance Due:</span>
-                  <span className={`text-sm font-bold ${balanceDue > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                    LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
+                {isComplimentary ? (
+                  <>
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Standard Ticket Value:</span>
+                      <span className="line-through text-muted-foreground">
+                        LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-purple-600 dark:text-purple-400 font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Gift className="h-3 w-3" /> Complimentary Waiver:
+                      </span>
+                      <span>- 100% (FREE)</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Total Amount Charged:</span>
+                      <span className="text-sm font-bold text-foreground">
+                        LKR 0.00
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs border-t pt-2">
+                      <span className="font-semibold text-foreground">Balance Due:</span>
+                      <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                        LKR 0.00 (Settled)
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Total Amount:</span>
+                      <span className="text-sm font-bold text-foreground">
+                        LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-emerald-600 dark:text-emerald-400">
+                      <span className="flex items-center gap-1">
+                        <Check className="h-3 w-3" /> Amount Paid:
+                      </span>
+                      <span className="font-bold">
+                        LKR {effectivePaidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs border-t pt-2">
+                      <span className="font-semibold text-foreground">Balance Due:</span>
+                      <span className={`text-sm font-bold ${balanceDue > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Action Button */}
               <div className="pt-2">
                 <Button 
-                  className="w-full h-11 text-sm font-bold shadow-md" 
-                  disabled={isSubmitting || totalPrice === 0 || totalTicketsCount === 0}
+                  className={`w-full h-11 text-sm font-bold shadow-md ${
+                    isComplimentary 
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                      : ''
+                  }`} 
+                  disabled={isSubmitting || totalTicketsCount === 0}
                   onClick={billingForm.handleSubmit(onSubmit)}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="animate-spin h-4 w-4 mr-2"/>
-                      Issuing Booking & Tickets...
+                      {isComplimentary ? 'Issuing Free Passes...' : 'Issuing Booking & Tickets...'}
+                    </>
+                  ) : isComplimentary ? (
+                    <>
+                      <Gift className="h-4 w-4 mr-2"/>
+                      Confirm & Issue Free Passes ({totalTicketsCount})
                     </>
                   ) : (
                     <>
@@ -1016,7 +1086,7 @@ export default function AdminNewBookingPage() {
                     </>
                   )}
                 </Button>
-                {totalPrice === 0 && (
+                {totalTicketsCount === 0 && (
                   <p className="text-[11px] text-center text-muted-foreground mt-1.5">
                     Select at least 1 ticket to enable booking creation
                   </p>
