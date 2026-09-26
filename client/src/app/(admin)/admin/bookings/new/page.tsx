@@ -71,6 +71,10 @@ export default function AdminNewBookingPage() {
   const [paymentNotes, setPaymentNotes] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isSlipRequired = useMemo(() => {
+    return (paymentStatusMode !== 'pending') && (paymentMethod === 'Bank Transfer' || paymentMethod === 'Direct Cash Deposit');
+  }, [paymentStatusMode, paymentMethod]);
+
   const billingForm = useForm<ManualBookingFormData>({
     resolver: zodResolver(ManualBookingFormSchema),
     mode: "onChange",
@@ -211,6 +215,16 @@ export default function AdminNewBookingPage() {
 
     if (cart.length === 0) {
       toast({ title: "No Tickets Selected", description: "Please select at least one ticket before proceeding.", variant: "destructive" });
+      return;
+    }
+
+    const isSlipRequired = (paymentStatusMode !== 'pending') && (paymentMethod === 'Bank Transfer' || paymentMethod === 'Direct Cash Deposit');
+    if (isSlipRequired && !paymentSlipFile) {
+      toast({ 
+        title: "Payment Slip Required", 
+        description: `Please attach the bank transfer / CDM slip for ${paymentMethod}. (Or choose 'Cash in Hand' if cash was received).`, 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -814,9 +828,13 @@ export default function AdminNewBookingPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <UploadCloud className="h-3.5 w-3.5 text-primary"/> Bank Slip / Payment Proof
+                    <UploadCloud className="h-3.5 w-3.5 text-primary"/>
+                    {paymentMethod === 'Cash' ? 'Payment Proof / Counter Receipt' : 'Bank Slip / Payment Proof'}{' '}
+                    {isSlipRequired && <span className="text-destructive font-bold">*</span>}
                   </span>
-                  <span className="text-[11px] text-muted-foreground font-normal">Optional</span>
+                  <span className={`text-[11px] ${isSlipRequired ? 'text-destructive font-semibold' : 'text-muted-foreground font-normal'}`}>
+                    {isSlipRequired ? 'Required for Bank/CDM' : (paymentMethod === 'Cash' ? 'Optional for Cash in Hand' : 'Optional')}
+                  </span>
                 </Label>
                 
                 {paymentSlipFile ? (
@@ -843,10 +861,16 @@ export default function AdminNewBookingPage() {
                 ) : (
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/60 rounded-lg p-3.5 text-center cursor-pointer transition-colors bg-muted/5 hover:bg-muted/15"
+                    className={`border-2 border-dashed rounded-lg p-3.5 text-center cursor-pointer transition-colors ${
+                      isSlipRequired 
+                        ? 'border-amber-500/50 bg-amber-50/10 hover:border-amber-500' 
+                        : 'border-muted-foreground/25 hover:border-primary/60 bg-muted/5 hover:bg-muted/15'
+                    }`}
                   >
                     <UploadCloud className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
-                    <p className="text-xs font-medium">Click to upload deposit slip or bank receipt</p>
+                    <p className="text-xs font-medium">
+                      {isSlipRequired ? 'Click to upload bank transfer slip (Required)' : 'Click to upload deposit slip or counter receipt (Optional)'}
+                    </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">JPG, PNG, WEBP, or PDF (Max 10MB)</p>
                     <input 
                       ref={fileInputRef} 

@@ -60,6 +60,7 @@ export default function BookingDetailsPage() {
   // Add Payment Form State
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('Bank Transfer');
+  const isSlipRequired = paymentMethod === 'Bank Transfer' || paymentMethod === 'Direct Cash Deposit';
   const [paymentRef, setPaymentRef] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
   const [slipFile, setSlipFile] = useState<File | null>(null);
@@ -157,6 +158,16 @@ export default function BookingDetailsPage() {
     const amountNum = parseFloat(paymentAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid payment amount.", variant: "destructive" });
+      return;
+    }
+
+    const isSlipRequired = paymentMethod === 'Bank Transfer' || paymentMethod === 'Direct Cash Deposit';
+    if (isSlipRequired && !slipFile) {
+      toast({ 
+        title: "Bank Slip Required", 
+        description: `Please attach the bank slip for ${paymentMethod} verification. (Or change payment method to 'Cash in Hand' if cash was received).`, 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -699,7 +710,15 @@ export default function BookingDetailsPage() {
 
             {/* Slip Upload */}
             <div className="space-y-2">
-              <Label>Bank Slip / Proof of Payment (Optional)</Label>
+              <Label className="flex items-center justify-between text-xs">
+                <span className="font-semibold flex items-center gap-1">
+                  {paymentMethod === 'Cash' ? 'Payment Proof / Receipt' : 'Bank Slip / Payment Proof'}{' '}
+                  {isSlipRequired && <span className="text-destructive font-bold">*</span>}
+                </span>
+                <span className={`text-[11px] ${isSlipRequired ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                  {isSlipRequired ? 'Required for Bank/CDM' : 'Optional for Cash in Hand'}
+                </span>
+              </Label>
               {slipFile ? (
                 <div className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/30">
                   <div className="flex items-center space-x-2">
@@ -713,10 +732,15 @@ export default function BookingDetailsPage() {
               ) : (
                 <div 
                   onClick={() => paymentSlipInputRef.current?.click()}
-                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-muted/20 transition-colors"
+                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                    isSlipRequired ? 'border-amber-500/50 bg-amber-50/10 hover:border-amber-500' : 'hover:bg-muted/20'
+                  }`}
                 >
                   <UploadCloud className="h-6 w-6 mx-auto text-muted-foreground mb-1"/>
-                  <p className="text-xs font-medium">Click to attach bank slip (JPG, PNG, PDF)</p>
+                  <p className="text-xs font-medium">
+                    {isSlipRequired ? 'Click to upload bank transfer slip (Required)' : 'Click to attach counter receipt or voucher (Optional)'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Supports JPG, PNG, or PDF (Max 10MB)</p>
                   <input 
                     ref={paymentSlipInputRef}
                     type="file"
