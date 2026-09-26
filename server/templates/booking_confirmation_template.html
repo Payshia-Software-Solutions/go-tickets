@@ -84,7 +84,6 @@
             font-weight: 700;
             padding: 6px 14px;
             border-radius: 9999px;
-            text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         .title {
@@ -287,18 +286,20 @@
                             <!-- Event Details Card -->
                             <div class="event-card">
                                 <div class="event-name">{{EVENT_NAME}}</div>
-                                <div class="meta-item">
-                                    <span class="meta-label">📅 Date & Time:</span>
-                                    <strong>{{EVENT_DATE_TIME}}</strong>
-                                </div>
-                                <div class="meta-item">
-                                    <span class="meta-label">📍 Venue:</span>
-                                    <strong>{{EVENT_LOCATION}}</strong>
-                                </div>
-                                <div class="meta-item">
-                                    <span class="meta-label">🎟️ Booking ID:</span>
-                                    <span style="font-family: monospace; font-weight: bold; color: #2563eb;">#{{BOOKING_ID}}</span>
-                                </div>
+                                <table role="presentation" width="100%" style="border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 5px 0; width: 140px; font-size: 13px; font-weight: 600; color: #64748b; vertical-align: top;">Date &amp; Time:</td>
+                                        <td style="padding: 5px 0; font-size: 13.5px; font-weight: 700; color: #0f172a; vertical-align: top;">{{EVENT_DATE_TIME}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0; font-size: 13px; font-weight: 600; color: #64748b; vertical-align: top;">Venue Location:</td>
+                                        <td style="padding: 5px 0; font-size: 13.5px; font-weight: 700; color: #0f172a; vertical-align: top;">{{EVENT_LOCATION}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 0; font-size: 13px; font-weight: 600; color: #64748b; vertical-align: top;">Booking Reference:</td>
+                                        <td style="padding: 5px 0; font-size: 14px; font-family: monospace; font-weight: 700; color: #2563eb; vertical-align: top;">#{{BOOKING_ID}}</td>
+                                    </tr>
+                                </table>
                             </div>
 
                             <!-- Ticket & Payment Summary Table -->
@@ -340,7 +341,7 @@
 
                             <!-- Attachment Callout -->
                             <div class="attachment-box">
-                                <div class="attachment-title">📎 Official Ticket (PDF) Attached</div>
+                                <div class="attachment-title">Official E-Ticket (PDF) Attached</div>
                                 <div class="attachment-text">
                                     We have attached your official PDF ticket (<strong>GoTickets_Ticket_{{BOOKING_ID}}.pdf</strong>) to this email. You can present it on your smartphone or print it out.
                                 </div>

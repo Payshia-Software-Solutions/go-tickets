@@ -818,8 +818,8 @@ class BookingController
         $paymentStatus = strtolower($bookingData['payment_status'] ?? $bookingInfo['payment_status'] ?? 'paid');
         $isPaid = ($paymentStatus === 'paid' || $balanceDue <= 0);
         $statusBadgeHtml = $isPaid 
-            ? '<span class="status-badge" style="display: inline-block; background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">&check; PAYMENT CONFIRMED</span>'
-            : '<span class="status-badge" style="display: inline-block; background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">&bull; ADVANCE CONFIRMED (PARTIAL)</span>';
+            ? '<span class="status-badge" style="display: inline-block; background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px;">&#10003; PAYMENT CONFIRMED</span>'
+            : '<span class="status-badge" style="display: inline-block; background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px;">&#9679; ADVANCE CONFIRMED (PARTIAL)</span>';
 
         $qrCodeVal = $bookingData['qr_code_value'] ?? $bookingInfo['qrCodeValue'] ?? ('BOOK-' . $bookingId);
         $viewTicketUrl = $bookingData['view_ticket_url'] ?? ('https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId);
@@ -1377,6 +1377,8 @@ class BookingController
 
             // Server settings from environment
             $mail->isSMTP();
+            $mail->CharSet = 'UTF-8';
+            $mail->Encoding = 'base64';
             $mail->Host = env('SMTP_HOST', 'mail.gotickets.lk');
             $mail->SMTPAuth = true;
             $mail->Username = env('SMTP_USERNAME', 'no-reply@gotickets.lk');
