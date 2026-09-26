@@ -38,6 +38,7 @@ import { format } from 'date-fns';
 import { getBookingByQrCode, getBookingById, adminGetBookingSummaries, adminGetAllEvents } from '@/lib/mockData';
 import { API_BASE_URL } from '@/lib/constants';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface RecentVerificationItem {
   id: string;
@@ -50,6 +51,7 @@ interface RecentVerificationItem {
 }
 
 const TicketVerificationPage = () => {
+  const { user } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
   const [isScannerStarting, setIsScannerStarting] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
@@ -446,6 +448,7 @@ const TicketVerificationPage = () => {
   const executeCheckIn = async (quantitiesToCommit: Record<string, number>) => {
     if (!scannedBooking) return;
 
+    const checkerName = (user?.name && user.name.trim()) || user?.email || "Admin Verifier";
     const checkInPayloads = [];
     for (const ticket of scannedBooking.bookedTickets) {
       const quantityToCheckIn = quantitiesToCommit[ticket.id] || 0;
@@ -457,7 +460,7 @@ const TicketVerificationPage = () => {
           tickettype_id: parseInt(ticket.ticketTypeId, 10),
           ticket_count: quantityToCheckIn,
           checking_time: format(new Date(), "yyyy-MM-dd HH:mm:ss"),
-          checking_by: "Admin Verifier"
+          checking_by: checkerName
         });
       }
     }
@@ -849,11 +852,19 @@ const TicketVerificationPage = () => {
         }
       `}</style>
 
-      <header>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
-          <QrCode className="mr-3 h-8 w-8" /> Ticket Verifier
-        </h1>
-        <p className="text-muted-foreground">Scan attendee QR codes or enter booking IDs to validate entry tickets.</p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline flex items-center">
+            <QrCode className="mr-3 h-8 w-8" /> Ticket Verifier
+          </h1>
+          <p className="text-muted-foreground text-sm">Scan attendee QR codes or enter booking IDs to validate entry tickets.</p>
+        </div>
+        {user && (
+          <div className="flex items-center gap-2 bg-muted/60 border rounded-full px-3.5 py-1.5 text-xs text-muted-foreground w-fit shadow-xs">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span>Logged in as: <strong className="text-foreground">{user.name || user.email}</strong></span>
+          </div>
+        )}
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
