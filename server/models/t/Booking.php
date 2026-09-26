@@ -192,8 +192,13 @@ class Booking
     // Update payment status only
     public function updatePaymentStatus($id, $payment_status)
     {
-        $stmt = $this->pdo->prepare("UPDATE `booking` SET `payment_status` = ? WHERE `id` = ?");
-        $stmt->execute([$payment_status, $id]);
+        if (strtolower($payment_status) === 'paid') {
+            $stmt = $this->pdo->prepare("UPDATE `booking` SET `payment_status` = ?, `amount_paid` = `totalPrice`, `balance_amount` = 0.00 WHERE `id` = ?");
+            $stmt->execute([$payment_status, $id]);
+        } else {
+            $stmt = $this->pdo->prepare("UPDATE `booking` SET `payment_status` = ? WHERE `id` = ?");
+            $stmt->execute([$payment_status, $id]);
+        }
     }
 
     // Delete a booking

@@ -228,7 +228,7 @@ export const createBooking = async (
     totalPrice: totalPrice,
     amount_paid: effectivePaid,
     balance_amount: effectiveBalance,
-    payment_method: payment_method || (booked_type === 'manualy' ? 'Bank Transfer' : 'PayHere'),
+    payment_method: payment_method || (booked_type === 'manualy' ? 'Bank Transfer' : 'online_payhere'),
     payment_slip: payment_slip || null,
     payment_notes: payment_notes || null,
     eventName: cart[0].eventName,

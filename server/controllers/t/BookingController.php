@@ -272,7 +272,9 @@ class BookingController
             }
 
             // ✅ Prepare booking data for model
-            $isManual = (isset($data['booked_type']) && $data['booked_type'] === 'manualy') || (isset($data['payment_method']) && $data['payment_method'] !== 'online_payhere');
+            $methodNorm = strtolower(str_replace([' ', '_', '-'], '', $data['payment_method'] ?? ''));
+            $isPayHere = in_array($methodNorm, ['onlinepayhere', 'payhere', '']);
+            $isManual = (isset($data['booked_type']) && $data['booked_type'] === 'manualy') || (isset($data['payment_method']) && !$isPayHere);
             $isComplimentary = isset($data['payment_method']) && strtolower(trim($data['payment_method'])) === 'complimentary';
 
             if ($isComplimentary) {
@@ -367,14 +369,16 @@ class BookingController
 
             // ✅ Initiate payment (for online checkouts)
             $totalvalue = $data['totalPrice'];
+            http_response_code(200);
+            header('Content-Type: text/html; charset=utf-8');
             $paymentform = $this->paymentController->initiatePayment(
                 $bookingId,
                 $totalvalue,
                 $created
             );
 
-            http_response_code(201);
             echo $paymentform;
+            return;
 
             // Alternative: Return JSON response (uncomment if needed)
             /*
