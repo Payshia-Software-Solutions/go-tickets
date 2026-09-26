@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { getBookingByQrCode, getBookingById } from '@/lib/mockData';
+import { getBookingByQrCode, getBookingById, adminGetBookingSummaries, adminGetAllEvents } from '@/lib/mockData';
 import { API_BASE_URL } from '@/lib/constants';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
@@ -130,6 +130,47 @@ const TicketVerificationPage = () => {
     }
   }, []);
 
+  const fetchRecentVerifications = useCallback(async () => {
+    try {
+      const [verificationsRes, bookingsData, eventsData] = await Promise.all([
+        fetch(`${API_BASE_URL}/tickets-verifications`),
+        adminGetBookingSummaries().catch(() => []),
+        adminGetAllEvents().catch(() => [])
+      ]);
+
+      if (!verificationsRes.ok) return;
+      const rawLogs: any[] = await verificationsRes.json();
+      if (!Array.isArray(rawLogs)) return;
+
+      const bookingMap = new Map((bookingsData || []).map((b: any) => [String(b.id), b]));
+      const eventMap = new Map((eventsData || []).map((e: any) => [String(e.id), e.name]));
+
+      const sorted = rawLogs.sort((a, b) => new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime());
+      const top5 = sorted.slice(0, 5);
+
+      const formatted: RecentVerificationItem[] = top5.map(log => {
+        const booking = bookingMap.get(String(log.booking_id));
+        const eventName = eventMap.get(String(log.event_id)) || `Event #${log.event_id}`;
+        const attendeeName = booking?.userName || 'Attendee';
+        const isComp = (booking?.payment_method || '').toLowerCase() === 'complimentary';
+
+        return {
+          id: String(log.id),
+          bookingId: String(log.booking_id),
+          attendeeName,
+          eventName,
+          ticketCount: parseInt(log.ticket_count, 10) || 1,
+          time: format(new Date(log.checking_time), "HH:mm:ss"),
+          isComplimentary: isComp,
+        };
+      });
+
+      setRecentCheckIns(formatted);
+    } catch (err) {
+      console.warn("Could not fetch recent verifications:", err);
+    }
+  }, []);
+
   // Check secure context and fetch camera list on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -138,6 +179,9 @@ const TicketVerificationPage = () => {
         setIsInsecureOrigin(true);
       }
     }
+
+    // Load latest 5 check-ins from database
+    fetchRecentVerifications();
 
     Html5Qrcode.getCameras()
       .then(cameras => {
@@ -163,7 +207,7 @@ const TicketVerificationPage = () => {
         }
       }
     };
-  }, []);
+  }, [fetchRecentVerifications]);
 
   const resetVerification = () => {
     setScannedBooking(null);
@@ -449,7 +493,7 @@ const TicketVerificationPage = () => {
         description: `Successfully checked in ${totalCheckedIn} ticket(s).`
       });
 
-      // Add to recent check-ins log
+      // Update recent check-ins log (latest 5)
       const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
       const recentItem: RecentVerificationItem = {
         id: `${Date.now()}-${scannedBooking.id}`,
@@ -460,7 +504,8 @@ const TicketVerificationPage = () => {
         time: format(new Date(), "HH:mm:ss"),
         isComplimentary: isComp,
       };
-      setRecentCheckIns(prev => [recentItem, ...prev.slice(0, 7)]);
+      setRecentCheckIns(prev => [recentItem, ...prev.filter(i => i.id !== recentItem.id).slice(0, 4)]);
+      fetchRecentVerifications();
       
       // Refresh details silently without triggering duplicate error toast
       await fetchBookingDetails(scannedBooking.qrCodeValue || scannedBooking.id, true);
@@ -1084,7 +1129,7 @@ const TicketVerificationPage = () => {
               <CardHeader className="py-3 border-b">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <History className="h-4 w-4 text-muted-foreground" />
-                  Recent Check-ins (This Session)
+                  Recent Check-ins (Latest 5)
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 divide-y text-xs">
