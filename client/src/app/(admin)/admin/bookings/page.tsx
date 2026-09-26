@@ -78,63 +78,22 @@ export default function AdminBookingsPage() {
     fetchBookings();
   }, [fetchBookings]);
 
-  // Payment status breakdown counts
-  const statusCounts = useMemo(() => {
-    let paid = 0;
-    let partiallyPaid = 0;
-    let pending = 0;
+  // Bookings filtered by event and search query (before payment status filter)
+  const eventFilteredBookings = useMemo(() => {
+    let result = bookings;
 
-    bookings.forEach(b => {
-      const s = (b.payment_status || 'pending').toLowerCase().trim();
-      if (s === 'paid') {
-        paid++;
-      } else if (s === 'partially paid' || s === 'partially_paid' || s === 'partial') {
-        partiallyPaid++;
-      } else if (s === 'pending') {
-        pending++;
-      }
-    });
-
-    return {
-      all: bookings.length,
-      paid,
-      partiallyPaid,
-      pending
-    };
-  }, [bookings]);
-
-  const filteredBookings = useMemo(() => {
-    let filtered = bookings;
-    
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => {
-        const s = (booking.payment_status || 'pending').toLowerCase().trim();
-        if (statusFilter === 'paid') {
-          return s === 'paid';
-        }
-        if (statusFilter === 'partially_paid') {
-          return s === 'partially paid' || s === 'partially_paid' || s === 'partial';
-        }
-        if (statusFilter === 'pending') {
-          return s === 'pending';
-        }
-        return s === statusFilter;
-      });
-    }
-    
-    // Event filter - using the link map
+    // Event filter - using link map with fallback to direct booking.eventId
     if (eventFilter !== 'all') {
-      filtered = filtered.filter(booking => {
-        const bookingEventId = bookingEventMap.get(String(booking.id));
-        return bookingEventId === eventFilter;
+      result = result.filter(booking => {
+        const mappedEventId = bookingEventMap.get(String(booking.id));
+        return mappedEventId === eventFilter || String(booking.eventId) === eventFilter;
       });
     }
 
     // Search query filter (matches ID, customer name, email, phone, event)
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(booking => {
+      result = result.filter(booking => {
         const idMatch = String(booking.id).includes(q);
         const userName = (booking.userName || '').toLowerCase();
         const email = (booking.billingAddress?.email || '').toLowerCase();
@@ -149,8 +108,54 @@ export default function AdminBookingsPage() {
       });
     }
 
-    return filtered;
-  }, [bookings, statusFilter, eventFilter, searchQuery, bookingEventMap]);
+    return result;
+  }, [bookings, eventFilter, searchQuery, bookingEventMap]);
+
+  // Payment status breakdown counts dynamically updated for the selected event!
+  const statusCounts = useMemo(() => {
+    let paid = 0;
+    let partiallyPaid = 0;
+    let pending = 0;
+
+    eventFilteredBookings.forEach(b => {
+      const s = (b.payment_status || 'pending').toLowerCase().trim();
+      if (s === 'paid') {
+        paid++;
+      } else if (s === 'partially paid' || s === 'partially_paid' || s === 'partial') {
+        partiallyPaid++;
+      } else if (s === 'pending') {
+        pending++;
+      }
+    });
+
+    return {
+      all: eventFilteredBookings.length,
+      paid,
+      partiallyPaid,
+      pending
+    };
+  }, [eventFilteredBookings]);
+
+  // Final filtered bookings with status filter applied
+  const filteredBookings = useMemo(() => {
+    if (statusFilter === 'all') {
+      return eventFilteredBookings;
+    }
+
+    return eventFilteredBookings.filter(booking => {
+      const s = (booking.payment_status || 'pending').toLowerCase().trim();
+      if (statusFilter === 'paid') {
+        return s === 'paid';
+      }
+      if (statusFilter === 'partially_paid') {
+        return s === 'partially paid' || s === 'partially_paid' || s === 'partial';
+      }
+      if (statusFilter === 'pending') {
+        return s === 'pending';
+      }
+      return s === statusFilter;
+    });
+  }, [eventFilteredBookings, statusFilter]);
 
   const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
 
