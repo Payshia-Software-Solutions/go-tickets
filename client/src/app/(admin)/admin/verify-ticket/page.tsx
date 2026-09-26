@@ -74,6 +74,7 @@ const TicketVerificationPage = () => {
   const cameraCaptureRef = useRef<HTMLInputElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const isProcessingScanRef = useRef(false);
 
   // Web Audio API synthesized sound feedback (zero-dependency, always works on any device)
   const playAudioFeedback = useCallback((type: 'success' | 'error') => {
@@ -171,6 +172,7 @@ const TicketVerificationPage = () => {
     setManualCode('');
     setIsLoading(false);
     setIsCommitting(false);
+    isProcessingScanRef.current = false;
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -186,7 +188,7 @@ const TicketVerificationPage = () => {
     }
   }, [scannedBooking]);
 
-  const fetchBookingDetails = async (code: string) => {
+  const fetchBookingDetails = async (code: string, isSilentRefresh = false) => {
     setIsLoading(true);
     setScannedBooking(null);
     setVerificationError(null);
@@ -202,7 +204,9 @@ const TicketVerificationPage = () => {
       }
 
       if (result) {
-        playAudioFeedback('success');
+        if (!isSilentRefresh) {
+          playAudioFeedback('success');
+        }
         setScannedBooking(result);
 
         // Pre-fill quantities: default to 1 ticket if available, or all available
@@ -218,12 +222,11 @@ const TicketVerificationPage = () => {
         });
         setCheckInQuantities(initialQuantities);
 
-        if (!anyAvailable) {
-          playAudioFeedback('error');
+        // If it was already fully checked in before scanning, notify gently
+        if (!anyAvailable && !isSilentRefresh) {
           toast({
-            variant: 'destructive',
-            title: 'Already Fully Checked In',
-            description: `All tickets for Booking #${result.id} have already been checked in.`,
+            title: 'All Tickets Already Checked In',
+            description: `All tickets for Booking #${result.id} were already checked in previously.`,
           });
         }
       } else {
@@ -283,9 +286,15 @@ const TicketVerificationPage = () => {
           aspectRatio: undefined,
         },
         async (decodedText) => {
-          // Successfully scanned QR code
+          if (isProcessingScanRef.current) return;
+          isProcessingScanRef.current = true;
           console.log("[QR Scanner] Decoded:", decodedText);
-          await fetchBookingDetails(decodedText);
+          try {
+            await stopScanner();
+            await fetchBookingDetails(decodedText);
+          } finally {
+            isProcessingScanRef.current = false;
+          }
         },
         () => {
           // Frame-level scan miss (ignore to prevent log flooding)
@@ -453,8 +462,8 @@ const TicketVerificationPage = () => {
       };
       setRecentCheckIns(prev => [recentItem, ...prev.slice(0, 7)]);
       
-      // Refresh details
-      await fetchBookingDetails(scannedBooking.qrCodeValue || scannedBooking.id);
+      // Refresh details silently without triggering duplicate error toast
+      await fetchBookingDetails(scannedBooking.qrCodeValue || scannedBooking.id, true);
       
     } catch (error) {
       playAudioFeedback('error');
@@ -480,25 +489,6 @@ const TicketVerificationPage = () => {
       newQuantities[t.id] = available;
     });
     setCheckInQuantities(newQuantities);
-  };
-
-  const handleQuickCheckInAll = async () => {
-    if (!scannedBooking) return;
-    const newQuantities: Record<string, number> = {};
-    let totalAvailable = 0;
-    scannedBooking.bookedTickets.forEach(t => {
-      const available = Math.max(0, t.quantity - (t.checkedInCount || 0));
-      newQuantities[t.id] = available;
-      totalAvailable += available;
-    });
-
-    if (totalAvailable === 0) {
-      toast({ title: "Already Checked In", description: "No remaining tickets available for this booking." });
-      return;
-    }
-
-    setCheckInQuantities(newQuantities);
-    await executeCheckIn(newQuantities);
   };
 
   const handleQuantityChange = (ticket: BookedTicket, change: number) => {
@@ -695,47 +685,28 @@ const TicketVerificationPage = () => {
         </Card>
 
         {/* Action Buttons */}
-        <div className="space-y-2">
-          {totalRemaining > 0 && (
-            <Button 
-              size="lg" 
-              className={cn(
-                "w-full py-6 text-base font-semibold shadow-md",
-                isComp ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
-              )}
-              onClick={handleQuickCheckInAll} 
-              disabled={isCommitting}
-            >
-              {isCommitting ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-5 w-5"/>
-              )}
-              1-Click Check-in All Remaining ({totalRemaining})
-            </Button>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              size="lg" 
-              variant={totalRemaining > 0 ? "outline" : "default"}
-              className="flex-1 py-5 text-sm" 
-              onClick={handleConfirmCheckIn} 
-              disabled={isCommitting || totalTicketsToCheckIn === 0}
-            >
-              {isCommitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4"/>}
-              Confirm Selected ({totalTicketsToCheckIn})
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="flex-1 py-5 text-sm" 
-              onClick={resetVerification} 
-              disabled={isCommitting}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" /> Next Verification
-            </Button>
-          </div>
+        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+          <Button 
+            size="lg" 
+            className={cn(
+              "flex-1 py-6 text-base font-semibold shadow-sm",
+              isComp ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
+            )}
+            onClick={handleConfirmCheckIn} 
+            disabled={isCommitting || totalTicketsToCheckIn === 0}
+          >
+            {isCommitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle className="mr-2 h-5 w-5"/>}
+            Confirm Check-in ({totalTicketsToCheckIn})
+          </Button>
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="flex-1 py-6 text-base font-medium" 
+            onClick={resetVerification} 
+            disabled={isCommitting}
+          >
+            <RotateCcw className="mr-2 h-5 w-5" /> Next Verification
+          </Button>
         </div>
       </div>
     );
