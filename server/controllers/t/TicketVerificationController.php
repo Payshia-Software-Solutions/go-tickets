@@ -14,7 +14,11 @@ class TicketVerificationController
     // Get all verifications
     public function getAllRecords()
     {
-        $records = $this->model->getAllVerifications();
+        if (isset($_GET['event_id']) && $_GET['event_id'] !== '') {
+            $records = $this->model->getVerificationsByEventId($_GET['event_id']);
+        } else {
+            $records = $this->model->getAllVerifications();
+        }
         echo json_encode($records);
     }
 

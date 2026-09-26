@@ -17,6 +17,14 @@ class TicketVerification
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Get ticket verifications by event ID
+    public function getVerificationsByEventId($eventId)
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM `tickets_verifications` WHERE `event_id` = ?");
+        $stmt->execute([$eventId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Get ticket verification by ID
     public function getVerificationById($id)
     {

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight, ClipboardCheck, BookCopy } from 'lucide-react';
+import { Loader2, Search, Ticket, Users, BarChart3, TrendingUp, CheckCircle, Percent, FileText, ChevronLeft, ChevronRight, ClipboardCheck, BookCopy, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
 import { TICKET_TYPES_API_URL, API_BASE_URL } from '@/lib/constants';
@@ -26,6 +26,7 @@ const ITEMS_PER_PAGE = 5;
 interface ReportData {
   event: Event | null;
   bookings: Booking[];
+  complimentaryBookings: Booking[];
   ticketTypes: TicketType[];
   verifications: VerificationLog[];
   bookedShowtimes: any[]; 
@@ -48,6 +49,7 @@ interface EnrichedTicketRecord {
   attendeeEmail: string;
   showtime: string;
   bookedType: string;
+  isComplimentary?: boolean;
 }
 
 
@@ -106,22 +108,42 @@ export default function EventSummaryReportPage() {
                 .map((st: any) => String(st.booking_id))
         );
 
-        const eventPaidBookings = allPaidBookings.filter(b => 
-            eventBookingIds.has(String(b.id)) && 
-            (b.payment_status || 'pending').toLowerCase() === 'paid' &&
-            (bookedTypeFilter === 'all' || b.booked_type === bookedTypeFilter)
-        );
-        const paidBookingIds = new Set(eventPaidBookings.map(b => String(b.id)));
+        const eventPaidBookings = allPaidBookings.filter(b => {
+            const matchesEvent = eventBookingIds.has(String(b.id));
+            const status = (b.payment_status || 'pending').toLowerCase();
+            const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+            const matchesType = bookedTypeFilter === 'all' || b.booked_type === bookedTypeFilter;
+            return matchesEvent && status === 'paid' && !isComp && matchesType;
+        });
+
+        const eventComplimentaryBookings = allPaidBookings.filter(b => {
+            const matchesEvent = eventBookingIds.has(String(b.id));
+            const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+            const matchesType = bookedTypeFilter === 'all' || b.booked_type === bookedTypeFilter;
+            return matchesEvent && isComp && matchesType;
+        });
+
+        const relevantBookingIds = new Set([
+            ...eventPaidBookings.map(b => String(b.id)),
+            ...eventComplimentaryBookings.map(b => String(b.id))
+        ]);
         
         const paidAndFilteredShowtimes = bookedShowtimesRes.filter((st: any) => 
-            String(st.eventId) === eventFilter && paidBookingIds.has(String(st.booking_id))
+            String(st.eventId) === eventFilter && relevantBookingIds.has(String(st.booking_id))
         );
+
+        // Filter verifications strictly to this event (by event_id or matching event booking ID)
+        const eventVerifications = (verificationsRes || [])
+            .filter((v: any) => String(v.event_id) === String(eventFilter) || eventBookingIds.has(String(v.booking_id)))
+            .map((v: any) => ({ ...v, ticket_count: parseInt(v.ticket_count, 10) || 0 }))
+            .sort((a: any, b: any) => new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime());
 
         setReportData({
             event: eventRes,
             bookings: eventPaidBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()),
+            complimentaryBookings: eventComplimentaryBookings.sort((a,b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()),
             ticketTypes: ticketTypesRes.map((t: any) => ({...t, price: parseFloat(t.price)})),
-            verifications: verificationsRes.map((v: any) => ({ ...v, ticket_count: parseInt(v.ticket_count, 10) || 0 })),
+            verifications: eventVerifications,
             bookedShowtimes: paidAndFilteredShowtimes,
         });
 
@@ -138,7 +160,10 @@ export default function EventSummaryReportPage() {
     if (!reportData) return [];
 
     const summaryMap = new Map<string, Omit<TicketSummary, 'typeName'>>();
-    const bookingMap = new Map(reportData.bookings.map(b => [String(b.id), b]));
+    const bookingMap = new Map([
+        ...reportData.bookings.map(b => [String(b.id), b] as [string, Booking]),
+        ...reportData.complimentaryBookings.map(b => [String(b.id), b] as [string, Booking])
+    ]);
 
     reportData.ticketTypes.forEach(tt => {
         summaryMap.set(String(tt.id), { sold: 0, complimentary: 0, verified: 0, revenue: 0 });
@@ -187,10 +212,14 @@ export default function EventSummaryReportPage() {
   const enrichedTicketRecords = useMemo((): EnrichedTicketRecord[] => {
     if (!reportData) return [];
     
-    const bookingMap = new Map(reportData.bookings.map(b => [String(b.id), b]));
+    const bookingMap = new Map([
+        ...reportData.bookings.map(b => [String(b.id), b] as [string, Booking]),
+        ...reportData.complimentaryBookings.map(b => [String(b.id), b] as [string, Booking])
+    ]);
 
     return reportData.bookedShowtimes.map((st: any) => {
       const parentBooking = bookingMap.get(String(st.booking_id));
+      const isComp = (parentBooking?.payment_method || '').toLowerCase() === 'complimentary';
       return {
         id: String(st.id),
         bookingId: String(st.booking_id),
@@ -200,6 +229,7 @@ export default function EventSummaryReportPage() {
         attendeeEmail: parentBooking?.billingAddress?.email || 'N/A',
         showtime: format(new Date(st.showtime), 'PPp'),
         bookedType: parentBooking?.booked_type || 'online',
+        isComplimentary: isComp,
       };
     }).sort((a, b) => new Date(b.showtime).getTime() - new Date(a.showtime).getTime());
   }, [reportData]);
@@ -209,6 +239,12 @@ export default function EventSummaryReportPage() {
     if (!reportData) return [];
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return reportData.bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [reportData, currentPage]);
+
+  const paginatedComplimentary = useMemo(() => {
+    if (!reportData) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return reportData.complimentaryBookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [reportData, currentPage]);
   
   const paginatedVerifications = useMemo(() => {
@@ -225,12 +261,15 @@ export default function EventSummaryReportPage() {
 
 
   const totalBookingPages = reportData ? Math.ceil(reportData.bookings.length / ITEMS_PER_PAGE) : 0;
+  const totalComplimentaryPages = reportData ? Math.ceil(reportData.complimentaryBookings.length / ITEMS_PER_PAGE) : 0;
   const totalVerificationPages = reportData ? Math.ceil(reportData.verifications.length / ITEMS_PER_PAGE) : 0;
   const totalTicketPages = enrichedTicketRecords ? Math.ceil(enrichedTicketRecords.length / ITEMS_PER_PAGE) : 0;
 
   let paginationContent: JSX.Element | null = null;
   if (activeTab === 'bookings' && totalBookingPages > 1) {
     paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalBookingPages} onPageChange={setCurrentPage} itemCount={paginatedBookings.length} totalItems={reportData?.bookings.length || 0} itemType="bookings" />;
+  } else if (activeTab === 'complimentary' && totalComplimentaryPages > 1) {
+    paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalComplimentaryPages} onPageChange={setCurrentPage} itemCount={paginatedComplimentary.length} totalItems={reportData?.complimentaryBookings.length || 0} itemType="complimentary passes" />;
   } else if (activeTab === 'verifications' && totalVerificationPages > 1) {
     paginationContent = <PaginationControls currentPage={currentPage} totalPages={totalVerificationPages} onPageChange={setCurrentPage} itemCount={paginatedVerifications.length} totalItems={reportData?.verifications.length || 0} itemType="logs" />;
   } else if (activeTab === 'tickets' && totalTicketPages > 1) {
@@ -296,11 +335,12 @@ export default function EventSummaryReportPage() {
 
       {reportData && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto gap-1">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="bookings">Paid Bookings</TabsTrigger>
-              <TabsTrigger value="tickets">Booked Tickets</TabsTrigger>
-              <TabsTrigger value="verifications">Verifications</TabsTrigger>
+              <TabsTrigger value="bookings">Paid Bookings ({reportData.bookings.length})</TabsTrigger>
+              <TabsTrigger value="complimentary">Complimentary ({reportData.complimentaryBookings.length})</TabsTrigger>
+              <TabsTrigger value="tickets">Booked Tickets ({enrichedTicketRecords.length})</TabsTrigger>
+              <TabsTrigger value="verifications">Verifications ({reportData.verifications.length})</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="mt-4">
                 <div className="space-y-8">
@@ -312,7 +352,7 @@ export default function EventSummaryReportPage() {
                         <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                             <div className="p-4 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground uppercase font-semibold">Total Bookings</p>
-                                <p className="text-2xl font-bold mt-1">{reportData.bookings.length.toLocaleString()}</p>
+                                <p className="text-2xl font-bold mt-1">{(reportData.bookings.length + reportData.complimentaryBookings.length).toLocaleString()}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
                                 <p className="text-xs text-muted-foreground uppercase font-semibold">Tickets Issued</p>
@@ -425,6 +465,62 @@ export default function EventSummaryReportPage() {
                     {paginationContent}
                 </Card>
             </TabsContent>
+            <TabsContent value="complimentary" className="mt-4">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><Gift className="mr-2 h-5 w-5 text-purple-600"/> Complimentary Free Passes</CardTitle>
+                        <CardDescription>A list of all complimentary / free pass bookings issued for this event.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {paginatedComplimentary.length === 0 ? (
+                            <p className="text-center text-muted-foreground py-4">No complimentary passes found for this event.</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader><TableRow>
+                                        <TableHead>Booking ID</TableHead>
+                                        <TableHead>Recipient</TableHead>
+                                        <TableHead className="text-center">Pass Status</TableHead>
+                                        <TableHead className="text-right">Waived Value</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead className="text-center">Actions</TableHead>
+                                    </TableRow></TableHeader>
+                                    <TableBody>
+                                        {paginatedComplimentary.map(booking => (
+                                            <TableRow key={booking.id}>
+                                                <TableCell className="font-mono text-xs">{booking.id}</TableCell>
+                                                <TableCell>
+                                                    <div className="font-medium">{booking.userName}</div>
+                                                    <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 font-semibold text-xs">
+                                                        Free Pass
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-muted-foreground">
+                                                    LKR {booking.totalPrice.toLocaleString('en-US', {minimumFractionDigits: 2})}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="capitalize">
+                                                        {booking.booked_type === 'manualy' ? 'Manual' : 'Online'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Button variant="outline" size="sm" asChild>
+                                                        <Link href={`/admin/bookings/${booking.id}`}><FileText className="mr-2 h-3.5 w-3.5"/> Details</Link>
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                    {paginationContent}
+                </Card>
+            </TabsContent>
             <TabsContent value="tickets" className="mt-4">
                  <Card>
                     <CardHeader>
@@ -452,12 +548,19 @@ export default function EventSummaryReportPage() {
                                                     <div className="text-xs text-muted-foreground">{ticket.attendeeEmail}</div>
                                                 </TableCell>
                                                 <TableCell className="font-medium">{ticket.ticketTypeName}</TableCell>
-                                                <TableCell className="text-center">{ticket.quantity}</TableCell>
+                                                <TableCell className="text-center font-mono">{ticket.quantity}</TableCell>
                                                 <TableCell>{ticket.showtime}</TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline" className="capitalize">
-                                                        {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <Badge variant="outline" className="capitalize">
+                                                            {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
+                                                        </Badge>
+                                                        {ticket.isComplimentary && (
+                                                            <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 font-semibold text-xs">
+                                                                Free Pass
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -492,8 +595,8 @@ export default function EventSummaryReportPage() {
                                         {paginatedVerifications.map(log => (
                                             <TableRow key={log.id}>
                                                 <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
-                                                <TableCell>{reportData.ticketTypes.find(tt => String(tt.id) === String(log.tickettype_id))?.name || `ID: ${log.tickettype_id}`}</TableCell>
-                                                <TableCell className="text-center">{log.ticket_count}</TableCell>
+                                                <TableCell className="font-medium">{reportData.ticketTypes.find(tt => String(tt.id) === String(log.tickettype_id))?.name || `Ticket #${log.tickettype_id}`}</TableCell>
+                                                <TableCell className="text-center font-mono">{log.ticket_count}</TableCell>
                                                 <TableCell>{log.checking_by}</TableCell>
                                                 <TableCell>{format(new Date(log.checking_time), 'PPp')}</TableCell>
                                             </TableRow>
