@@ -56,6 +56,8 @@ interface RawApiBooking {
   billing_state?: string;
   billing_postal_code?: string;
   billing_country?: string;
+  guest?: number | boolean;
+  token?: string;
 }
 
 interface RawApiBookedTicket {
@@ -116,6 +118,9 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     eventId: String(apiBooking.event_id || apiBooking.eventId || ''),
     userId: String(apiBooking.user_id || apiBooking.userId),
     userName: `${apiBooking.first_name || ''} ${apiBooking.last_name || ''}`.trim() || 'Guest',
+    email: apiBooking.email,
+    guest: apiBooking.guest,
+    token: apiBooking.token,
     bookingDate: parseApiDateString(apiBooking.booking_date || apiBooking.bookingDate) || new Date().toISOString(),
     eventDate: parseApiDateString(apiBooking.event_date || apiBooking.eventDate) || new Date().toISOString(),
     eventName: apiBooking.event_name || apiBooking.eventName || "N/A",
@@ -401,6 +406,9 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
             id: String(apiBooking.id),
             userId: String(apiBooking.userId),
             userName: `${apiBooking.first_name || ''} ${apiBooking.last_name || ''}`.trim() || 'Guest',
+            email: apiBooking.email,
+            guest: apiBooking.guest,
+            token: apiBooking.token,
             totalPrice: rawBookingPrice,
             amount_paid: Number.isFinite(rawAmountPaid) ? rawAmountPaid : 0,
             balance_amount: Number.isFinite(rawBalance) ? rawBalance : 0,

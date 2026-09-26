@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   CheckCircle, Ticket, MapPin, CalendarDays, AlertTriangle, 
-  CreditCard, Clock, User, Loader2, Info, AlertCircle, ShieldCheck 
+  CreditCard, Clock, User, Loader2, Info, AlertCircle, ShieldCheck,
+  Lock, Mail 
 } from 'lucide-react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -17,18 +18,44 @@ import { useEffect, useState, use } from 'react';
 import type { Booking } from '@/lib/types';
 import * as fpixel from '@/lib/fpixel';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/input';
 
 interface BookingConfirmationPageProps {
-  searchParams: Promise<{ order_id?: string }>;
+  searchParams: Promise<{ order_id?: string; token?: string }>;
 }
 
 export default function BookingConfirmationPage({ searchParams }: BookingConfirmationPageProps) {
   const resolvedSearchParams = use(searchParams);
+  const { user } = useAuth();
   const [booking, setBooking] = useState<Booking | null | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Verification state for guest / unauthenticated access without valid token
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+
   const bookingId = resolvedSearchParams.order_id;
+  const urlToken = resolvedSearchParams.token;
+
+  useEffect(() => {
+    if (bookingId && typeof window !== 'undefined') {
+      if (sessionStorage.getItem(`verified_booking_${bookingId}`) === 'true') {
+        setIsEmailVerified(true);
+      }
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (booking && urlToken && typeof window !== 'undefined' && bookingId) {
+      const isValid = (booking.token && urlToken === booking.token) || (booking.qrCodeValue && urlToken === booking.qrCodeValue);
+      if (isValid) {
+        sessionStorage.setItem(`verified_booking_${bookingId}`, 'true');
+      }
+    }
+  }, [booking, urlToken, bookingId]);
 
   useEffect(() => {
     document.title = isLoading ? 'Loading Booking...' : (booking ? `Booking ${booking.id} | GoTickets.lk` : 'Booking Not Found');
@@ -99,6 +126,112 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
             <Link href="/">Back to Home</Link>
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  // Access Authorization Check
+  const bookingEmail = (booking.email || booking.billingAddress?.email || '').trim().toLowerCase();
+  const isAdmin = user?.isAdmin === true;
+  const isOwner = Boolean(user && String(user.id) === String(booking.userId) && !booking.guest);
+  const isEmailMatchedUser = Boolean(user?.email && user.email.trim().toLowerCase() === bookingEmail);
+  const isTokenValid = Boolean(
+    urlToken && (
+      (booking.token && urlToken === booking.token) ||
+      (booking.qrCodeValue && urlToken === booking.qrCodeValue)
+    )
+  );
+
+  const hasAccess = isAdmin || isOwner || isEmailMatchedUser || isTokenValid || isEmailVerified;
+
+  const handleVerifyEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationEmail.trim()) {
+      setVerificationError("Please enter your email address.");
+      return;
+    }
+    const inputEmail = verificationEmail.trim().toLowerCase();
+    if (bookingEmail && inputEmail === bookingEmail) {
+      setIsEmailVerified(true);
+      if (typeof window !== 'undefined' && bookingId) {
+        sessionStorage.setItem(`verified_booking_${bookingId}`, 'true');
+      }
+      setVerificationError(null);
+    } else {
+      setVerificationError("The email address provided does not match our records for this booking. Please check the email used during checkout.");
+    }
+  };
+
+  if (!hasAccess) {
+    return (
+      <div className="container mx-auto py-12 px-4">
+        <Card className="max-w-md mx-auto shadow-xl border-border">
+          <CardHeader className="text-center p-6 bg-muted/30 rounded-t-lg">
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-xl font-bold">Verification Required</CardTitle>
+            <CardDescription className="text-sm text-muted-foreground mt-1">
+              For your privacy and ticket security, please confirm your email address to access Booking #{bookingId}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            {verificationError && (
+              <Alert variant="destructive" className="py-2.5">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">{verificationError}</AlertDescription>
+              </Alert>
+            )}
+
+            <form onSubmit={handleVerifyEmail} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="verify-email" className="text-sm font-medium text-foreground">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="verify-email"
+                    type="email"
+                    placeholder="Enter the email used for booking"
+                    value={verificationEmail}
+                    onChange={(e) => {
+                      setVerificationEmail(e.target.value);
+                      if (verificationError) setVerificationError(null);
+                    }}
+                    className="pl-9"
+                    required
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full">
+                Verify & View Booking
+              </Button>
+            </form>
+
+            <div className="relative my-4">
+              <Separator />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="bg-card px-2 text-xs text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-center text-sm">
+              <p className="text-muted-foreground text-xs">
+                Already have an account?{' '}
+                <Link href={`/login?redirect=/booking-confirmation?order_id=${bookingId}`} className="text-primary font-medium hover:underline">
+                  Log In
+                </Link>
+              </p>
+              <div>
+                <Link href="/" className="text-xs text-muted-foreground hover:underline">
+                  Return to Home
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

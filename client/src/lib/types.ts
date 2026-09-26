@@ -271,6 +271,9 @@ export interface Booking {
   eventId: string;
   userId: string;
   userName?: string;
+  email?: string;
+  guest?: number | boolean;
+  token?: string;
   bookingDate: string; // ISO string
   eventDate: string; // ISO string (specific showtime date for this booking)
   eventName: string;

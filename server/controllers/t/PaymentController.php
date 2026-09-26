@@ -23,6 +23,12 @@ class PaymentController
         $this->modePrefix = env('PAYHERE_MODE', 'www');
     }
 
+    public function generateBookingToken($bookingId, $qrCodeValue = '')
+    {
+        $secret = env('APP_KEY', env('PAYHERE_MERCHANT_SECRET', 'gotickets_secure_token_secret_2026'));
+        return substr(hash_hmac('sha256', $bookingId . '_' . $qrCodeValue, $secret), 0, 32);
+    }
+
     public function initiatePayment($bookingId, $totalAmount, $bookingInfo)
     {
         // $data = json_decode(file_get_contents("php://input"), true);
@@ -41,7 +47,8 @@ class PaymentController
         ];
         $totalAmount = number_format($totalAmount, 2, '.', '');
         $currency = "LKR";
-        $return_url = $this->domainName . "/booking-confirmation";
+        $token = $this->generateBookingToken($bookingId, $bookingInfo['qrCodeValue'] ?? '');
+        $return_url = $this->domainName . "/booking-confirmation?order_id=" . $bookingId . "&token=" . $token;
         $cancel_url = $this->domainName . "/checkout";
         $notify_url = $this->serverUrl . "/bookings/payment/notify";
 

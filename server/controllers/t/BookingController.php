@@ -57,6 +57,12 @@ class BookingController
         $this->modePrefix = env('PAYHERE_MODE', 'www');
     }
 
+    public function generateBookingToken($bookingId, $qrCodeValue = '')
+    {
+        $secret = env('APP_KEY', env('PAYHERE_MERCHANT_SECRET', 'gotickets_secure_token_secret_2026'));
+        return substr(hash_hmac('sha256', $bookingId . '_' . $qrCodeValue, $secret), 0, 32);
+    }
+
     // FTP Helper Methods for remote slip and media upload
     private function ensureDirectoryExists($ftp_conn, $dir)
     {
@@ -159,6 +165,7 @@ class BookingController
     {
         $record = $this->model->getBookingById($id);
         if ($record) {
+            $record['token'] = $this->generateBookingToken($id, $record['qrCodeValue'] ?? '');
             echo json_encode($record);
         } else {
             http_response_code(404);
@@ -433,6 +440,9 @@ class BookingController
         // Add the nested booking_event array to the main booking
         $booking['booking_event'] = $bookingEvents;
 
+        // Add secure access token
+        $booking['token'] = $this->generateBookingToken($id, $booking['qrCodeValue'] ?? '');
+
         echo json_encode([
             'success' => true,
             'booking' => $booking
@@ -470,6 +480,9 @@ class BookingController
 
         // Add the nested booking_event array to the main booking
         $booking['booking_event'] = $bookingEvents;
+
+        // Add secure access token
+        $booking['token'] = $this->generateBookingToken($id, $booking['qrCodeValue'] ?? '');
 
         return $booking;
     }
@@ -537,6 +550,9 @@ class BookingController
                     $customerName = $bookingInfo['user_billing_info']['name'];
                 }
 
+                $token = $bookingInfo['token'] ?? $this->generateBookingToken($bookingId, $bookingInfo['qrCodeValue'] ?? '');
+                $domain = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
+
                 $bookingData = [
                     'booking_id' => $bookingId,
                     'event_name' => $bookingInfo['eventName'],
@@ -550,9 +566,9 @@ class BookingController
                     'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
                     'payment_status' => 'Paid',
                     'qr_code_value' => $bookingInfo['qrCodeValue'],
-                    'view_ticket_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
-                    'view_bookings_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
-                    'home_url' => 'https://gotickets.silverray.lk'
+                    'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId . '&token=' . $token,
+                    'view_bookings_url' => $domain . '/booking-confirmation?order_id=' . $bookingId . '&token=' . $token,
+                    'home_url' => $domain
                 ];
 
                 $customerEmail = $bookingInfo['email'];
@@ -642,6 +658,7 @@ class BookingController
 
         $targetEmail = isset($_GET['email']) ? trim($_GET['email']) : ($bookingInfo['email'] ?? 'thilinaruwan112@gmail.com');
         $domain = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
+        $token = $bookingInfo['token'] ?? $this->generateBookingToken($bookingId, $bookingInfo['qrCodeValue'] ?? '');
 
         $bookingData = [
             'booking_id' => $bookingId,
@@ -656,7 +673,7 @@ class BookingController
             'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
             'payment_status' => $bookingInfo['payment_status'] ?? 'Paid',
             'qr_code_value' => $bookingInfo['qrCodeValue'],
-            'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId,
+            'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId . '&token=' . $token,
             'view_bookings_url' => $domain . '/account_dashboard',
             'home_url' => $domain
         ];
@@ -1478,6 +1495,7 @@ class BookingController
                         $customerName = $bookingInfo['user_billing_info']['name'];
                     }
                     $domain = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
+                    $token = $bookingInfo['token'] ?? $this->generateBookingToken($bookingId, $bookingInfo['qrCodeValue'] ?? '');
                     $bookingData = [
                         'booking_id' => $bookingId,
                         'event_name' => $bookingInfo['eventName'],
@@ -1491,7 +1509,7 @@ class BookingController
                         'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
                         'payment_status' => $bookingInfo['payment_status'] ?? 'Paid',
                         'qr_code_value' => $bookingInfo['qrCodeValue'],
-                        'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId,
+                        'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId . '&token=' . $token,
                         'view_bookings_url' => $domain . '/account_dashboard',
                         'home_url' => $domain
                     ];
