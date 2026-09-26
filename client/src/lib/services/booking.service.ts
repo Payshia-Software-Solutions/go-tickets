@@ -101,10 +101,11 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
       parsedPrice = 0;
   }
 
+  const isComp = (apiBooking.payment_method || apiBooking.paymentMethod || '').toLowerCase() === 'complimentary';
   const rawAmountPaid = apiBooking.amount_paid ?? apiBooking.amountPaid;
-  const parsedAmountPaid = rawAmountPaid !== undefined ? parseFloat(String(rawAmountPaid)) : (apiBooking.payment_status === 'paid' ? parsedPrice : 0);
+  const parsedAmountPaid = isComp ? 0 : (rawAmountPaid !== undefined ? parseFloat(String(rawAmountPaid)) : (apiBooking.payment_status === 'paid' ? parsedPrice : 0));
   const rawBalance = apiBooking.balance_amount ?? apiBooking.balanceAmount;
-  const parsedBalance = rawBalance !== undefined ? parseFloat(String(rawBalance)) : Math.max(0, parsedPrice - parsedAmountPaid);
+  const parsedBalance = isComp ? 0 : (rawBalance !== undefined ? parseFloat(String(rawBalance)) : Math.max(0, parsedPrice - (Number.isFinite(parsedAmountPaid) ? parsedAmountPaid : 0)));
   
   const rawBookedTicketsArray = Array.isArray(apiBooking.booked_tickets) 
       ? apiBooking.booked_tickets 
@@ -392,8 +393,9 @@ export const getBookingById = async (id: string): Promise<Booking | undefined> =
         }
 
         const rawBookingPrice = parseFloat(apiBooking.totalPrice) || 0;
-        const rawAmountPaid = apiBooking.amount_paid !== undefined ? parseFloat(String(apiBooking.amount_paid)) : (apiBooking.payment_status === 'paid' ? rawBookingPrice : 0);
-        const rawBalance = apiBooking.balance_amount !== undefined ? parseFloat(String(apiBooking.balance_amount)) : Math.max(0, rawBookingPrice - (Number.isFinite(rawAmountPaid) ? rawAmountPaid : 0));
+        const isComp = (apiBooking.payment_method || '').toLowerCase() === 'complimentary';
+        const rawAmountPaid = isComp ? 0 : (apiBooking.amount_paid !== undefined ? parseFloat(String(apiBooking.amount_paid)) : (apiBooking.payment_status === 'paid' ? rawBookingPrice : 0));
+        const rawBalance = isComp ? 0 : (apiBooking.balance_amount !== undefined ? parseFloat(String(apiBooking.balance_amount)) : Math.max(0, rawBookingPrice - (Number.isFinite(rawAmountPaid) ? rawAmountPaid : 0)));
 
         const appBooking: Booking = {
             id: String(apiBooking.id),

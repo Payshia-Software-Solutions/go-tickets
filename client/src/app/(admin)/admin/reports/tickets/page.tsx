@@ -47,6 +47,7 @@ interface EnrichedTicketRecord {
   attendeeName: string; // From parent booking
   attendeeEmail: string; // From parent booking
   paymentStatus: string; // From parent booking
+  paymentMethod: string; // From parent booking
   pricePerTicket: number; // Added for revenue calculation
   bookedType: 'online' | 'manualy';
 }
@@ -140,6 +141,7 @@ export default function AdminTicketReportPage() {
               attendeeName: parentBooking.userName || 'N/A',
               attendeeEmail: parentBooking.billingAddress?.email || 'N/A',
               paymentStatus: parentBooking.payment_status || 'pending',
+              paymentMethod: parentBooking.payment_method || 'N/A',
               pricePerTicket: Number(price) || 0,
               bookedType: parentBooking.booked_type,
             };
@@ -151,7 +153,22 @@ export default function AdminTicketReportPage() {
             const bookingDate = new Date(ticket.bookingDate);
             const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
             const eventMatch = eventFilter === 'all' || ticket.eventId === eventFilter;
-            const statusMatch = statusFilter === 'all' || ticket.paymentStatus.toLowerCase() === statusFilter;
+            const isComp = (ticket.paymentMethod || '').toLowerCase() === 'complimentary';
+            const rawStatus = (ticket.paymentStatus || 'pending').toLowerCase().trim();
+
+            let statusMatch = statusFilter === 'all';
+            if (statusFilter === 'complimentary') {
+              statusMatch = isComp;
+            } else if (statusFilter === 'paid') {
+              statusMatch = !isComp && (rawStatus === 'paid');
+            } else if (statusFilter === 'partially_paid') {
+              statusMatch = !isComp && (rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial');
+            } else if (statusFilter === 'pending') {
+              statusMatch = !isComp && (rawStatus === 'pending');
+            } else if (statusFilter === 'failed') {
+              statusMatch = rawStatus === 'failed';
+            }
+
             const typeMatch = bookedTypeFilter === 'all' || ticket.bookedType === bookedTypeFilter;
 
             return isInDateRange && eventMatch && statusMatch && typeMatch;
@@ -169,17 +186,32 @@ export default function AdminTicketReportPage() {
   };
   
   const reportSummary = useMemo(() => {
-    const totalTicketsSold = reportData.reduce((sum, ticket) => sum + ticket.quantity, 0);
-    const paidTickets = reportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
-    const totalRevenue = paidTickets.reduce((sum, ticket) => sum + (ticket.quantity * ticket.pricePerTicket), 0);
+    let totalTicketsSold = 0;
+    let totalFreePasses = 0;
+    let totalRevenue = 0;
+
+    reportData.forEach(ticket => {
+      totalTicketsSold += ticket.quantity;
+      const isComp = (ticket.paymentMethod || '').toLowerCase() === 'complimentary';
+      if (isComp) {
+        totalFreePasses += ticket.quantity;
+      } else if (ticket.paymentStatus.toLowerCase() === 'paid') {
+        totalRevenue += ticket.quantity * ticket.pricePerTicket;
+      }
+    });
+
     return {
         totalTicketsSold,
+        totalFreePasses,
         totalRevenue,
     };
   }, [reportData]);
   
   const revenueByTicketType = useMemo((): EventRevenueSummary[] => {
-    const paidTickets = reportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
+    const paidTickets = reportData.filter(t => {
+      const isComp = (t.paymentMethod || '').toLowerCase() === 'complimentary';
+      return !isComp && t.paymentStatus.toLowerCase() === 'paid';
+    });
 
     const summaryMap = new Map<string, { 
         eventName: string; 
@@ -230,6 +262,7 @@ export default function AdminTicketReportPage() {
       "Showtime ID",
       "Attendee Name",
       "Attendee Email",
+      "Payment Method",
       "Payment Status",
       "Booking Type"
     ];
@@ -245,18 +278,20 @@ export default function AdminTicketReportPage() {
 
     const csvRows = [headers.join(",")];
     reportData.forEach(ticket => {
+        const isComp = (ticket.paymentMethod || '').toLowerCase() === 'complimentary';
         const row = [
             escapeCsvCell(ticket.eventName),
             escapeCsvCell(ticket.ticketTypeName),
             escapeCsvCell(ticket.quantity),
-            escapeCsvCell(ticket.pricePerTicket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
-            escapeCsvCell((ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+            escapeCsvCell(isComp ? 'FREE (0.00)' : ticket.pricePerTicket.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+            escapeCsvCell(isComp ? 'FREE (0.00)' : (ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
             escapeCsvCell(ticket.bookingId),
             escapeCsvCell(format(new Date(ticket.bookingDate), 'yyyy-MM-dd HH:mm')),
             escapeCsvCell(ticket.showtimeId),
             escapeCsvCell(ticket.attendeeName),
             escapeCsvCell(ticket.attendeeEmail),
-            escapeCsvCell(ticket.paymentStatus),
+            escapeCsvCell(ticket.paymentMethod || 'N/A'),
+            escapeCsvCell(isComp ? 'Complimentary' : ticket.paymentStatus),
             escapeCsvCell(ticket.bookedType === 'manualy' ? 'Manual' : 'Online'),
         ];
         csvRows.push(row.join(","));
@@ -339,7 +374,9 @@ export default function AdminTicketReportPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="partially_paid">Partially Paid</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="complimentary">Complimentary / Free Pass</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
@@ -373,14 +410,18 @@ export default function AdminTicketReportPage() {
                     <CardTitle>Report Summary</CardTitle>
                 </CardHeader>
                 <CardContent>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Ticket className="h-4 w-4"/>Total Tickets Sold</p>
-                            <p className="text-2xl font-bold">{reportSummary.totalTicketsSold.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-semibold flex items-center justify-center gap-1.5"><Ticket className="h-4 w-4"/>Tickets Issued</p>
+                            <p className="text-2xl font-bold mt-1">{reportSummary.totalTicketsSold.toLocaleString()}</p>
                         </div>
-                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><DollarSign className="h-4 w-4"/>Total Revenue (Paid Only)</p>
-                            <p className="text-2xl font-bold">LKR {reportSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold uppercase flex items-center justify-center gap-1.5"><Ticket className="h-4 w-4"/>Free / VIP Passes</p>
+                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{reportSummary.totalFreePasses.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold flex items-center justify-center gap-1.5"><DollarSign className="h-4 w-4"/>Revenue Collected</p>
+                            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">LKR {reportSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -437,45 +478,76 @@ export default function AdminTicketReportPage() {
                               <TableRow>
                                 <TableHead>Event</TableHead>
                                 <TableHead>Ticket Type</TableHead>
-                                <TableHead>Qty</TableHead>
+                                <TableHead className="text-center">Qty</TableHead>
                                 <TableHead>Attendee</TableHead>
-                                <TableHead>Total Price</TableHead>
+                                <TableHead>Method</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Type</TableHead>
+                                <TableHead className="text-right">Total Price</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {reportData.map((ticket) => (
-                                    <TableRow key={ticket.id}>
-                                        <TableCell>
-                                          <div className="font-medium">{ticket.eventName}</div>
-                                          <div className="text-xs text-muted-foreground">{format(new Date(ticket.bookingDate), 'PP')}</div>
-                                        </TableCell>
-                                        <TableCell className="whitespace-nowrap">{ticket.ticketTypeName}</TableCell>
-                                        <TableCell className="text-center">{ticket.quantity}</TableCell>
-                                        <TableCell>
-                                          <div className="whitespace-nowrap font-medium">{ticket.attendeeName}</div>
-                                          <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
-                                        </TableCell>
-                                         <TableCell className="whitespace-nowrap text-right">
-                                            LKR {(ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className={cn('capitalize', {
-                                                'bg-green-100 text-green-800 border-green-200': ticket.paymentStatus === 'paid',
-                                                'bg-amber-100 text-amber-800 border-amber-200': ticket.paymentStatus === 'pending',
-                                                'bg-red-100 text-red-800 border-red-200': ticket.paymentStatus === 'failed',
-                                            })}>
-                                                {ticket.paymentStatus}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="capitalize">
-                                                {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {reportData.map((ticket) => {
+                                    const isComp = (ticket.paymentMethod || '').toLowerCase() === 'complimentary';
+                                    const rawStatus = (ticket.paymentStatus || 'pending').toLowerCase().trim();
+                                    const isPartiallyPaid = rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial';
+
+                                    return (
+                                        <TableRow key={ticket.id}>
+                                            <TableCell>
+                                              <div className="font-medium">{ticket.eventName}</div>
+                                              <div className="text-xs text-muted-foreground">{format(new Date(ticket.bookingDate), 'PP')}</div>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap font-medium">{ticket.ticketTypeName}</TableCell>
+                                            <TableCell className="text-center font-mono">{ticket.quantity}</TableCell>
+                                            <TableCell>
+                                              <div className="whitespace-nowrap font-medium">{ticket.attendeeName}</div>
+                                              <div className="text-xs text-muted-foreground whitespace-nowrap">{ticket.attendeeEmail}</div>
+                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                              {ticket.paymentMethod || 'N/A'}
+                                            </TableCell>
+                                            <TableCell>
+                                                {isComp ? (
+                                                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 font-semibold text-xs">
+                                                        Complimentary
+                                                    </Badge>
+                                                ) : isPartiallyPaid ? (
+                                                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 font-semibold text-xs">
+                                                        Partially Paid
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="secondary" className={cn('capitalize text-xs', {
+                                                        'bg-green-100 text-green-800 border-green-200': rawStatus === 'paid',
+                                                        'bg-amber-100 text-amber-800 border-amber-200': rawStatus === 'pending',
+                                                        'bg-red-100 text-red-800 border-red-200': rawStatus === 'failed',
+                                                    })}>
+                                                        {ticket.paymentStatus}
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="capitalize text-xs">
+                                                    {ticket.bookedType === 'manualy' ? 'Manual' : 'Online'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap text-right">
+                                                {isComp ? (
+                                                    <div>
+                                                        <span className="font-mono font-bold text-xs text-purple-600 dark:text-purple-400">FREE PASS</span>
+                                                        <div className="text-[10px] text-muted-foreground line-through">
+                                                            Val: LKR {(ticket.quantity * ticket.pricePerTicket).toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="font-mono text-sm font-semibold">
+                                                        LKR {(ticket.quantity * ticket.pricePerTicket).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                           </Table>
                         </div>

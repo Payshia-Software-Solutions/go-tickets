@@ -40,6 +40,7 @@ interface EnrichedTicketRecord {
   ticketTypeName: string;
   quantity: number;
   paymentStatus: string;
+  paymentMethod?: string;
   bookingDate: string;
 }
 
@@ -111,7 +112,22 @@ export default function AdminReportsPage() {
 
           const bookingDate = new Date(parentBooking.bookingDate);
           const isInDateRange = bookingDate >= dateRange.from! && bookingDate <= dateRange.to!;
-          const statusMatch = statusFilter === 'all' || (parentBooking.payment_status || 'pending').toLowerCase() === statusFilter;
+          const isComp = (parentBooking.payment_method || '').toLowerCase() === 'complimentary';
+          const rawStatus = (parentBooking.payment_status || 'pending').toLowerCase().trim();
+
+          let statusMatch = statusFilter === 'all';
+          if (statusFilter === 'complimentary') {
+            statusMatch = isComp;
+          } else if (statusFilter === 'paid') {
+            statusMatch = !isComp && (rawStatus === 'paid');
+          } else if (statusFilter === 'partially_paid') {
+            statusMatch = !isComp && (rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial');
+          } else if (statusFilter === 'pending') {
+            statusMatch = !isComp && (rawStatus === 'pending');
+          } else if (statusFilter === 'failed') {
+            statusMatch = rawStatus === 'failed';
+          }
+
           const eventMatch = eventFilter === 'all' || String(rawTicket.eventId) === eventFilter;
           const typeMatch = bookedTypeFilter === 'all' || parentBooking.booked_type === bookedTypeFilter;
           
@@ -123,6 +139,7 @@ export default function AdminReportsPage() {
               ticketTypeName: rawTicket.ticket_type,
               quantity: parseInt(rawTicket.ticket_count, 10) || 0,
               paymentStatus: parentBooking.payment_status || 'pending',
+              paymentMethod: parentBooking.payment_method || 'N/A',
               bookingDate: parentBooking.bookingDate,
             });
             includedBookingIds.add(String(rawTicket.booking_id));
@@ -145,15 +162,40 @@ export default function AdminReportsPage() {
   
   const reportSummary = useMemo(() => {
     const totalBookings = reportData.length;
-    const paidBookingsData = reportData.filter(b => (b.payment_status || 'pending').toLowerCase() === 'paid');
-    const totalSales = paidBookingsData.reduce((sum, booking) => sum + booking.totalPrice, 0);
-    const paidBookingsCount = paidBookingsData.length;
-    
+    let totalRevenue = 0;
+    let paidBookingsCount = 0;
+    let partiallyPaidCount = 0;
+    let pendingCount = 0;
+    let complimentaryCount = 0;
+    let complimentaryWaivedValue = 0;
+
+    reportData.forEach(booking => {
+      const isComp = (booking.payment_method || '').toLowerCase() === 'complimentary';
+      const s = (booking.payment_status || 'pending').toLowerCase().trim();
+      const amountPaid = isComp ? 0 : (booking.amount_paid !== undefined ? booking.amount_paid : (s === 'paid' ? booking.totalPrice : 0));
+
+      if (isComp) {
+        complimentaryCount++;
+        complimentaryWaivedValue += booking.totalPrice || 0;
+      } else if (s === 'paid') {
+        paidBookingsCount++;
+        totalRevenue += booking.totalPrice || 0;
+      } else if (s === 'partially paid' || s === 'partially_paid' || s === 'partial') {
+        partiallyPaidCount++;
+        totalRevenue += amountPaid;
+      } else if (s === 'pending') {
+        pendingCount++;
+      }
+    });
+
     return {
         totalBookings,
-        totalSales,
+        totalSales: totalRevenue,
         paidBookings: paidBookingsCount,
-        pendingBookings: totalBookings - paidBookingsCount
+        partiallyPaidBookings: partiallyPaidCount,
+        pendingBookings: pendingCount,
+        complimentaryBookings: complimentaryCount,
+        complimentaryWaivedValue,
     };
   }, [reportData]);
 
@@ -162,9 +204,12 @@ export default function AdminReportsPage() {
 
     const summaryMap = new Map<string, { eventName: string, tickets: Map<string, number> }>();
     
-    const paidTickets = ticketReportData.filter(t => t.paymentStatus.toLowerCase() === 'paid');
+    const validTickets = ticketReportData.filter(t => {
+      const s = t.paymentStatus.toLowerCase().trim();
+      return s === 'paid' || s === 'partially paid' || s === 'partially_paid';
+    });
 
-    paidTickets.forEach(ticket => {
+    validTickets.forEach(ticket => {
         if (!summaryMap.has(ticket.eventId)) {
             summaryMap.set(ticket.eventId, { eventName: ticket.eventName, tickets: new Map() });
         }
@@ -200,9 +245,12 @@ export default function AdminReportsPage() {
       "Attendee Name",
       "Attendee Email",
       "Attendee Phone",
+      "Payment Method",
       "Payment Status",
       "Booking Type",
-      "Total Price (LKR)"
+      "Total Price (LKR)",
+      "Amount Paid (LKR)",
+      "Balance Due (LKR)"
     ];
 
     const escapeCsvCell = (cell: any) => {
@@ -216,6 +264,11 @@ export default function AdminReportsPage() {
 
     const csvRows = [headers.join(",")];
     reportData.forEach(booking => {
+        const isComp = (booking.payment_method || '').toLowerCase() === 'complimentary';
+        const rawStatus = (booking.payment_status || 'pending').toLowerCase().trim();
+        const amountPaid = isComp ? 0 : (booking.amount_paid !== undefined ? booking.amount_paid : (rawStatus === 'paid' ? booking.totalPrice : 0));
+        const balanceDue = isComp ? 0 : (booking.balance_amount !== undefined ? booking.balance_amount : Math.max(0, booking.totalPrice - amountPaid));
+
         const row = [
             escapeCsvCell(booking.id),
             escapeCsvCell(booking.eventName),
@@ -224,9 +277,12 @@ export default function AdminReportsPage() {
             escapeCsvCell(booking.userName),
             escapeCsvCell(booking.billingAddress?.email),
             escapeCsvCell(booking.billingAddress?.phone_number),
-            escapeCsvCell(booking.payment_status || 'pending'),
+            escapeCsvCell(booking.payment_method || 'N/A'),
+            escapeCsvCell(isComp ? 'Complimentary' : (booking.payment_status || 'pending')),
             escapeCsvCell(booking.booked_type === 'manualy' ? 'Manual' : 'Online'),
-            escapeCsvCell(booking.totalPrice.toFixed(2))
+            escapeCsvCell(booking.totalPrice.toFixed(2)),
+            escapeCsvCell(amountPaid.toFixed(2)),
+            escapeCsvCell(balanceDue.toFixed(2))
         ];
         csvRows.push(row.join(","));
     });
@@ -327,7 +383,9 @@ export default function AdminReportsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="partially_paid">Partially Paid</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="complimentary">Complimentary / Free Pass</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
@@ -364,22 +422,31 @@ export default function AdminReportsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground">Total Bookings</p>
-                            <p className="text-2xl font-bold">{reportSummary.totalBookings.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Total Bookings</p>
+                            <p className="text-2xl font-bold mt-1">{reportSummary.totalBookings.toLocaleString()}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground">Total Sales (Paid)</p>
-                            <p className="text-2xl font-bold">LKR {reportSummary.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Revenue Collected</p>
+                            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">LKR {reportSummary.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground">Paid Bookings</p>
-                            <p className="text-2xl font-bold">{reportSummary.paidBookings.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Paid Bookings</p>
+                            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">{reportSummary.paidBookings.toLocaleString()}</p>
                         </div>
                         <div className="p-4 bg-muted rounded-lg">
-                            <p className="text-sm text-muted-foreground">Pending/Other</p>
-                            <p className="text-2xl font-bold">{reportSummary.pendingBookings.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Partially Paid</p>
+                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{reportSummary.partiallyPaidBookings.toLocaleString()}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-lg">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Free Passes</p>
+                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{reportSummary.complimentaryBookings.toLocaleString()}</p>
+                            {reportSummary.complimentaryWaivedValue > 0 && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                Waived: LKR {reportSummary.complimentaryWaivedValue.toLocaleString()}
+                              </p>
+                            )}
                         </div>
                     </div>
                 </CardContent>
@@ -436,39 +503,72 @@ export default function AdminReportsPage() {
                                 <TableHead>Event</TableHead>
                                 <TableHead>Attendee</TableHead>
                                 <TableHead>Type</TableHead>
+                                <TableHead>Method</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Total Price</TableHead>
                             </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {reportData.map((booking) => (
-                                    <TableRow key={booking.id}>
-                                        <TableCell className="font-mono text-xs whitespace-nowrap">{booking.id}</TableCell>
-                                        <TableCell>
-                                        <div className="font-medium">{booking.eventName}</div>
-                                        <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
-                                        </TableCell>
-                                        <TableCell className="whitespace-nowrap">
-                                            <div className="font-medium">{booking.userName}</div>
-                                            <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="capitalize">
-                                                {booking.booked_type === 'manualy' ? 'Manual' : 'Online'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className={cn('capitalize', {
-                                                'bg-green-100 text-green-800 border-green-200': (booking.payment_status || 'pending').toLowerCase() === 'paid',
-                                                'bg-amber-100 text-amber-800 border-amber-200': (booking.payment_status || 'pending').toLowerCase() === 'pending',
-                                                'bg-red-100 text-red-800 border-red-200': (booking.payment_status || 'pending').toLowerCase() === 'failed',
-                                            })}>
-                                                {booking.payment_status || 'pending'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right whitespace-nowrap">LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                    </TableRow>
-                                ))}
+                                {reportData.map((booking) => {
+                                    const isComp = (booking.payment_method || '').toLowerCase() === 'complimentary';
+                                    const rawStatus = (booking.payment_status || 'pending').toLowerCase().trim();
+                                    const isPartiallyPaid = rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial';
+
+                                    return (
+                                        <TableRow key={booking.id}>
+                                            <TableCell className="font-mono text-xs whitespace-nowrap">#{booking.id}</TableCell>
+                                            <TableCell>
+                                            <div className="font-medium">{booking.eventName}</div>
+                                            <div className="text-xs text-muted-foreground">{format(new Date(booking.bookingDate), 'PP')}</div>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                <div className="font-medium">{booking.userName}</div>
+                                                <div className="text-xs text-muted-foreground">{booking.billingAddress?.email}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="capitalize text-xs">
+                                                    {booking.booked_type === 'manualy' ? 'Manual' : 'Online'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">
+                                                {booking.payment_method || 'N/A'}
+                                            </TableCell>
+                                            <TableCell>
+                                                {isComp ? (
+                                                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 font-semibold text-xs">
+                                                        Complimentary
+                                                    </Badge>
+                                                ) : isPartiallyPaid ? (
+                                                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 font-semibold text-xs">
+                                                        Partially Paid
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="secondary" className={cn('capitalize text-xs', {
+                                                        'bg-green-100 text-green-800 border-green-200': rawStatus === 'paid',
+                                                        'bg-amber-100 text-amber-800 border-amber-200': rawStatus === 'pending',
+                                                        'bg-red-100 text-red-800 border-red-200': rawStatus === 'failed',
+                                                    })}>
+                                                        {booking.payment_status || 'pending'}
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">
+                                                {isComp ? (
+                                                    <div>
+                                                        <span className="font-mono font-bold text-xs text-purple-600 dark:text-purple-400">FREE PASS</span>
+                                                        <div className="text-[10px] text-muted-foreground line-through">
+                                                            Val: LKR {booking.totalPrice.toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="font-mono text-sm font-semibold">
+                                                        LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                         </div>

@@ -34,6 +34,7 @@ interface ReportData {
 interface TicketSummary {
     typeName: string;
     sold: number;
+    complimentary: number;
     verified: number;
     revenue: number;
 }
@@ -137,18 +138,25 @@ export default function EventSummaryReportPage() {
     if (!reportData) return [];
 
     const summaryMap = new Map<string, Omit<TicketSummary, 'typeName'>>();
+    const bookingMap = new Map(reportData.bookings.map(b => [String(b.id), b]));
 
     reportData.ticketTypes.forEach(tt => {
-        summaryMap.set(String(tt.id), { sold: 0, verified: 0, revenue: 0 });
+        summaryMap.set(String(tt.id), { sold: 0, complimentary: 0, verified: 0, revenue: 0 });
     });
 
     reportData.bookedShowtimes.forEach(showtime => {
         const ticketInfo = summaryMap.get(String(showtime.tickettype_id));
         if (ticketInfo) {
+            const parentBooking = bookingMap.get(String(showtime.booking_id));
+            const isComp = (parentBooking?.payment_method || '').toLowerCase() === 'complimentary';
             const price = reportData.ticketTypes.find(tt => String(tt.id) === String(showtime.tickettype_id))?.price || 0;
             const quantity = parseInt(showtime.ticket_count, 10) || 0;
             ticketInfo.sold += quantity;
-            ticketInfo.revenue += quantity * price;
+            if (isComp) {
+              ticketInfo.complimentary += quantity;
+            } else {
+              ticketInfo.revenue += quantity * price;
+            }
         }
     });
     
@@ -167,10 +175,11 @@ export default function EventSummaryReportPage() {
   }, [reportData]);
 
   const reportTotals = useMemo(() => {
-    if (!ticketSummary) return { totalRevenue: 0, totalTicketsSold: 0, totalTicketsVerified: 0 };
+    if (!ticketSummary) return { totalRevenue: 0, totalTicketsSold: 0, totalComplimentary: 0, totalTicketsVerified: 0 };
     return {
         totalRevenue: ticketSummary.reduce((sum, s) => sum + s.revenue, 0),
         totalTicketsSold: ticketSummary.reduce((sum, s) => sum + s.sold, 0),
+        totalComplimentary: ticketSummary.reduce((sum, s) => sum + s.complimentary, 0),
         totalTicketsVerified: ticketSummary.reduce((sum, s) => sum + s.verified, 0),
     }
   }, [ticketSummary]);
@@ -300,22 +309,26 @@ export default function EventSummaryReportPage() {
                             <CardTitle>{reportData.event?.name}</CardTitle>
                             <CardDescription>High-level statistics for this event.</CardDescription>
                         </CardHeader>
-                        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
                             <div className="p-4 bg-muted rounded-lg">
-                                <p className="text-sm text-muted-foreground">Total Paid Bookings</p>
-                                <p className="text-2xl font-bold">{reportData.bookings.length.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">Total Bookings</p>
+                                <p className="text-2xl font-bold mt-1">{reportData.bookings.length.toLocaleString()}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
-                                <p className="text-sm text-muted-foreground">Total Tickets Sold</p>
-                                <p className="text-2xl font-bold">{reportTotals.totalTicketsSold.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">Tickets Issued</p>
+                                <p className="text-2xl font-bold mt-1">{reportTotals.totalTicketsSold.toLocaleString()}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
-                                <p className="text-sm text-muted-foreground">Tickets Verified</p>
-                                <p className="text-2xl font-bold">{reportTotals.totalTicketsVerified.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">Free Passes</p>
+                                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">{reportTotals.totalComplimentary.toLocaleString()}</p>
                             </div>
                             <div className="p-4 bg-muted rounded-lg">
-                                <p className="text-sm text-muted-foreground">Total Revenue (Paid)</p>
-                                <p className="text-2xl font-bold">LKR {reportTotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">Tickets Verified</p>
+                                <p className="text-2xl font-bold mt-1">{reportTotals.totalTicketsVerified.toLocaleString()}</p>
+                            </div>
+                            <div className="p-4 bg-muted rounded-lg">
+                                <p className="text-xs text-muted-foreground uppercase font-semibold">Revenue Collected</p>
+                                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">LKR {reportTotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -331,7 +344,8 @@ export default function EventSummaryReportPage() {
                                     <TableHeader>
                                     <TableRow>
                                         <TableHead>Ticket Type</TableHead>
-                                        <TableHead className="text-center">Sold</TableHead>
+                                        <TableHead className="text-center">Issued</TableHead>
+                                        <TableHead className="text-center">Free Passes</TableHead>
                                         <TableHead className="text-center">Verified</TableHead>
                                         <TableHead>Verification Progress</TableHead>
                                         <TableHead className="text-right">Revenue (LKR)</TableHead>
@@ -343,15 +357,16 @@ export default function EventSummaryReportPage() {
                                         return (
                                         <TableRow key={index}>
                                             <TableCell className="font-medium">{summary.typeName}</TableCell>
-                                            <TableCell className="text-center">{summary.sold.toLocaleString()}</TableCell>
-                                            <TableCell className="text-center">{summary.verified.toLocaleString()}</TableCell>
+                                            <TableCell className="text-center font-mono">{summary.sold.toLocaleString()}</TableCell>
+                                            <TableCell className="text-center font-mono text-purple-600 dark:text-purple-400 font-semibold">{summary.complimentary.toLocaleString()}</TableCell>
+                                            <TableCell className="text-center font-mono">{summary.verified.toLocaleString()}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     <Progress value={percentage} className="w-full" />
                                                     <span className="text-xs text-muted-foreground w-12 text-right">{percentage.toFixed(0)}%</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-right font-mono">{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                            <TableCell className="text-right font-mono font-medium">{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                         </TableRow>
                                         );
                                     })}
