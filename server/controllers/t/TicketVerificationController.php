@@ -5,9 +5,11 @@ require_once './models/t/TicketsVerification.php'; // Adjust the path if needed
 class TicketVerificationController
 {
     private $model;
+    private $pdo;
 
     public function __construct($pdo)
     {
+        $this->pdo = $pdo;
         $this->model = new TicketVerification($pdo);
     }
 
@@ -43,6 +45,29 @@ class TicketVerificationController
             $data &&
             isset($data['booking_id'], $data['event_id'], $data['showtime_id'], $data['tickettype_id'], $data['ticket_count'], $data['checking_time'], $data['checking_by'])
         ) {
+            // Validate that the booking is fully paid or complimentary before allowing check-in
+            $chkStmt = $this->pdo->prepare("SELECT `payment_status`, `payment_method`, `balance_amount` FROM `booking` WHERE `id` = ?");
+            $chkStmt->execute([$data['booking_id']]);
+            $booking = $chkStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$booking) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Booking not found']);
+                return;
+            }
+
+            $isComp = strtolower($booking['payment_method'] ?? '') === 'complimentary';
+            $pStatus = strtolower($booking['payment_status'] ?? '');
+            if (!$isComp && $pStatus !== 'paid') {
+                $statusDisplay = $booking['payment_status'] ?? 'pending';
+                $balanceDue = number_format(floatval($booking['balance_amount'] ?? 0), 2);
+                http_response_code(403);
+                echo json_encode([
+                    'error' => "Check-in not allowed: This booking is {$statusDisplay} (Balance Due: LKR {$balanceDue}). Only fully paid bookings or authorized complimentary passes can be checked in."
+                ]);
+                return;
+            }
+
             $insertedId = $this->model->createVerification($data);
             http_response_code(201);
             echo json_encode([

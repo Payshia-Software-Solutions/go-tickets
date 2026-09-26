@@ -250,26 +250,40 @@ const TicketVerificationPage = () => {
       }
 
       if (result) {
+        const pStatus = (result.payment_status || 'pending').toLowerCase();
+        const isComp = (result.payment_method || '').toLowerCase() === 'complimentary';
+        const isAllowed = isComp || pStatus === 'paid';
+        const isPartial = pStatus === 'partially paid' || pStatus === 'partially_paid';
+
         if (!isSilentRefresh) {
-          playAudioFeedback('success');
+          if (isAllowed) {
+            playAudioFeedback('success');
+          } else {
+            playAudioFeedback('error');
+            toast({
+              variant: 'destructive',
+              title: isPartial ? 'Check-in Blocked: Partially Paid' : 'Check-in Blocked: Unpaid',
+              description: `Booking #${result.id} is ${result.payment_status} (Balance Due: LKR ${(result.balance_amount || 0).toLocaleString()}). Only fully paid tickets can be checked in.`,
+            });
+          }
         }
         setScannedBooking(result);
 
-        // Pre-fill quantities: default to 1 ticket if available, or all available
+        // Pre-fill quantities: only if payment is complete/complimentary, else 0
         const initialQuantities: Record<string, number> = {};
         let anyAvailable = false;
         result.bookedTickets.forEach(t => {
           const bookedCount = t.quantity;
           const checkedIn = t.checkedInCount || 0;
           const available = Math.max(0, bookedCount - checkedIn);
-          // Pre-select 1 ticket or all if 1
-          initialQuantities[t.id] = available > 0 ? 1 : 0;
+          // Only pre-fill quantity if check-in is allowed
+          initialQuantities[t.id] = (isAllowed && available > 0) ? 1 : 0;
           if (available > 0) anyAvailable = true;
         });
         setCheckInQuantities(initialQuantities);
 
         // If it was already fully checked in before scanning, notify gently
-        if (!anyAvailable && !isSilentRefresh) {
+        if (isAllowed && !anyAvailable && !isSilentRefresh) {
           toast({
             title: 'All Tickets Already Checked In',
             description: `All tickets for Booking #${result.id} were already checked in previously.`,
@@ -448,6 +462,21 @@ const TicketVerificationPage = () => {
   const executeCheckIn = async (quantitiesToCommit: Record<string, number>) => {
     if (!scannedBooking) return;
 
+    const paymentStatus = (scannedBooking.payment_status || 'pending').toLowerCase();
+    const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
+    const isPaid = isComp || paymentStatus === 'paid';
+    const isPartial = paymentStatus === 'partially paid' || paymentStatus === 'partially_paid';
+
+    if (!isPaid) {
+      playAudioFeedback('error');
+      toast({
+        variant: 'destructive',
+        title: isPartial ? 'Check-in Blocked: Partially Paid' : 'Check-in Blocked: Unpaid',
+        description: `Cannot admit attendee. Booking #${scannedBooking.id} is ${scannedBooking.payment_status} (Balance Due: LKR ${(scannedBooking.balance_amount || 0).toLocaleString()}). Only fully paid bookings can enter.`
+      });
+      return;
+    }
+
     const checkerName = (user?.name && user.name.trim()) || user?.email || "Admin Verifier";
     const checkInPayloads = [];
     for (const ticket of scannedBooking.bookedTickets) {
@@ -481,7 +510,7 @@ const TicketVerificationPage = () => {
           if (!response.ok) {
             const errorBody = await response.json().catch(() => ({ message: 'Check-in failed.' }));
             const ticket = scannedBooking.bookedTickets.find(t => t.ticketTypeId === String(payload.tickettype_id));
-            throw new Error(`Failed for ${ticket?.ticketTypeName || 'ticket'}: ${errorBody.message}`);
+            throw new Error(`Failed for ${ticket?.ticketTypeName || 'ticket'}: ${errorBody.message || errorBody.error}`);
           }
           return response.json();
         })
@@ -497,7 +526,6 @@ const TicketVerificationPage = () => {
       });
 
       // Update recent check-ins log (latest 5)
-      const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
       const recentItem: RecentVerificationItem = {
         id: `${Date.now()}-${scannedBooking.id}`,
         bookingId: scannedBooking.id,
@@ -531,6 +559,18 @@ const TicketVerificationPage = () => {
 
   const handleSelectAllAvailable = () => {
     if (!scannedBooking) return;
+    const paymentStatus = (scannedBooking.payment_status || 'pending').toLowerCase();
+    const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
+    const isPaid = isComp || paymentStatus === 'paid';
+    if (!isPaid) {
+      toast({
+        variant: 'destructive',
+        title: 'Check-in Prohibited',
+        description: `This booking is not fully paid (${scannedBooking.payment_status}). Cannot select tickets for check-in.`
+      });
+      return;
+    }
+
     const newQuantities: Record<string, number> = {};
     scannedBooking.bookedTickets.forEach(t => {
       const available = Math.max(0, t.quantity - (t.checkedInCount || 0));
@@ -540,6 +580,12 @@ const TicketVerificationPage = () => {
   };
 
   const handleQuantityChange = (ticket: BookedTicket, change: number) => {
+    if (!scannedBooking) return;
+    const paymentStatus = (scannedBooking.payment_status || 'pending').toLowerCase();
+    const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
+    const isPaid = isComp || paymentStatus === 'paid';
+    if (!isPaid) return;
+
     const currentQtyToCommit = checkInQuantities[ticket.id] || 0;
     const newQtyToCommit = currentQtyToCommit + change;
 
@@ -567,6 +613,7 @@ const TicketVerificationPage = () => {
     const paymentStatus = (scannedBooking.payment_status || 'pending').toLowerCase();
     const isComp = (scannedBooking.payment_method || '').toLowerCase() === 'complimentary';
     const isPaid = isComp || paymentStatus === 'paid';
+    const isPartial = paymentStatus === 'partially paid' || paymentStatus === 'partially_paid';
 
     const totalBooked = scannedBooking.bookedTickets.reduce((sum, t) => sum + t.quantity, 0);
     const totalCheckedIn = scannedBooking.bookedTickets.reduce((sum, t) => sum + (t.checkedInCount || 0), 0);
@@ -576,24 +623,42 @@ const TicketVerificationPage = () => {
       <div className="w-full space-y-4">
         <Card className={cn(
           "border-2 animate-in fade-in-50",
-          isComp ? "border-purple-500 shadow-purple-100 dark:shadow-none" : "border-primary"
+          isComp 
+            ? "border-purple-500 shadow-purple-100 dark:shadow-none" 
+            : (!isPaid 
+                ? "border-red-500 shadow-red-100 dark:shadow-none bg-red-50/10" 
+                : "border-emerald-500 shadow-emerald-100 dark:shadow-none")
         )}>
           <CardHeader className={cn(
             "text-center py-4",
-            isComp ? "bg-purple-100/70 dark:bg-purple-950/40" : "bg-primary/10"
+            isComp 
+              ? "bg-purple-100/70 dark:bg-purple-950/40" 
+              : (!isPaid 
+                  ? "bg-red-100/80 dark:bg-red-950/50" 
+                  : "bg-emerald-100/70 dark:bg-emerald-950/40")
           )}>
             <div className="flex items-center justify-center gap-2 mb-1">
               {isComp ? (
                 <Gift className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+              ) : !isPaid ? (
+                <XCircle className="h-10 w-10 text-red-600 dark:text-red-400 animate-pulse" />
               ) : (
-                <CheckCircle className="h-10 w-10 text-primary" />
+                <CheckCircle className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
               )}
             </div>
             <CardTitle className={cn(
               "text-2xl font-bold flex items-center justify-center gap-2",
-              isComp ? "text-purple-900 dark:text-purple-200" : "text-primary"
+              isComp 
+                ? "text-purple-900 dark:text-purple-200" 
+                : (!isPaid 
+                    ? "text-red-900 dark:text-red-200" 
+                    : "text-emerald-900 dark:text-emerald-200")
             )}>
-              {isComp ? "Complimentary Pass Found" : "Valid Ticket Found"}
+              {isComp 
+                ? "Complimentary Pass Found" 
+                : (!isPaid 
+                    ? (isPartial ? "Partially Paid — Check-in Blocked" : "Unpaid Booking — Check-in Blocked") 
+                    : "Valid Paid Ticket Found")}
             </CardTitle>
             <CardDescription className="text-sm font-medium">
               Booking ID: <span className="font-mono font-bold text-foreground">#{scannedBooking.id}</span> • Attendee: <span className="font-semibold text-foreground">{scannedBooking.userName}</span>
@@ -621,13 +686,30 @@ const TicketVerificationPage = () => {
               </div>
             )}
 
+            {/* Blocked Alert Banner for Unpaid / Partially Paid */}
             {!isPaid && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Payment Not Confirmed</AlertTitle>
-                <AlertDescription>
-                  This booking status is <span className="font-semibold capitalize">{paymentStatus}</span>. Proceed with check-in at your own risk.
-                </AlertDescription>
+              <Alert variant="destructive" className="border-red-500 bg-red-50 dark:bg-red-950/60 shadow-sm text-left">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="ml-2">
+                  <AlertTitle className="text-red-900 dark:text-red-100 font-bold text-base">
+                    {isPartial ? "Entry Prohibited: Partially Paid Booking" : "Entry Prohibited: Payment Not Confirmed"}
+                  </AlertTitle>
+                  <AlertDescription className="text-red-800 dark:text-red-200 text-sm mt-1.5 leading-relaxed">
+                    {isPartial ? (
+                      <>
+                        This booking has only been partially paid and has an outstanding balance of{' '}
+                        <span className="font-mono font-bold text-sm text-red-950 dark:text-white bg-red-200/80 dark:bg-red-900/80 px-2 py-0.5 rounded border border-red-300 dark:border-red-700">
+                          LKR {(scannedBooking.balance_amount || 0).toLocaleString()}
+                        </span>
+                        . Attendees <strong>cannot be checked in</strong> until the remaining balance is fully settled.
+                      </>
+                    ) : (
+                      <>
+                        This booking status is <strong className="capitalize">{paymentStatus}</strong>. Attendees cannot be admitted without full payment confirmation.
+                      </>
+                    )}
+                  </AlertDescription>
+                </div>
               </Alert>
             )}
 
@@ -643,11 +725,11 @@ const TicketVerificationPage = () => {
                     variant="secondary"
                     className={cn('capitalize text-xs font-semibold px-2.5 py-0.5', {
                       'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300': paymentStatus === 'paid',
-                      'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300': paymentStatus === 'pending',
-                      'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300': paymentStatus === 'failed',
+                      'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300': isPartial,
+                      'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300': paymentStatus === 'failed' || paymentStatus === 'pending',
                     })}
                   >
-                    Payment: {paymentStatus}
+                    Payment: {scannedBooking.payment_status || 'Pending'}
                   </Badge>
                 )}
                 <Badge variant="outline" className="text-xs font-mono">
@@ -659,8 +741,10 @@ const TicketVerificationPage = () => {
             {/* Ticket Breakdown and Check-in Selector */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-sm">Select Tickets to Check In</h3>
-                {totalRemaining > 0 && (
+                <h3 className="font-semibold text-sm">
+                  {isPaid ? "Select Tickets to Check In" : "Ticket Breakdown (Check-in Locked)"}
+                </h3>
+                {isPaid && totalRemaining > 0 && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -683,7 +767,7 @@ const TicketVerificationPage = () => {
                     key={ticket.id} 
                     className={cn(
                       "p-3 border rounded-lg transition-colors",
-                      isSelected ? "border-primary/40 bg-primary/5" : "border-border bg-card",
+                      !isPaid ? "opacity-75 bg-red-50/20 border-red-200 dark:border-red-900/30" : (isSelected ? "border-primary/40 bg-primary/5" : "border-border bg-card"),
                       availableToCheckIn === 0 && "opacity-75 bg-muted/30"
                     )}
                   >
@@ -701,7 +785,7 @@ const TicketVerificationPage = () => {
                           size="icon" 
                           className="h-8 w-8" 
                           onClick={() => handleQuantityChange(ticket, -1)} 
-                          disabled={checkInQuantities[ticket.id] === 0 || isCommitting}
+                          disabled={!isPaid || checkInQuantities[ticket.id] === 0 || isCommitting}
                         >
                           <MinusCircle className="h-4 w-4"/>
                         </Button>
@@ -713,18 +797,22 @@ const TicketVerificationPage = () => {
                           size="icon" 
                           className="h-8 w-8" 
                           onClick={() => handleQuantityChange(ticket, 1)} 
-                          disabled={availableToCheckIn === 0 || checkInQuantities[ticket.id] >= availableToCheckIn || isCommitting}
+                          disabled={!isPaid || availableToCheckIn === 0 || checkInQuantities[ticket.id] >= availableToCheckIn || isCommitting}
                         >
                           <PlusCircle className="h-4 w-4"/>
                         </Button>
                       </div>
                     </div>
 
-                    {availableToCheckIn === 0 && (
+                    {!isPaid ? (
+                      <p className="text-[11px] text-center font-semibold text-red-600 dark:text-red-400 mt-2 bg-red-50 dark:bg-red-950/40 py-1 rounded">
+                        🚫 Entry prohibited: {isPartial ? 'Partially paid booking' : 'Unpaid booking'} — settlement required
+                      </p>
+                    ) : availableToCheckIn === 0 ? (
                       <p className="text-[11px] text-center font-semibold text-green-600 dark:text-green-400 mt-2 bg-green-50 dark:bg-green-950/40 py-1 rounded">
                         ✓ All tickets for this tier are already checked in
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 );
               })}
@@ -737,14 +825,30 @@ const TicketVerificationPage = () => {
           <Button 
             size="lg" 
             className={cn(
-              "flex-1 py-6 text-base font-semibold shadow-sm",
-              isComp ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
+              "flex-1 py-6 text-base font-semibold shadow-sm transition-all",
+              !isPaid 
+                ? "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed hover:bg-slate-200" 
+                : (isComp ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white")
             )}
             onClick={handleConfirmCheckIn} 
-            disabled={isCommitting || totalTicketsToCheckIn === 0}
+            disabled={!isPaid || isCommitting || totalTicketsToCheckIn === 0}
           >
-            {isCommitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle className="mr-2 h-5 w-5"/>}
-            Confirm Check-in ({totalTicketsToCheckIn})
+            {!isPaid ? (
+              <>
+                <XCircle className="mr-2 h-5 w-5 text-red-500 shrink-0" />
+                <span>Check-in Blocked ({isPartial ? 'Partially Paid' : 'Unpaid'})</span>
+              </>
+            ) : isCommitting ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="mr-2 h-5 w-5"/>
+                <span>Confirm Check-in ({totalTicketsToCheckIn})</span>
+              </>
+            )}
           </Button>
           <Button 
             size="lg" 
