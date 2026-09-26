@@ -73,6 +73,7 @@ const TicketVerificationPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraCaptureRef = useRef<HTMLInputElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   // Web Audio API synthesized sound feedback (zero-dependency, always works on any device)
   const playAudioFeedback = useCallback((type: 'success' | 'error') => {
@@ -170,7 +171,20 @@ const TicketVerificationPage = () => {
     setManualCode('');
     setIsLoading(false);
     setIsCommitting(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
+
+  // Automatically scroll down to ticket details when a ticket is scanned
+  useEffect(() => {
+    if (scannedBooking && resultRef.current) {
+      const timer = setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [scannedBooking]);
 
   const fetchBookingDetails = async (code: string) => {
     setIsLoading(true);
@@ -1131,7 +1145,7 @@ const TicketVerificationPage = () => {
         </div>
 
         {/* Right Column: Verification Result */}
-        <div className="lg:col-span-6">
+        <div className="lg:col-span-6 scroll-mt-6" ref={resultRef}>
           <Card className="min-h-[460px] shadow-sm">
             <CardHeader className="border-b py-3">
               <CardTitle className="text-base font-semibold">Verification Result</CardTitle>
