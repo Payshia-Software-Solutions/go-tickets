@@ -261,12 +261,12 @@ const TicketVerificationPage = () => {
       await html5QrCodeRef.current.start(
         cameraConfig,
         {
-          fps: 10,
+          fps: 15,
           qrbox: (viewfinderWidth, viewfinderHeight) => {
             const edge = Math.min(viewfinderWidth, viewfinderHeight) * 0.75;
             return { width: Math.round(edge), height: Math.round(edge) };
           },
-          aspectRatio: 1.0,
+          aspectRatio: undefined,
         },
         async (decodedText) => {
           // Successfully scanned QR code
@@ -771,24 +771,51 @@ const TicketVerificationPage = () => {
 
   return (
     <div className="space-y-8">
-      {/* Inline styles to make html5-qrcode look modern */}
+      {/* Inline styles to make html5-qrcode look modern and authentic */}
       <style jsx global>{`
         #qr-reader-container {
           border: none !important;
           position: relative !important;
           width: 100% !important;
+          height: 100% !important;
+          overflow: hidden !important;
         }
         #qr-reader-container video {
-          border-radius: 0.5rem !important;
+          border-radius: 1rem !important;
           width: 100% !important;
           height: 100% !important;
           object-fit: cover !important;
         }
         #qr-reader-container__scan_region {
-          border-radius: 0.5rem !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        #qr-reader-container__scan_region > svg,
+        #qr-reader-container__scan_region > div {
+          border: none !important;
+        }
+        #qr-reader-container__dashboard {
+          display: none !important;
         }
         #qr-reader-container img {
           display: none !important;
+        }
+        @keyframes laserSweep {
+          0% {
+            top: 6%;
+            opacity: 0.6;
+          }
+          50% {
+            top: 92%;
+            opacity: 1;
+          }
+          100% {
+            top: 6%;
+            opacity: 0.6;
+          }
+        }
+        .animate-laser {
+          animation: laserSweep 2s ease-in-out infinite;
         }
       `}</style>
 
@@ -868,16 +895,82 @@ const TicketVerificationPage = () => {
                     </div>
                   )}
 
-                  {/* Camera Stream Area */}
-                  <div className="w-full overflow-hidden rounded-lg bg-black relative aspect-[4/3] flex items-center justify-center border border-border shadow-inner">
+                  {/* Camera Stream Area - Large Authentic Scanner UI */}
+                  <div className="w-full overflow-hidden rounded-2xl bg-slate-950 relative h-[440px] sm:h-[490px] md:h-[530px] flex items-center justify-center border-2 border-slate-800 shadow-2xl">
                     <div id="qr-reader-container" className="w-full h-full" />
                     
+                    {/* Floating HUD Controls Overlay when camera is active */}
+                    {isScanning && (
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-between p-4 sm:p-5 z-20">
+                        {/* Top Bar inside Camera */}
+                        <div className="flex items-center justify-between w-full pointer-events-auto">
+                          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-white text-xs font-mono shadow-md">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="tracking-wider">SCANNER ACTIVE</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isTorchSupported && (
+                              <button
+                                type="button"
+                                onClick={toggleTorch}
+                                className={cn(
+                                  "h-9 w-9 rounded-full flex items-center justify-center backdrop-blur-md border border-white/20 transition-all shadow-md",
+                                  isTorchOn ? "bg-amber-500 text-white" : "bg-black/60 text-white hover:bg-black/80"
+                                )}
+                                title={isTorchOn ? "Flashlight Off" : "Flashlight On"}
+                              >
+                                <Zap className="h-4 w-4" />
+                              </button>
+                            )}
+
+                            {availableCameras.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentIdx = availableCameras.findIndex(c => c.id === selectedCameraId);
+                                  const nextIdx = (currentIdx + 1) % availableCameras.length;
+                                  handleCameraChange(availableCameras[nextIdx].id);
+                                }}
+                                className="h-9 w-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all shadow-md"
+                                title="Switch Camera"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Center QR Scanner Viewfinder Reticle */}
+                        <div className="relative w-64 h-64 sm:w-72 sm:h-72 my-auto">
+                          {/* Corner Reticles */}
+                          <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                          <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+
+                          {/* Glowing Animated Laser Sweep */}
+                          <div className="absolute left-2 right-2 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#34d399] animate-laser" />
+                        </div>
+
+                        {/* Bottom Instruction Pill */}
+                        <div className="bg-black/75 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-white/90 text-xs font-medium tracking-wide shadow-lg">
+                          Align attendee QR code inside the frame
+                        </div>
+                      </div>
+                    )}
+                    
                     {!isScanning && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/95 text-muted-foreground p-6 text-center z-10">
-                        <VideoOff className="h-12 w-12 mb-3 text-muted-foreground/50" />
-                        <p className="font-semibold text-foreground text-sm">Camera is Stopped</p>
-                        <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                          Click "Start Scanning" to open camera, or tap the Camera button below.
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 text-muted-foreground p-6 text-center z-10">
+                        <div className="w-20 h-20 rounded-full bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mb-4 text-slate-400 shadow-inner">
+                          <ScanLine className="h-10 w-10 text-primary animate-pulse" />
+                        </div>
+                        <p className="font-bold text-foreground text-base">QR Scanner Ready</p>
+                        <p className="text-xs text-muted-foreground mt-1.5 max-w-xs">
+                          Click "Start Scanning" to activate the camera viewfinder, or use the camera photo snap button.
                         </p>
                       </div>
                     )}
