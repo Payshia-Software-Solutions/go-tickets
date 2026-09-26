@@ -273,8 +273,17 @@ class BookingController
 
             // ✅ Prepare booking data for model
             $isManual = (isset($data['booked_type']) && $data['booked_type'] === 'manualy') || (isset($data['payment_method']) && $data['payment_method'] !== 'online_payhere');
-            $amountPaid = isset($data['amount_paid']) ? floatval($data['amount_paid']) : ($isManual && ($data['payment_status'] ?? '') === 'paid' ? floatval($data['totalPrice']) : 0.00);
-            $balanceAmount = max(0.00, floatval($data['totalPrice']) - $amountPaid);
+            $isComplimentary = isset($data['payment_method']) && strtolower(trim($data['payment_method'])) === 'complimentary';
+
+            if ($isComplimentary) {
+                $amountPaid = 0.00;
+                $balanceAmount = 0.00;
+                $paymentStatus = 'Paid';
+            } else {
+                $amountPaid = isset($data['amount_paid']) ? floatval($data['amount_paid']) : ($isManual && ($data['payment_status'] ?? '') === 'paid' ? floatval($data['totalPrice']) : 0.00);
+                $balanceAmount = isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, floatval($data['totalPrice']) - $amountPaid);
+                $paymentStatus = $data['payment_status'] ?? ($amountPaid >= floatval($data['totalPrice']) ? 'Paid' : ($amountPaid > 0 ? 'Partially Paid' : 'pending'));
+            }
 
             $bookingData = [
                 'userId' => $data['userId'],
@@ -284,6 +293,7 @@ class BookingController
                 'contact_number' => $data['contact_number'] ?? '',
                 'email' => $data['email'] ?? '',
                 'guest' => $data['guest'] ?? 0,
+                'booked_type' => $data['booked_type'] ?? ($isManual ? 'manualy' : 'online'),
                 'totalPrice' => $data['totalPrice'],
                 'amount_paid' => $amountPaid,
                 'balance_amount' => $balanceAmount,
@@ -294,7 +304,7 @@ class BookingController
                 'eventDate' => $data['eventDate'],
                 'eventLocation' => $data['eventLocation'],
                 'qrCodeValue' => $data['qrCodeValue'],
-                'payment_status' => $data['payment_status'] ?? ($amountPaid >= floatval($data['totalPrice']) ? 'Paid' : ($amountPaid > 0 ? 'Partially Paid' : 'pending'))
+                'payment_status' => $paymentStatus
             ];
 
             // ✅ Create booking

@@ -18,7 +18,7 @@ import {
   Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare, 
   Mail, ExternalLink, CreditCard, PlusCircle, Edit3, 
   FileText, CheckCircle2, DollarSign, Clock, AlertCircle, 
-  Download, Eye, X, UploadCloud, MinusCircle 
+  Download, Eye, X, UploadCloud, MinusCircle, Gift
 } from 'lucide-react';
 import QRCode from '@/components/QRCode';
 import { Badge } from "@/components/ui/badge";
@@ -299,10 +299,11 @@ export default function BookingDetailsPage() {
   };
 
   const whatsAppNumber = formatWhatsAppNumber(rawPhoneNumber);
-  const amountPaid = booking.amount_paid !== undefined ? booking.amount_paid : (paymentStatus === 'paid' ? booking.totalPrice : 0);
-  const balanceDue = booking.balance_amount !== undefined ? booking.balance_amount : Math.max(0, booking.totalPrice - amountPaid);
-  const isFullyPaid = balanceDue <= 0 && amountPaid > 0;
-  const isPartiallyPaid = amountPaid > 0 && balanceDue > 0;
+  const isComplimentary = booking.payment_method?.toLowerCase() === 'complimentary';
+  const amountPaid = isComplimentary ? 0 : (booking.amount_paid !== undefined ? booking.amount_paid : (paymentStatus === 'paid' ? booking.totalPrice : 0));
+  const balanceDue = isComplimentary ? 0 : (booking.balance_amount !== undefined ? booking.balance_amount : Math.max(0, booking.totalPrice - amountPaid));
+  const isFullyPaid = isComplimentary || (balanceDue <= 0 && (amountPaid > 0 || booking.totalPrice === 0));
+  const isPartiallyPaid = !isComplimentary && amountPaid > 0 && balanceDue > 0;
 
   return (
     <div className="space-y-6 pb-12">
@@ -327,12 +328,13 @@ export default function BookingDetailsPage() {
             </Badge>
             <Badge 
               className={cn('capitalize text-xs font-semibold px-2.5 py-0.5', {
-                'bg-green-600 text-white hover:bg-green-600': isFullyPaid,
-                'bg-amber-500 text-white hover:bg-amber-500': isPartiallyPaid,
-                'bg-red-500 text-white hover:bg-red-500': !isFullyPaid && !isPartiallyPaid,
+                'bg-purple-600 text-white hover:bg-purple-600': isComplimentary,
+                'bg-green-600 text-white hover:bg-green-600': !isComplimentary && isFullyPaid,
+                'bg-amber-500 text-white hover:bg-amber-500': !isComplimentary && isPartiallyPaid,
+                'bg-red-500 text-white hover:bg-red-500': !isComplimentary && !isFullyPaid && !isPartiallyPaid,
               })}
             >
-              {isFullyPaid ? 'Fully Paid' : (isPartiallyPaid ? 'Partially Paid' : 'Pending')}
+              {isComplimentary ? 'Complimentary Pass' : (isFullyPaid ? 'Fully Paid' : (isPartiallyPaid ? 'Partially Paid' : 'Pending'))}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -342,7 +344,7 @@ export default function BookingDetailsPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {balanceDue > 0 && (
+          {!isComplimentary && balanceDue > 0 && (
             <Button onClick={handleOpenAddPayment} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               <PlusCircle className="mr-2 h-4 w-4" /> Record Installment
             </Button>
@@ -379,26 +381,39 @@ export default function BookingDetailsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border bg-card">
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Amount</p>
-                  <p className="text-xl font-bold font-mono">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {isComplimentary ? 'Standard Ticket Value' : 'Total Amount'}
+                  </p>
+                  <p className={cn("text-xl font-bold font-mono", isComplimentary ? "text-muted-foreground line-through" : "")}>
                     LKR {booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
+                  {isComplimentary && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                      <Gift className="h-3 w-3" /> 100% Free Waiver
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1 border-t sm:border-t-0 sm:border-l sm:pl-4 pt-2 sm:pt-0">
-                  <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wider">Amount Paid</p>
+                  <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wider">
+                    {isComplimentary ? 'Amount Charged' : 'Amount Paid'}
+                  </p>
                   <p className="text-xl font-bold font-mono text-green-600 dark:text-green-400">
-                    LKR {amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    LKR {isComplimentary ? '0.00' : amountPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {booking.totalPrice > 0 ? `${Math.round((amountPaid / booking.totalPrice) * 100)}% Settled` : '0%'}
+                    {isComplimentary ? '100% Complimentary Pass' : (booking.totalPrice > 0 ? `${Math.round((amountPaid / booking.totalPrice) * 100)}% Settled` : '0%')}
                   </p>
                 </div>
                 <div className="space-y-1 border-t sm:border-t-0 sm:border-l sm:pl-4 pt-2 sm:pt-0">
                   <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wider">Balance Due</p>
-                  <p className={cn("text-xl font-bold font-mono", balanceDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                    LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <p className={cn("text-xl font-bold font-mono", (!isComplimentary && balanceDue > 0) ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                    LKR {(isComplimentary ? 0 : balanceDue).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
-                  {balanceDue > 0 ? (
+                  {isComplimentary ? (
+                    <span className="inline-flex items-center text-xs text-purple-600 dark:text-purple-400 font-medium">
+                      <CheckCircle2 className="h-3 w-3 mr-1"/> 100% Free / Settled
+                    </span>
+                  ) : balanceDue > 0 ? (
                     <span className="inline-flex items-center text-xs text-amber-600 dark:text-amber-400 font-medium">
                       <AlertCircle className="h-3 w-3 mr-1"/> Action Needed
                     </span>

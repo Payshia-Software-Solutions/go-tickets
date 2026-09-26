@@ -359,12 +359,13 @@ export default function AdminBookingsPage() {
                 <TableBody>
                   {paginatedBookings.map((booking) => {
                     const rawStatus = (booking.payment_status || 'pending').toLowerCase().trim();
-                    const isPaid = rawStatus === 'paid';
-                    const isPartiallyPaid = rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial';
-                    const isPending = rawStatus === 'pending';
+                    const isComplimentary = booking.payment_method?.toLowerCase() === 'complimentary';
+                    const isPaid = !isComplimentary && rawStatus === 'paid';
+                    const isPartiallyPaid = !isComplimentary && (rawStatus === 'partially paid' || rawStatus === 'partially_paid' || rawStatus === 'partial');
+                    const isPending = !isComplimentary && rawStatus === 'pending';
 
-                    const amountPaid = booking.amount_paid !== undefined ? booking.amount_paid : (isPaid ? booking.totalPrice : 0);
-                    const balanceDue = booking.balance_amount !== undefined ? booking.balance_amount : Math.max(0, booking.totalPrice - amountPaid);
+                    const amountPaid = isComplimentary ? 0 : (booking.amount_paid !== undefined ? booking.amount_paid : (isPaid ? booking.totalPrice : 0));
+                    const balanceDue = isComplimentary ? 0 : (booking.balance_amount !== undefined ? booking.balance_amount : Math.max(0, booking.totalPrice - amountPaid));
 
                     return (
                       <TableRow key={booking.id} className="hover:bg-muted/30">
@@ -392,6 +393,15 @@ export default function AdminBookingsPage() {
                         </TableCell>
 
                         <TableCell className="whitespace-nowrap">
+                          {isComplimentary && (
+                            <Badge 
+                              variant="secondary"
+                              className="bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/70 dark:text-purple-300 font-semibold text-xs px-2.5 py-0.5"
+                            >
+                              Complimentary
+                            </Badge>
+                          )}
+
                           {isPaid && (
                             <Badge 
                               variant="secondary"
@@ -426,7 +436,7 @@ export default function AdminBookingsPage() {
                             </Badge>
                           )}
 
-                          {!isPaid && !isPartiallyPaid && !isPending && (
+                          {!isComplimentary && !isPaid && !isPartiallyPaid && !isPending && (
                             <Badge variant="outline" className="capitalize text-xs">
                               {rawStatus}
                             </Badge>
@@ -443,9 +453,17 @@ export default function AdminBookingsPage() {
 
                         <TableCell className="text-right whitespace-nowrap">
                           <div className="font-mono font-bold text-sm">
-                            LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
+                            {isComplimentary ? (
+                              <span className="text-purple-600 dark:text-purple-400">FREE PASS</span>
+                            ) : (
+                              `LKR ${typeof booking.totalPrice === 'number' ? booking.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}`
+                            )}
                           </div>
-                          {isPartiallyPaid && amountPaid > 0 && (
+                          {isComplimentary ? (
+                            <div className="text-[10px] text-muted-foreground line-through">
+                              Val: LKR {typeof booking.totalPrice === 'number' ? booking.totalPrice.toLocaleString() : '0'}
+                            </div>
+                          ) : isPartiallyPaid && amountPaid > 0 && (
                             <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
                               Paid: LKR {amountPaid.toLocaleString()}
                             </div>

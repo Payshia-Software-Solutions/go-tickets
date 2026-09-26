@@ -57,8 +57,10 @@ class Booking
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         $totalPrice = floatval($data['totalPrice']);
-        $amountPaid = isset($data['amount_paid']) ? floatval($data['amount_paid']) : 0.00;
-        $balanceAmount = isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, $totalPrice - $amountPaid);
+        $isComplimentary = isset($data['payment_method']) && strtolower(trim($data['payment_method'])) === 'complimentary';
+        $amountPaid = $isComplimentary ? 0.00 : (isset($data['amount_paid']) ? floatval($data['amount_paid']) : 0.00);
+        $balanceAmount = $isComplimentary ? 0.00 : (isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, $totalPrice - $amountPaid));
+        $paymentStatus = $isComplimentary ? 'Paid' : ($data['payment_status'] ?? 'pending');
 
         $stmt->execute([
             $data['userId'],
@@ -74,7 +76,7 @@ class Booking
             $data['payment_method'] ?? 'online_payhere',
             $data['payment_slip'] ?? null,
             $data['payment_notes'] ?? null,
-            $data['payment_status'] ?? 'pending',
+            $paymentStatus,
             $now,                         // bookingDate
             $data['eventName'],
             $data['eventDate'],
@@ -94,8 +96,11 @@ class Booking
     {
         $existing = $this->getBookingById($id);
         $totalPrice = isset($data['totalPrice']) ? floatval($data['totalPrice']) : floatval($existing['totalPrice']);
-        $amountPaid = isset($data['amount_paid']) ? floatval($data['amount_paid']) : floatval($existing['amount_paid'] ?? 0.00);
-        $balanceAmount = max(0.00, $totalPrice - $amountPaid);
+        $currentMethod = $data['payment_method'] ?? ($existing['payment_method'] ?? '');
+        $isComplimentary = strtolower(trim($currentMethod)) === 'complimentary';
+        $amountPaid = $isComplimentary ? 0.00 : (isset($data['amount_paid']) ? floatval($data['amount_paid']) : floatval($existing['amount_paid'] ?? 0.00));
+        $balanceAmount = $isComplimentary ? 0.00 : (isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, $totalPrice - $amountPaid));
+        $paymentStatus = $isComplimentary ? 'Paid' : ($data['payment_status'] ?? ($existing['payment_status'] ?? 'pending'));
 
         $stmt = $this->pdo->prepare("UPDATE `booking` SET
             `userId` = ?, `first_name` = ?, `last_name` = ?, `nic` = ?, `contact_number` = ?, `email` = ?, `guest` = ?,
@@ -121,7 +126,7 @@ class Booking
             $data['eventDate'] ?? $existing['eventDate'],
             $data['eventLocation'] ?? $existing['eventLocation'],
             $data['qrCodeValue'] ?? $existing['qrCodeValue'],
-            $data['payment_status'] ?? $existing['payment_status'],
+            $paymentStatus,
             $id
         ]);
     }
