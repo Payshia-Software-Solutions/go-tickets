@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Tea Jar - Order Confirmation</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333333;
+        box-sizing: border-box; /* Fix box-sizing issues */
+        overflow-x: hidden; /* Hide any horizontal overflow */
+      }
+      * {
+        box-sizing: inherit;
+      }
+      .container {
+        width: 100% !important;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #ffffff;
+      }
+
+      .header-bg {
+        height: 450px; /* Adjust height as needed */
+        background-image: url("https://teajarceylon.com/assets/model-bg-new.webp");
+        background-size: cover; /* Ensures the image covers the entire header */
+        background-position: top; /* Centers the image */
+        color: white; /* Makes the text color white for better contrast */
+        text-align: center; /* Centers the text */
+        display: table; /* Use table to mimic flex behavior */
+        width: 100% !important;
+        max-width: 600px;
+      }
+
+      .header-text {
+        font-size: 1rem; /* Adjust font size as needed */
+        font-weight: bold; /* Makes the text bold */
+        display: table-cell; /* Mimic flex alignment */
+        vertical-align: middle; /* Center vertically */
+        text-align: center;
+      }
+
+      .header-box {
+        background-color: #004d26;
+        padding: 20px;
+        height: 120px; /* Adjust height as needed */
+        text-align: center; /* Horizontally center text and images */
+        line-height: 120px; /* Match the height of the box for vertical centering */
+        color: white; /* Ensure contrast with the background */
+        font-size: 0; /* Prevent space below inline-block elements like images */
+      }
+
+      .header-box img {
+        width: 150px;
+        vertical-align: middle; /* Vertically aligns the image */
+        display: inline-block; /* Ensures the image behaves like text for alignment */
+      }
+
+      .header-wording {
+        padding: 0 50px;
+      }
+      .logo {
+        text-align: center;
+        padding: 20px;
+      }
+      .logo img {
+        max-width: 40%;
+        height: auto;
+      }
+      .promo-banner {
+        background-color: #8b4513;
+        color: #ffffff;
+        padding: 15px;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .header {
+        text-align: center;
+        padding: 20px;
+        background-color: #353d32;
+        color: #ffffff;
+        border-radius: 8px;
+      }
+      .order-details {
+        margin: 20px 0;
+        border: 1px solid #d2b48c;
+        padding: 15px;
+        border-radius: 8px;
+      }
+      .product-row {
+        display: inline-block;
+        width: 100%;
+        margin: 10px 0;
+        border-bottom: 1px solid #d2b48c;
+        padding-bottom: 10px;
+      }
+      .product-image {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-right: 10px;
+        vertical-align: top;
+        max-width: 100%;
+        height: auto;
+      }
+      .total-section {
+        margin-top: 20px;
+        border-top: 2px solid #d2b48c;
+        padding-top: 10px;
+      }
+      .button {
+        display: inline-block;
+        padding: 12px 25px;
+        background-color: #8b4513;
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 25px;
+        font-weight: bold;
+      }
+      .similar-products {
+        margin: 20px 0;
+        padding: 15px;
+        background-color: #353d32;
+        color: #ffffff;
+        border-radius: 8px;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+        font-size: 12px;
+        /* background-color: #353d32; */
+        /* color: #ffffff; */
+        border-radius: 8px;
+      }
+      .social-links {
+        margin: 15px 0;
+      }
+      .social-links a {
+        margin: 0 10px;
+        color: #8b4513;
+        text-decoration: none;
+      }
+      @media only screen and (max-width: 600px) {
+        .container {
+          width: calc(100% - 20px) !important;
+          padding: 10px;
+        }
+        .promo-banner,
+        .header,
+        .order-details,
+        .similar-products,
+        .footer {
+          padding: 10px;
+        }
+        .product-image {
+          width: 70px;
+          height: 70px;
+        }
+        .button {
+          padding: 10px 20px;
+        }
+      }
+
+      .products {
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        margin: 5px 0;
+      }
+
+      .product {
+        width: 33%;
+        margin: 0px 0;
+      }
+
+      .product img {
+        width: 100%;
+        border-radius: 0px;
+      }
+
+      .product h4 {
+        font-size: 14px;
+        text-align: center;
+        color: #fff;
+        margin: 10px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header-bg">
+        <div class="header-box">
+          <img
+            src="https://teajarceylon.com/assets/gold-logo.png"
+            alt="Tea Jar Logo"
+          />
+        </div>
+      </div>
+
+      <!-- Promotional Banner -->
+      <div class="promo-banner">
+        Enjoy 15% off your next purchase. Use Code TEAJAR15
+      </div>
+
+      <div class="header">
+        <h1>Thank you for your Tea Jar order!</h1>
+        <p>Your tea is on its way to delight your senses.</p>
+      </div>
+
+      <div class="order-details">
+        <h2>Order #[ORDER_NUMBER]</h2>
+        <p>Order Date: [ORDER_DATE]</p>
+        <p>Payment: [PAYMENT_STATUS]</p>
+        <p>Shipping Address:</p>
+        <p>
+          [CUSTOMER_NAME]<br />
+          [STREET_ADDRESS]<br />
+          [CITY], [STATE] [ZIP]<br />
+          [COUNTRY]
+        </p>
+
+        <h3>Order Summary</h3>
+        <!-- Placeholder for Order Items -->
+        [ORDER_ITEMS]
+
+        <div class="total-section">
+          <p>Subtotal: LKR [SUBTOTAL]</p>
+          <p>Discount: LKR [DISCOUNT]</p>
+          <p>Shipping: LKR [SHIPPING]</p>
+          <p>Tax: LKR [TAX]</p>
+          <p><strong>Total: LKR [TOTAL]</strong></p>
+        </div>
+      </div>
+
+      <!-- Recommended Products Section -->
+      <div class="similar-products">
+        <h3>You Might Also Enjoy</h3>
+        <p>Explore our other premium teas:</p>
+        <!-- Products Section -->
+        <div class="products">
+          <div class="product">
+            <a
+              style="color: black; text-decoration: none; font-weight: 700"
+              href="https://teajarceylon.com/products/cardamom-flavored-25-enveloped-tea-bags"
+              target="_blank"
+            >
+              <img
+                src="https://teajarceylon.com/_next/image?url=https%3A%2F%2Fkdu-admin.payshia.com%2Fpos-system%2Fassets%2Fimages%2Fproducts%2F7%2Fcardamom_flavored_black_tea_25_enveloped_tea_bags_67534c11a999f4.13195831.webp&w=64&q=75"
+                alt="Cardamom Tea"
+              />
+              <h4>Cardamom Flavored Black Tea</h4>
+            </a>
+          </div>
+          <div class="product">
+            <a
+              style="color: black; text-decoration: none; font-weight: 700"
+              href="https://teajarceylon.com/products/apple-flavoured-tea"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src="https://teajarceylon.com/_next/image?url=https%3A%2F%2Fkdu-admin.payshia.com%2Fpos-system%2Fassets%2Fimages%2Fproducts%2F1%2Fapple_flavored_black_tea_25_enveloped_tea_bags_675347e53d2b88.25741234.webp&w=64&q=75"
+                alt="Apple Tea"
+              />
+              <h4>Apple Flavored Black Tea</h4>
+            </a>
+          </div>
+          <div class="product">
+            <a
+              style="color: black; text-decoration: none; font-weight: 700"
+              href="https://teajarceylon.com/products/-peach-flavored-25-enveloped-tea-bags"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src="https://teajarceylon.com/_next/image?url=https%3A%2F%2Fkdu-admin.payshia.com%2Fpos-system%2Fassets%2Fimages%2Fproducts%2F5%2Fpeach_flavored_black_tea_25_enveloped_tea_bags675421577e62c8.65113832.webp&w=64&q=75"
+                alt="Peach Tea"
+              />
+              <h4>Peach Flavored Black Tea</h4>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin: 20px 0">
+        <p>Expected Delivery: [DELIVERY_DATE]</p>
+        <p>
+          Brewing tips and care instructions will be included with your order.
+        </p>
+        <p>Questions? Contact our tea experts at [CUSTOMER_SERVICE_EMAIL]</p>
+      </div>
+
+      <hr />
+      <div class="footer">
+        <div class="social-links">
+          <div class="footer">
+            <p class="copyright-text">© 2024 Tea Jar. All Rights Reserved.</p>
+            <div class="foot-contact">
+              <p>Need Help ?<br />Our Tea Experts are here for you</p>
+              <div class="contact-us">Contact Us</div>
+            </div>
+            <div class="social-icons" style="margin-top: 25px">
+              <a
+                href="https://web.facebook.com/teajarceylon"
+                target="_blank"
+                style="color: black; text-decoration: none; font-weight: 700"
+              >
+                <img
+                  src="https://teajarceylon.com/assets/icons/social/png/facebook.png"
+                  alt="Facebook"
+                  style="width: 30px"
+                />
+              </a>
+              <a
+                href="https://www.instagram.com/tea_jar_/"
+                target="_blank"
+                style="color: black; text-decoration: none; font-weight: 700"
+              >
+                <img
+                  src="https://teajarceylon.com/assets/icons/social/png/instagram.png"
+                  alt="Instagram"
+                  style="width: 30px"
+                />
+              </a>
+              <a
+                href="https://www.tiktok.com/@tea_jar_01?is_from_webapp=1&sender_device=pc"
+                target="_blank"
+                style="color: black; text-decoration: none; font-weight: 700"
+              >
+                <img
+                  src="https://teajarceylon.com/assets/icons/social/png/tiktok.png"
+                  alt="Tiktok"
+                  style="width: 30px"
+                />
+              </a>
+              <a
+                href="https://web.whatsapp.com/send?phone=94705508800&text=hi"
+                target="_blank"
+                style="color: black; text-decoration: none; font-weight: 700"
+              >
+                <img
+                  src="https://teajarceylon.com/assets/icons/social/png/whatsapp.png"
+                  alt="Whatsapp"
+                  style="width: 30px"
+              /></a>
+              <a
+                href="https://www.instagram.com/tea_jar_/"
+                target="_blank"
+                style="color: black; text-decoration: none; font-weight: 700"
+              >
+                <img
+                  src="https://teajarceylon.com/assets/icons/social/png/youtube.png"
+                  alt="WhatsApp"
+                  style="width: 30px"
+              /></a>
+            </div>
+          </div>
+        </div>
+        <p>
+          Tea Jar<br />
+          [COMPANY_ADDRESS]<br />
+          [COMPANY_CONTACT]
+        </p>
+        <p>This email was sent to [CUSTOMER_EMAIL]</p>
+        <p style="font-size: 11px">
+          To unsubscribe from promotional emails,
+          <a href="[UNSUBSCRIBE_URL]">click here</a>
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

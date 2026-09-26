@@ -1,0 +1,29 @@
+# Backups & internal git repo fallbacks
+backup_original_git/
+go-tickets/
+.git_backup*/
+.git_client_repo/
+.git_server_repo/
+
+# Client dependencies & artifacts
+client/node_modules/
+client/.next/
+client/out/
+client/build/
+client/.vercel
+client/*.tsbuildinfo
+client/next-env.d.ts
+client/.genkit/*
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+
+# Server dependencies & dynamic assets
+server/vendor/
+server/config/database.php
+server/logs/*
+!server/logs/.gitkeep
+
+# System & Editor
+.DS_Store
+Thumbs.db

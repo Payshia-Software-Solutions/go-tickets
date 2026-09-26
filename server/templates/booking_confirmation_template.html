@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Booking Confirmed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+        .header {
+            text-align: center;
+            background-color: #7C3AED;
+            color: white;
+            padding: 30px 20px;
+            border-radius: 6px 6px 0 0;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 20px;
+        }
+        .section-title {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .value {
+            color: #7C3AED;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #7C3AED;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Booking Confirmed!</h1>
+            <p>Your tickets for {{EVENT_NAME}} are confirmed.</p>
+        </div>
+        <div class="content">
+            <div class="section">
+                <div class="label">Booking ID:</div>
+                <div class="value">{{BOOKING_ID}}</div>
+            </div>
+            <div class="section">
+                <div class="label">Event:</div>
+                <div>{{EVENT_NAME}}</div>
+                <div>{{EVENT_DATE_TIME}}</div>
+                <div>{{EVENT_LOCATION}}</div>
+            </div>
+            <a href="{{VIEW_TICKET_URL}}" class="btn">View Your Ticket</a>
+        </div>
+        <div class="footer">
+            &copy; {{YEAR}} GoTickets. All rights reserved.
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,244 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Removed:
+body {
+  font-family: 'Inter', sans-serif;
+}
+next/font and Tailwind will handle this. */
+
+@layer base {
+  :root {
+    /* Clean Professional Light Mode */
+    --background: 0 0% 98%;           /* #FAFAFA — near white */
+    --foreground: 222 47% 11%;        /* #0F172A — slate-900 */
+
+    --card: 0 0% 100%;                /* Pure white */
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;           /* #2563EB — Blue-600 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;         /* #F1F5F9 — slate-100 */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;             /* slate-100 */
+    --muted-foreground: 215 16% 47%;  /* slate-500 */
+
+    --accent: 16 100% 58%;            /* #FF6B35 — vibrant coral/orange */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 13% 91%;            /* slate-200 */
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.5rem;
+
+    --chart-1: 221 83% 53%;
+    --chart-2: 16 100% 58%;
+    --chart-3: 262 52% 47%;
+    --chart-4: 142 71% 45%;
+    --chart-5: 38 92% 50%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 16 100% 58%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 222 47% 18%;
+    --sidebar-ring: 221 83% 53%;
+
+    /* Footer */
+    --footer-background: 222 47% 11%;
+    --footer-foreground: 220 10% 75%;
+    --footer-border: 222 47% 18%;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 95%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 95%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 47% 16%;
+    --secondary-foreground: 210 40% 90%;
+
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 20% 60%;
+
+    --accent: 16 100% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 222 47% 18%;
+    --input: 222 47% 16%;
+    --ring: 217 91% 60%;
+
+    --chart-1: 217 91% 60%;
+    --chart-2: 16 100% 60%;
+    --chart-3: 262 62% 57%;
+    --chart-4: 142 71% 45%;
+    --chart-5: 38 92% 50%;
+
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 16 100% 60%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 222 47% 15%;
+    --sidebar-ring: 217 91% 60%;
+
+    --footer-background: 222 47% 6%;
+    --footer-foreground: 220 10% 70%;
+    --footer-border: 222 47% 15%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+@keyframes cardSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-card-enter {
+  animation: cardSlideInRight 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Tiptap Editor Styles */
+@layer components {
+  .tiptap {
+    @apply prose dark:prose-invert max-w-none focus:outline-none;
+  }
+
+  .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+    height: 0;
+  }
+
+  .tiptap > * + * {
+    @apply mt-3; /* Corresponds to prose's default paragraph spacing */
+  }
+
+  .tiptap ul,
+  .tiptap ol {
+    @apply pl-4 my-2; /* Basic list padding */
+  }
+  
+  .tiptap ul {
+    @apply list-disc;
+  }
+  .tiptap ol {
+    @apply list-decimal;
+  }
+
+  .tiptap li > p { /* Reduce margin for paragraphs inside list items */
+    @apply my-1;
+  }
+
+  .tiptap h1,
+  .tiptap h2,
+  .tiptap h3,
+  .tiptap h4,
+  .tiptap h5,
+  .tiptap h6 {
+    @apply leading-tight my-4; /* Basic heading styling */
+  }
+
+  .tiptap code:not(pre code) { /* Inline code */
+    @apply bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm; 
+  }
+
+  .tiptap pre {
+    @apply bg-muted text-muted-foreground font-mono text-sm p-3 rounded-md overflow-x-auto my-4;
+  }
+
+  .tiptap pre code {
+    @apply bg-transparent text-inherit p-0;
+  }
+
+  .tiptap blockquote {
+    @apply border-l-4 border-border pl-4 italic my-4 text-muted-foreground;
+  }
+
+  .tiptap hr {
+    @apply border-t border-border my-4;
+  }
+}
+
+@media print {
+  /* Hide elements that should not be printed */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Optional: Reset body padding/margin for printing */
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Ensure the main content area takes up the full width */
+  main {
+    padding: 20px !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure card backgrounds print correctly and remove shadows */
+  .card-print {
+     -webkit-print-color-adjust: exact;
+     print-color-adjust: exact;
+     box-shadow: none !important;
+     border: 1px solid #e2e8f0 !important;
+     page-break-inside: avoid;
+  }
+  
+  #printable-report {
+    visibility: visible;
+  }
+}

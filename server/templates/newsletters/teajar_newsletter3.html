@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Spa Ceylon Newsletter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        width: 100%;
+        max-width: 600px;
+        margin: auto;
+        border: 1px solid #ddd;
+      }
+      .header {
+        text-align: center;
+        background-color: #f8e9ed;
+        padding: 20px;
+      }
+      .banner img {
+        width: 100%;
+        height: auto;
+      }
+      .content {
+        padding: 20px;
+        text-align: center;
+      }
+      .product-list {
+        width: 100%;
+      }
+      .product {
+        width: 50%;
+        padding: 10px;
+        text-align: center;
+      }
+      .product img {
+        width: 150px;
+        height: auto;
+        margin-bottom: 10px;
+      }
+      .footer {
+        background-color: #f8e9ed;
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+      }
+      .footer a {
+        text-decoration: none;
+        color: #d11f2b;
+      }
+      a.shop-now {
+        padding: 10px 20px;
+        background-color: #d11f2b;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        display: inline-block;
+        transition: all 0.3s ease; /* Smooth transition */
+      }
+      a.shop-now:hover {
+        background-color: #a10d22; /* Darker red */
+        transform: scale(1.05); /* Slightly enlarge */
+        text-shadow: 0 0 5px rgba(255, 255, 255, 0.8); /* Glow effect */
+      }
+      a.shop-now:focus {
+        outline: 2px solid #ffccd5; /* Soft pink outline */
+        outline-offset: 2px;
+      }
+      .rollover {
+        position: relative;
+        width: 150px;
+        height: auto;
+        overflow: hidden;
+        margin: auto;
+      }
+      .rollover img {
+        width: 100%;
+        transition: opacity 0.3s ease-in-out;
+      }
+      .rollover .rollover-first {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+      .rollover .rollover-second {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+        opacity: 0;
+      }
+      .rollover:hover .rollover-first {
+        opacity: 0;
+      }
+      .rollover:hover .rollover-second {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <table class="container" cellpadding="0" cellspacing="0" align="center">
+      <!-- Header -->
+      <tr>
+        <td class="header">
+          <h1>SAVE 15% OFF</h1>
+          <p>When you shop 2 or more Lotus & Rambutan Essentials</p>
+        </td>
+      </tr>
+      <!-- Banner -->
+      <tr>
+        <td class="banner">
+          <img src="https://via.placeholder.com/600x200" alt="Banner Image" />
+        </td>
+      </tr>
+      <!-- Intro Section -->
+      <tr>
+        <td class="content">
+          <p>
+            <strong
+              >9 out of 10 people with sensitive skin aren’t treating it</strong
+            >
+          </p>
+          <p>
+            Our clinically tested Lotus & Rambutan range comes with power-packed
+            ingredients to soothe, nourish & protect your skin with complete
+            comforting care.
+          </p>
+          <a href="#" class="shop-now">SHOP NOW</a>
+        </td>
+      </tr>
+      <!-- Products Section -->
+      <tr>
+        <td class="content">
+          <table class="product-list" cellpadding="0" cellspacing="0">
+            <tr>
+              <td class="product">
+                <div class="rollover">
+                  <img
+                    src="https://via.placeholder.com/150"
+                    alt="Default Image"
+                    class="rollover-first"
+                  />
+                  <img
+                    src="https://via.placeholder.com/150/FF0000"
+                    alt="Hover Image"
+                    class="rollover-second"
+                  />
+                </div>
+                <p><strong>Soothes</strong></p>
+                <p>Facial Cleansing Foam</p>
+                <a href="#" class="shop-now">Shop Now</a>
+              </td>
+              <td class="product">
+                <div class="rollover">
+                  <img
+                    src="https://via.placeholder.com/150"
+                    alt="Default Image"
+                    class="rollover-first"
+                  />
+                  <img
+                    src="https://via.placeholder.com/150/00FF00"
+                    alt="Hover Image"
+                    class="rollover-second"
+                  />
+                </div>
+                <p><strong>Hydrates</strong></p>
+                <p>Ultra Hydrating Day & Night Treatment</p>
+                <a href="#" class="shop-now">Shop Now</a>
+              </td>
+            </tr>
+            <tr>
+              <td class="product">
+                <div class="rollover">
+                  <img
+                    src="https://via.placeholder.com/150"
+                    alt="Default Image"
+                    class="rollover-first"
+                  />
+                  <img
+                    src="https://via.placeholder.com/150/0000FF"
+                    alt="Hover Image"
+                    class="rollover-second"
+                  />
+                </div>
+                <p><strong>Nourishes</strong></p>
+                <p>Gentle Face Exfoliating Masque</p>
+                <a href="#" class="shop-now">Shop Now</a>
+              </td>
+              <td class="product">
+                <div class="rollover">
+                  <img
+                    src="https://via.placeholder.com/150"
+                    alt="Default Image"
+                    class="rollover-first"
+                  />
+                  <img
+                    src="https://via.placeholder.com/150/FFFF00"
+                    alt="Hover Image"
+                    class="rollover-second"
+                  />
+                </div>
+                <p><strong>Comforts</strong></p>
+                <p>Face Treatment Milk Serum</p>
+                <a href="#" class="shop-now">Shop Now</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <!-- Footer -->
+      <tr>
+        <td class="footer">
+          <p>Follow us:</p>
+          <a href="#">Facebook</a> | <a href="#">Instagram</a> |
+          <a href="#">YouTube</a>
+          <p>© Spa Ceylon 2024</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

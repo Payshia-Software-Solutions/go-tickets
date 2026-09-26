@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Tea Jar - Contact Form Submission</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333333;
+        box-sizing: border-box;
+        overflow-x: hidden;
+      }
+      * {
+        box-sizing: inherit;
+      }
+      .container {
+        width: 100% !important;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #ffffff;
+      }
+      .logo {
+        text-align: center;
+        padding: 20px;
+      }
+      .logo img {
+        max-width: 40%;
+        height: auto;
+      }
+      .header {
+        text-align: center;
+        padding: 20px;
+        background-color: #f5f5dc;
+        border-radius: 8px;
+      }
+      .message-details {
+        margin: 20px 0;
+        border: 1px solid #d2b48c;
+        padding: 15px;
+        border-radius: 8px;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+        font-size: 12px;
+        background-color: #f5f5dc;
+        border-radius: 8px;
+      }
+      .social-links {
+        margin: 15px 0;
+      }
+      .social-links a {
+        margin: 0 10px;
+        color: #8b4513;
+        text-decoration: none;
+      }
+      @media only screen and (max-width: 600px) {
+        .container {
+          width: calc(100% - 20px) !important;
+          padding: 10px;
+        }
+        .header,
+        .message-details,
+        .footer {
+          padding: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Logo -->
+      <div class="logo">
+        <img
+          src="https://teajarceylon.com/_next/image?url=%2Fassets%2Fgold-logo.png&w=128&q=75"
+          alt="Tea Jar Logo"
+        />
+      </div>
+
+      <!-- Header -->
+      <div class="header">
+        <h1>New Contact Form Submission</h1>
+        <p>You've received a new message from your website contact form.</p>
+      </div>
+
+      <!-- Message Details -->
+      <div class="message-details">
+        <h3>Contact Details</h3>
+        <p><strong>Full Name:</strong> [FULL_NAME]</p>
+        <p><strong>Email:</strong> [EMAIL]</p>
+        <p><strong>Phone:</strong> [PHONE]</p>
+        <p><strong>Subject:</strong> [SUBJECT]</p>
+        <p><strong>Message:</strong></p>
+        <p>[MESSAGE]</p>
+
+        <p><strong>Newsletter Subscription:</strong> [NEWSLETTER]</p>
+        <p><strong>Policy Agreement:</strong> [POLICY_AGREEMENT]</p>
+      </div>
+
+      <div class="footer">
+        <div class="social-links">
+          Follow us for updates:<br />
+          <a href="[INSTAGRAM_URL]">Instagram</a> |
+          <a href="[FACEBOOK_URL]">Facebook</a>
+        </div>
+        <p>
+          Tea Jar<br />
+          [COMPANY_ADDRESS]<br />
+          [COMPANY_CONTACT]
+        </p>
+        <p>This email was sent to [ADMIN_EMAIL]</p>
+        <p style="font-size: 11px">
+          To manage your contact preferences,
+          <a href="[UNSUBSCRIBE_URL]">click here</a>.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
