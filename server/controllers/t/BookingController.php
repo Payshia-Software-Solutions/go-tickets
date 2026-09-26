@@ -860,21 +860,88 @@ class BookingController
                 $newTotalPrice = 0.00;
 
                 foreach ($data['tickets'] as $ticketItem) {
-                    $showtimeTicketId = $ticketItem['id'] ?? null;
-                    $newCount = intval($ticketItem['ticket_count']);
+                    $showtimeTicketId = !empty($ticketItem['id']) ? $ticketItem['id'] : null;
+                    $newCount = intval($ticketItem['ticket_count'] ?? 0);
                     $ticketPrice = floatval($ticketItem['price'] ?? 0.00);
+                    $ticketTypeId = $ticketItem['tickettype_id'] ?? null;
+                    $ticketTypeName = $ticketItem['ticket_type'] ?? $ticketItem['ticketTypeName'] ?? 'Ticket';
 
                     if ($showtimeTicketId) {
-                        $stmt = $this->pdo->prepare("UPDATE `booking_showtime` SET `ticket_count` = ? WHERE `id` = ? AND `booking_id` = ?");
-                        $stmt->execute([$newCount, $showtimeTicketId, $bookingId]);
+                        if ($newCount <= 0) {
+                            $stmt = $this->pdo->prepare("DELETE FROM `booking_showtime` WHERE `id` = ? AND `booking_id` = ?");
+                            $stmt->execute([$showtimeTicketId, $bookingId]);
+                        } else {
+                            $stmt = $this->pdo->prepare("UPDATE `booking_showtime` SET `ticket_count` = ? WHERE `id` = ? AND `booking_id` = ?");
+                            $stmt->execute([$newCount, $showtimeTicketId, $bookingId]);
+                        }
+                    } else if ($newCount > 0) {
+                        // Check if this ticket type already exists in booking_showtime
+                        $chkStmt = $this->pdo->prepare("SELECT `id` FROM `booking_showtime` WHERE `booking_id` = ? AND `tickettype_id` = ?");
+                        $chkStmt->execute([$bookingId, $ticketTypeId]);
+                        $existing = $chkStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($existing) {
+                            $stmt = $this->pdo->prepare("UPDATE `booking_showtime` SET `ticket_count` = ? WHERE `id` = ? AND `booking_id` = ?");
+                            $stmt->execute([$newCount, $existing['id'], $bookingId]);
+                        } else {
+                            $eventId = $ticketItem['eventId'] ?? null;
+                            $showtimeId = $ticketItem['showtime_id'] ?? null;
+                            $showtime = $ticketItem['showtime'] ?? null;
+
+                            if (!$eventId || !$showtime) {
+                                $refStmt = $this->pdo->prepare("SELECT `eventId`, `showtime_id`, `showtime` FROM `booking_showtime` WHERE `booking_id` = ? LIMIT 1");
+                                $refStmt->execute([$bookingId]);
+                                $refRow = $refStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($refRow) {
+                                    $eventId = $eventId ?: $refRow['eventId'];
+                                    $showtimeId = $showtimeId ?: $refRow['showtime_id'];
+                                    $showtime = $showtime ?: $refRow['showtime'];
+                                }
+                            }
+
+                            if (!$eventId) {
+                                $beStmt = $this->pdo->prepare("SELECT `eventId` FROM `booking_event` WHERE `booking_id` = ? LIMIT 1");
+                                $beStmt->execute([$bookingId]);
+                                $beRow = $beStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($beRow) {
+                                    $eventId = $beRow['eventId'];
+                                }
+                            }
+
+                            $insStmt = $this->pdo->prepare("INSERT INTO `booking_showtime` (`booking_id`, `eventId`, `showtime_id`, `ticket_type`, `tickettype_id`, `showtime`, `ticket_count`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
+                            $insStmt->execute([
+                                $bookingId,
+                                $eventId,
+                                $showtimeId ?: 1,
+                                $ticketTypeName,
+                                $ticketTypeId,
+                                $showtime ?: date('Y-m-d H:i:s'),
+                                $newCount
+                            ]);
+                        }
                     }
 
-                    $newTotalPrice += ($newCount * $ticketPrice);
+                    if ($newCount > 0) {
+                        $newTotalPrice += ($newCount * $ticketPrice);
+                    }
                 }
 
-                // If new total price calculated, update totalPrice & balance_amount
-                if ($newTotalPrice > 0) {
-                    $currentBooking = $this->model->getBookingById($bookingId);
+                // Sync total tickets into booking_event
+                $totStmt = $this->pdo->prepare("SELECT SUM(ticket_count) as total_count FROM `booking_showtime` WHERE `booking_id` = ?");
+                $totStmt->execute([$bookingId]);
+                $totalTicketsCount = intval($totStmt->fetch(PDO::FETCH_ASSOC)['total_count'] ?? 0);
+
+                $updBe = $this->pdo->prepare("UPDATE `booking_event` SET `ticket_count` = ? WHERE `booking_id` = ?");
+                $updBe->execute([$totalTicketsCount, $bookingId]);
+
+                // Update totalPrice & balance_amount
+                $currentBooking = $this->model->getBookingById($bookingId);
+                $isComp = strtolower($currentBooking['payment_method'] ?? '') === 'complimentary';
+
+                if ($isComp) {
+                    $updStmt = $this->pdo->prepare("UPDATE `booking` SET `totalPrice` = ?, `balance_amount` = 0.00, `amount_paid` = 0.00, `payment_status` = 'Paid' WHERE `id` = ?");
+                    $updStmt->execute([$newTotalPrice, $bookingId]);
+                } else {
                     $amountPaid = floatval($currentBooking['amount_paid'] ?? 0.00);
                     $newBalance = max(0.00, $newTotalPrice - $amountPaid);
                     $newStatus = $newBalance <= 0.00 ? 'Paid' : ($amountPaid > 0 ? 'Partially Paid' : 'pending');

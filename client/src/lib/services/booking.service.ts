@@ -665,8 +665,13 @@ export const updateBookingDetails = async (
     nic?: string;
     tickets?: Array<{
       id?: string | number;
+      tickettype_id?: string | number;
+      ticket_type?: string;
       ticket_count: number;
       price?: number;
+      eventId?: string | number;
+      showtime_id?: string | number;
+      showtime?: string;
     }>;
   }
 ): Promise<any> => {

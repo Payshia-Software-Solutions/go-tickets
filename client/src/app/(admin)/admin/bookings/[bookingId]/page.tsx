@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import type { Booking, BookingPayment } from '@/lib/types';
+import type { Booking, BookingPayment, TicketType } from '@/lib/types';
 import { getBookingById } from '@/lib/mockData';
 import { 
   getBookingPayments, 
@@ -38,7 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
+import { API_BASE_URL, CONTENT_PROVIDER_URL, TICKET_TYPES_API_URL } from '@/lib/constants';
 import Image from 'next/image';
 
 export default function BookingDetailsPage() {
@@ -68,13 +68,24 @@ export default function BookingDetailsPage() {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const paymentSlipInputRef = useRef<HTMLInputElement>(null);
 
+  interface EditableTicket {
+    id?: string;
+    ticketTypeId: string;
+    ticketTypeName: string;
+    quantity: number;
+    pricePerTicket: number;
+    eventId?: string;
+    showtimeId?: string;
+    showtime?: string;
+  }
+
   // Edit Booking Form State
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editNic, setEditNic] = useState('');
-  const [editedTickets, setEditedTickets] = useState<Array<{ id: string; ticketTypeName: string; quantity: number; pricePerTicket: number }>>([]);
+  const [editedTickets, setEditedTickets] = useState<EditableTicket[]>([]);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const fetchBookingAndPayments = useCallback(async () => {
@@ -98,12 +109,69 @@ export default function BookingDetailsPage() {
         setEditEmail(bookingData.billingAddress?.email || '');
         setEditPhone(bookingData.billingAddress?.phone_number || '');
         setEditNic(bookingData.billingAddress?.nic || '');
-        setEditedTickets(bookingData.bookedTickets.map(t => ({
-          id: t.id,
-          ticketTypeName: t.ticketTypeName,
-          quantity: t.quantity,
-          pricePerTicket: t.pricePerTicket || 0
-        })));
+
+        // Fetch all available ticket types for this event so admin can add/adjust any ticket type
+        let availableEventTicketTypes: TicketType[] = [];
+        if (bookingData.eventId && bookingData.eventId !== 'N/A') {
+          try {
+            const ttRes = await fetch(`${TICKET_TYPES_API_URL}?eventid=${bookingData.eventId}`);
+            if (ttRes.ok) {
+              availableEventTicketTypes = await ttRes.json();
+            }
+          } catch (e) {
+            console.warn("Could not fetch event ticket types:", e);
+          }
+        }
+
+        const bookedMap = new Map(bookingData.bookedTickets.map(t => [String(t.ticketTypeId), t]));
+
+        if (availableEventTicketTypes && availableEventTicketTypes.length > 0) {
+          const allTicketOptions: EditableTicket[] = availableEventTicketTypes.map(tt => {
+            const existing = bookedMap.get(String(tt.id)) || 
+              bookingData.bookedTickets.find(bt => bt.ticketTypeName.toLowerCase() === tt.name.toLowerCase());
+            const ttPrice = parseFloat(String(tt.price)) || 0;
+            return {
+              id: existing?.id || '',
+              ticketTypeId: String(tt.id),
+              ticketTypeName: tt.name,
+              quantity: existing ? existing.quantity : 0,
+              pricePerTicket: ttPrice,
+              eventId: String(bookingData.eventId),
+              showtimeId: String(tt.showtimeId || existing?.showTimeId || ''),
+              showtime: bookingData.eventDate || '',
+            };
+          });
+
+          // Also keep any booked tickets that might not be in availableEventTicketTypes
+          const foundIds = new Set(availableEventTicketTypes.map(tt => String(tt.id)));
+          bookingData.bookedTickets.forEach(bt => {
+            if (!foundIds.has(String(bt.ticketTypeId))) {
+              allTicketOptions.push({
+                id: bt.id,
+                ticketTypeId: String(bt.ticketTypeId),
+                ticketTypeName: bt.ticketTypeName,
+                quantity: bt.quantity,
+                pricePerTicket: bt.pricePerTicket || 0,
+                eventId: String(bookingData.eventId),
+                showtimeId: String(bt.showTimeId || ''),
+                showtime: bookingData.eventDate || '',
+              });
+            }
+          });
+
+          setEditedTickets(allTicketOptions);
+        } else {
+          setEditedTickets(bookingData.bookedTickets.map(t => ({
+            id: t.id,
+            ticketTypeId: String(t.ticketTypeId),
+            ticketTypeName: t.ticketTypeName,
+            quantity: t.quantity,
+            pricePerTicket: t.pricePerTicket || 0,
+            eventId: String(bookingData.eventId),
+            showtimeId: String(t.showTimeId || ''),
+            showtime: bookingData.eventDate || '',
+          })));
+        }
       } else {
         setError('Booking not found.');
         document.title = 'Booking Not Found | Event Horizon Admin';
@@ -130,6 +198,28 @@ export default function BookingDetailsPage() {
     setSlipFile(null);
     setSlipPreview(null);
     setIsAddPaymentOpen(true);
+  };
+
+  const handleOpenEditBooking = () => {
+    if (!booking) return;
+    setEditFirstName(booking.billingAddress?.firstName || '');
+    setEditLastName(booking.billingAddress?.lastName || '');
+    setEditEmail(booking.billingAddress?.email || '');
+    setEditPhone(booking.billingAddress?.phone_number || '');
+    setEditNic(booking.billingAddress?.nic || '');
+
+    const bookedMap = new Map(booking.bookedTickets.map(t => [String(t.ticketTypeId), t]));
+    setEditedTickets(prev => prev.map(t => {
+      const existing = bookedMap.get(String(t.ticketTypeId)) || 
+        booking.bookedTickets.find(bt => bt.ticketTypeName.toLowerCase() === t.ticketTypeName.toLowerCase());
+      return {
+        ...t,
+        quantity: existing ? existing.quantity : 0,
+        id: existing?.id || '',
+      };
+    }));
+
+    setIsEditBookingOpen(true);
   };
 
   const handleSlipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -210,6 +300,16 @@ export default function BookingDetailsPage() {
   const handleEditBookingSubmit = async () => {
     if (!booking) return;
 
+    const totalSelectedTickets = editedTickets.reduce((sum, t) => sum + t.quantity, 0);
+    if (totalSelectedTickets <= 0) {
+      toast({ 
+        title: "No Tickets Selected", 
+        description: "A booking must contain at least 1 ticket. Please set a quantity for at least one ticket type.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setIsSubmittingEdit(true);
     try {
       await updateBookingDetails(booking.id, {
@@ -219,9 +319,14 @@ export default function BookingDetailsPage() {
         contact_number: editPhone,
         nic: editNic,
         tickets: editedTickets.map(t => ({
-          id: t.id,
+          id: t.id ? t.id : undefined,
+          tickettype_id: t.ticketTypeId,
+          ticket_type: t.ticketTypeName,
           ticket_count: t.quantity,
-          price: t.pricePerTicket
+          price: t.pricePerTicket,
+          eventId: t.eventId,
+          showtime_id: t.showtimeId,
+          showtime: t.showtime
         }))
       });
 
@@ -351,7 +456,7 @@ export default function BookingDetailsPage() {
           )}
 
           {booking.booked_type === 'manualy' && (
-            <Button onClick={() => setIsEditBookingOpen(true)} variant="outline">
+            <Button onClick={handleOpenEditBooking} variant="outline">
               <Edit3 className="mr-2 h-4 w-4" /> Edit Booking
             </Button>
           )}
@@ -536,7 +641,7 @@ export default function BookingDetailsPage() {
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg">Event & Ticket Details</CardTitle>
                 {booking.booked_type === 'manualy' && (
-                  <Button size="sm" variant="ghost" onClick={() => setIsEditBookingOpen(true)} className="text-primary">
+                  <Button size="sm" variant="ghost" onClick={handleOpenEditBooking} className="text-primary">
                     <Edit3 className="h-4 w-4 mr-1"/> Adjust Counts
                   </Button>
                 )}
@@ -836,41 +941,99 @@ export default function BookingDetailsPage() {
 
             {/* Ticket Quantities */}
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ticket Quantities</h4>
-              {editedTickets.map((t, index) => (
-                <div key={t.id || index} className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/20">
-                  <div>
-                    <p className="font-medium text-sm">{t.ticketTypeName}</p>
-                    <p className="text-xs text-muted-foreground">LKR {t.pricePerTicket.toLocaleString()} each</p>
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Available Ticket Types</h4>
+                <span className="text-xs text-muted-foreground font-mono">
+                  Total: {editedTickets.reduce((s, t) => s + t.quantity, 0)} tickets
+                </span>
+              </div>
+              
+              {editedTickets.map((t, index) => {
+                const isComp = (booking.payment_method || '').toLowerCase() === 'complimentary';
+                return (
+                  <div key={t.ticketTypeId || t.id || index} className={cn(
+                    "flex items-center justify-between p-3 border rounded-lg transition-colors",
+                    t.quantity > 0 ? "bg-primary/5 border-primary/30" : "bg-muted/20 border-border/60"
+                  )}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm">{t.ticketTypeName}</p>
+                        {t.quantity > 0 && (
+                          <Badge variant="secondary" className="text-[10px] font-mono py-0 h-4">
+                            {t.quantity} selected
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        LKR {t.pricePerTicket.toLocaleString()} each {isComp ? <span className="text-purple-600 dark:text-purple-400 font-medium">(Free Pass)</span> : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setEditedTickets(prev => prev.map((item, i) => i === index ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item));
+                        }}
+                        disabled={t.quantity <= 0}
+                      >
+                        <MinusCircle className="h-4 w-4"/>
+                      </Button>
+                      <span className="w-8 text-center font-mono font-bold text-sm">{t.quantity}</span>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setEditedTickets(prev => prev.map((item, i) => i === index ? { ...item, quantity: item.quantity + 1 } : item));
+                        }}
+                      >
+                        <PlusCircle className="h-4 w-4"/>
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setEditedTickets(prev => prev.map((item, i) => i === index ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item));
-                      }}
-                      disabled={t.quantity <= 0}
-                    >
-                      <MinusCircle className="h-4 w-4"/>
-                    </Button>
-                    <span className="w-8 text-center font-mono font-bold">{t.quantity}</span>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setEditedTickets(prev => prev.map((item, i) => i === index ? { ...item, quantity: item.quantity + 1 } : item));
-                      }}
-                    >
-                      <PlusCircle className="h-4 w-4"/>
-                    </Button>
-                  </div>
+                );
+              })}
+
+              {/* Recalculation Summary Box */}
+              <div className="p-3 bg-muted/50 rounded-lg space-y-1.5 text-xs border mt-3">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Tickets:</span>
+                  <span className="font-bold font-mono text-foreground">
+                    {editedTickets.reduce((s, t) => s + t.quantity, 0)} Seats
+                  </span>
                 </div>
-              ))}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ticket Value:</span>
+                  <span className="font-semibold font-mono">
+                    LKR {editedTickets.reduce((s, t) => s + (t.quantity * t.pricePerTicket), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {(booking.payment_method || '').toLowerCase() === 'complimentary' ? (
+                  <div className="flex justify-between text-purple-600 dark:text-purple-400 font-medium pt-1 border-t border-purple-200 dark:border-purple-900">
+                    <span>Payment Status:</span>
+                    <span>100% Free Pass / Balance LKR 0.00</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Amount Already Paid:</span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+                        LKR {(booking.amount_paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-1 border-t">
+                      <span>Estimated Balance Due:</span>
+                      <span className="font-mono text-amber-600 dark:text-amber-400">
+                        LKR {Math.max(0, editedTickets.reduce((s, t) => s + (t.quantity * t.pricePerTicket), 0) - (booking.amount_paid || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
