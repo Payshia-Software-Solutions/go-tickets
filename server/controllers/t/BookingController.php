@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__, 2) . '/config/env.php';
 require_once './models/t/Booking.php';
 require_once './controllers/t/BookingEventController.php';
 require_once './controllers/t/BookingShowtimeController.php'; // PaymentController
@@ -24,20 +25,12 @@ class BookingController
     private $EventController;
     private $ftpConfig;
 
-    // @Local Keys
-    // private $merchant_id = '1227940'; // Your merchant ID
-    // private $merchant_secret = 'MzQwODQyMDI3MjkxODYwMzI2MDM0MTU2MjIxNjgyNTcxNjAyNTk='; // Your merchant secret
-    // private $domainName = 'https://gotickets.silverray.lk';
-    // private $serverUrl = 'https://gotickets-server.payshia.com';
-    // private $modePrefix = "sandbox";
-
-
-    // @Live Keys
-    private $merchant_id = '245438'; // Your merchant ID
-    private $merchant_secret = 'MTQ3NzA0NDI1MjIwNzYzNTcyODM3ODk2ODY0ODI4MDY3ODM0MTU='; // Your merchant secret
-    private $domainName = 'gotickets.silverray.lk';
-    private $serverUrl = 'https://gotickets-server.payshia.com';
-    private $modePrefix = "www";
+    // PayHere configuration from environment
+    private $merchant_id;
+    private $merchant_secret;
+    private $domainName;
+    private $serverUrl;
+    private $modePrefix;
 
     public function __construct($pdo)
     {
@@ -52,6 +45,12 @@ class BookingController
         $this->paymentController = new PaymentController($pdo);
         $this->EventController = new EventController($pdo);
         $this->ftpConfig = include('./config/ftp.php');
+
+        $this->merchant_id = env('PAYHERE_MERCHANT_ID', '');
+        $this->merchant_secret = env('PAYHERE_MERCHANT_SECRET', '');
+        $this->domainName = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
+        $this->serverUrl = rtrim(env('PAYHERE_SERVER_URL', 'https://gotickets-server.payshia.com'), '/');
+        $this->modePrefix = env('PAYHERE_MODE', 'www');
     }
 
     // FTP Helper Methods for remote slip and media upload

@@ -26,6 +26,16 @@ server/logs/*
 server/uploads/*
 !server/uploads/.gitkeep
 
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.env
+server/.env
+server/.env.*
+!server/.env.example
+client/.env*.local
+
 # System & Editor
 .DS_Store
 Thumbs.db

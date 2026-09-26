@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__ . '/env.php';
 
 // FTP configuration settings
 return [
-    'ftp_server'   => 'ftp.gotickets.lk', // Replace with your FTP server address  ftp.gotickets.lk
-    'ftp_username' => 'server@gotickets.lk',  // Replace with your FTP username
-    'ftp_password' => 'd+c@;uJ6xt]Miy@L',  // Replace with your FTP password
-    'ftp_port'     => 21 // FTP port
+    'ftp_server'   => env('FTP_SERVER', 'ftp.gotickets.lk'),
+    'ftp_username' => env('FTP_USERNAME', 'server@gotickets.lk'),
+    'ftp_password' => env('FTP_PASSWORD', ''),
+    'ftp_port'     => (int)env('FTP_PORT', 21)
 ];
 
 // $ftp_server = $ftpConfig['ftp_server'];

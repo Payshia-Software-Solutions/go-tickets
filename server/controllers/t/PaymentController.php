@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__, 2) . '/config/env.php';
 require_once './models/t/Payment.php';
 require_once './controllers/t/BookingController.php';
 
@@ -6,23 +7,20 @@ class PaymentController
 {
     public $model;
 
-    // @Local Keys
-    // private $merchant_id = '1227940'; // Your merchant ID
-    // private $merchant_secret = 'MzQwODQyMDI3MjkxODYwMzI2MDM0MTU2MjIxNjgyNTcxNjAyNTk='; // Your merchant secret
-    // private $domainName = 'https://gotickets.silverray.lk';
-    // private $serverUrl = 'https://gotickets-server.payshia.com';
-    // private $modePrefix = "sandbox";
-
-    // @Live Keys
-    private $merchant_id = '245438'; // Your merchant ID
-    private $merchant_secret = 'MTQ3NzA0NDI1MjIwNzYzNTcyODM3ODk2ODY0ODI4MDY3ODM0MTU='; // Your merchant secret
-    private $domainName = 'https://gotickets.silverray.lk';
-    private $serverUrl = 'https://gotickets-server.payshia.com';
-    private $modePrefix = "www";
+    private $merchant_id;
+    private $merchant_secret;
+    private $domainName;
+    private $serverUrl;
+    private $modePrefix;
 
     public function __construct($pdo)
     {
         $this->model = new Payment($pdo);
+        $this->merchant_id = env('PAYHERE_MERCHANT_ID', '');
+        $this->merchant_secret = env('PAYHERE_MERCHANT_SECRET', '');
+        $this->domainName = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
+        $this->serverUrl = rtrim(env('PAYHERE_SERVER_URL', 'https://gotickets-server.payshia.com'), '/');
+        $this->modePrefix = env('PAYHERE_MODE', 'www');
     }
 
     public function initiatePayment($bookingId, $totalAmount, $bookingInfo)
