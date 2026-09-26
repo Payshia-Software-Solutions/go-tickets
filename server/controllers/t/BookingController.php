@@ -11,6 +11,10 @@ date_default_timezone_set('Asia/Colombo');
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 
 require './vendor/autoload.php';
 
@@ -527,14 +531,24 @@ class BookingController
 
                 $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
 
+                $customerName = trim(($bookingInfo['first_name'] ?? '') . ' ' . ($bookingInfo['last_name'] ?? ''));
+                if (empty($customerName) && !empty($bookingInfo['user_billing_info']['name'])) {
+                    $customerName = $bookingInfo['user_billing_info']['name'];
+                }
+
                 $bookingData = [
                     'booking_id' => $bookingId,
                     'event_name' => $bookingInfo['eventName'],
                     'event_date' => $bookingInfo['eventDate'], // MySQL datetime format
                     'event_location' => $bookingInfo['eventLocation'],
                     'booking_date' => $bookingInfo['bookingDate'], // When booking was made
-                    'customer_name' => $bookingInfo['user_billing_info']['name'],
+                    'customer_name' => $customerName,
                     'customer_email' => $bookingInfo['email'],
+                    'total_price' => $bookingInfo['totalPrice'],
+                    'amount_paid' => $payhere_amount,
+                    'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
+                    'payment_status' => 'Paid',
+                    'qr_code_value' => $bookingInfo['qrCodeValue'],
                     'view_ticket_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
                     'view_bookings_url' => 'https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId,
                     'home_url' => 'https://gotickets.silverray.lk'
@@ -608,8 +622,25 @@ class BookingController
 
     public function SendOderTest()
     {
-        $bookingId = 1;
+        $bookingId = isset($_GET['id']) ? intval($_GET['id']) : 385;
         $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+        if (!$bookingInfo) {
+            $bookingId = 1;
+            $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+        }
+
+        if (!$bookingInfo) {
+            echo json_encode(['status' => 'error', 'message' => 'No booking record found for testing']);
+            return;
+        }
+
+        $customerName = trim(($bookingInfo['first_name'] ?? '') . ' ' . ($bookingInfo['last_name'] ?? ''));
+        if (empty($customerName) && !empty($bookingInfo['user_billing_info']['name'])) {
+            $customerName = $bookingInfo['user_billing_info']['name'];
+        }
+
+        $targetEmail = isset($_GET['email']) ? trim($_GET['email']) : ($bookingInfo['email'] ?? 'thilinaruwan112@gmail.com');
+        $domain = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
 
         $bookingData = [
             'booking_id' => $bookingId,
@@ -617,21 +648,26 @@ class BookingController
             'event_date' => $bookingInfo['eventDate'], // MySQL datetime format
             'event_location' => $bookingInfo['eventLocation'],
             'booking_date' => $bookingInfo['bookingDate'], // When booking was made
-            'customer_name' => $bookingInfo['user_billing_info']['name'],
-            'customer_email' => $bookingInfo['email'],
-            'view_ticket_url' => 'https://gotickets.lk/booking-confirmation?order_id=' . $bookingId,
-            'view_bookings_url' => 'https://gotickets.lk/booking-confirmation?order_id=' . $bookingId,
-            'home_url' => 'https://gotickets.lk'
+            'customer_name' => $customerName,
+            'customer_email' => $targetEmail,
+            'total_price' => $bookingInfo['totalPrice'],
+            'amount_paid' => $bookingInfo['amount_paid'] ?? $bookingInfo['totalPrice'],
+            'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
+            'payment_status' => $bookingInfo['payment_status'] ?? 'Paid',
+            'qr_code_value' => $bookingInfo['qrCodeValue'],
+            'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId,
+            'view_bookings_url' => $domain . '/account_dashboard',
+            'home_url' => $domain
         ];
 
-        $customerEmail = $bookingInfo['email'];
-
-        $emailResult = $this->sendOrderConfirmationEmail($bookingData, $customerEmail);
+        $emailResult = $this->sendOrderConfirmationEmail($bookingData, $targetEmail);
 
         // Output the result as JSON
         echo json_encode([
             'status' => $emailResult['status'],
-            'message' => $emailResult['message']
+            'message' => $emailResult['message'],
+            'booking_id' => $bookingId,
+            'recipient' => $targetEmail
         ]);
     }
 
@@ -696,33 +732,120 @@ class BookingController
         }
     }
 
-    public function generateBookingEmailHTML($bookingData)
+    public function generateBookingEmailHTML($bookingData, $bookingInfo = null)
     {
         // Load the email template
         $templateFile = './templates/booking_confirmation_template.html';
+        if (!file_exists($templateFile)) {
+            $templateFile = __DIR__ . '/../../templates/booking_confirmation_template.html';
+        }
         if (!file_exists($templateFile)) {
             throw new Exception("Email template file not found: {$templateFile}");
         }
 
         $emailTemplate = file_get_contents($templateFile);
 
-        // Format the event date and time
+        $bookingId = $bookingData['booking_id'] ?? null;
+        if (!$bookingInfo && $bookingId) {
+            $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+        }
+
+        // Format dates
         $eventDateTime = date('l, F j, Y \a\t g:i A', strtotime($bookingData['event_date']));
         $eventDateOnly = date('n/j/Y', strtotime($bookingData['event_date']));
-        $bookingTimestamp = date('F j, Y \a\t g:i A', strtotime($bookingData['booking_date']));
+        $bookingTimestamp = !empty($bookingData['booking_date'])
+            ? date('F j, Y \a\t g:i A', strtotime($bookingData['booking_date']))
+            : date('F j, Y \a\t g:i A');
+
+        // Customer name
+        $customerName = trim($bookingData['customer_name'] ?? '');
+        if (empty($customerName) && !empty($bookingInfo['first_name'])) {
+            $customerName = trim($bookingInfo['first_name'] . ' ' . ($bookingInfo['last_name'] ?? ''));
+        }
+        if (empty($customerName) && !empty($bookingInfo['user_billing_info']['name'])) {
+            $customerName = $bookingInfo['user_billing_info']['name'];
+        }
+        if (empty($customerName)) {
+            $customerName = 'Valued Customer';
+        }
+
+        // Ticket tiers rows
+        $tickets = [];
+        if (!empty($bookingInfo['booking_event'])) {
+            foreach ($bookingInfo['booking_event'] as $be) {
+                if (!empty($be['booking_showtime'])) {
+                    foreach ($be['booking_showtime'] as $st) {
+                        $tickets[] = [
+                            'type' => $st['ticket_type'] ?? 'Standard',
+                            'count' => intval($st['ticket_count'] ?? 1),
+                            'time' => !empty($st['showtime']) ? date('g:i A', strtotime($st['showtime'])) : date('g:i A', strtotime($bookingData['event_date'])),
+                        ];
+                    }
+                }
+            }
+        }
+        if (empty($tickets)) {
+            $tickets[] = [
+                'type' => 'General Admission',
+                'count' => 1,
+                'time' => date('g:i A', strtotime($bookingData['event_date'])),
+            ];
+        }
+
+        $ticketRowsHtml = '';
+        foreach ($tickets as $t) {
+            $ticketRowsHtml .= '<tr>';
+            $ticketRowsHtml .= '<td style="padding: 10px 12px; font-weight: 600; color: #0f172a; border-bottom: 1px solid #f1f5f9;">' . htmlspecialchars($t['type']) . '</td>';
+            $ticketRowsHtml .= '<td style="padding: 10px 12px; text-align: center; font-weight: bold; color: #2563eb; border-bottom: 1px solid #f1f5f9;">' . $t['count'] . '</td>';
+            $ticketRowsHtml .= '<td style="padding: 10px 12px; text-align: right; color: #64748b; border-bottom: 1px solid #f1f5f9;">' . htmlspecialchars($t['time']) . '</td>';
+            $ticketRowsHtml .= '</tr>';
+        }
+
+        // Financial figures
+        $totalPrice = floatval($bookingData['total_price'] ?? $bookingInfo['totalPrice'] ?? 0);
+        $amountPaid = floatval($bookingData['amount_paid'] ?? $bookingInfo['amount_paid'] ?? $totalPrice);
+        $balanceDue = floatval($bookingData['balance_amount'] ?? $bookingInfo['balance_amount'] ?? max(0, $totalPrice - $amountPaid));
+
+        $totalPriceFormatted = number_format($totalPrice, 2);
+        $amountPaidFormatted = number_format($amountPaid, 2);
+        $balanceDueFormatted = number_format($balanceDue, 2);
+
+        $balanceDueRow = '';
+        if ($balanceDue > 0) {
+            $balanceDueRow = '<tr class="order-summary-row"><td colspan="2" style="padding: 6px 12px; font-weight: 600; color: #d97706;">Balance Due at Venue:</td><td style="padding: 6px 12px; text-align: right; font-weight: 700; color: #d97706;">LKR ' . $balanceDueFormatted . '</td></tr>';
+        }
+
+        $paymentStatus = strtolower($bookingData['payment_status'] ?? $bookingInfo['payment_status'] ?? 'paid');
+        $isPaid = ($paymentStatus === 'paid' || $balanceDue <= 0);
+        $statusBadgeHtml = $isPaid 
+            ? '<span class="status-badge" style="display: inline-block; background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">&check; PAYMENT CONFIRMED</span>'
+            : '<span class="status-badge" style="display: inline-block; background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 9999px; text-transform: uppercase;">&bull; ADVANCE CONFIRMED (PARTIAL)</span>';
+
+        $qrCodeVal = $bookingData['qr_code_value'] ?? $bookingInfo['qrCodeValue'] ?? ('BOOK-' . $bookingId);
+        $viewTicketUrl = $bookingData['view_ticket_url'] ?? ('https://gotickets.silverray.lk/booking-confirmation?order_id=' . $bookingId);
+        $viewBookingsUrl = $bookingData['view_bookings_url'] ?? 'https://gotickets.silverray.lk/account_dashboard';
+        $homeUrl = $bookingData['home_url'] ?? 'https://gotickets.silverray.lk';
 
         // Replace placeholders with booking data
         $placeholders = [
-            '{{EVENT_NAME}}' => $bookingData['event_name'],
+            '{{EVENT_NAME}}' => htmlspecialchars($bookingData['event_name'] ?? $bookingInfo['eventName'] ?? ''),
             '{{EVENT_DATE}}' => $eventDateOnly,
             '{{EVENT_DATE_TIME}}' => $eventDateTime,
-            '{{EVENT_LOCATION}}' => $bookingData['event_location'],
-            '{{BOOKING_ID}}' => $bookingData['booking_id'],
-            '{{VIEW_TICKET_URL}}' => $bookingData['view_ticket_url'],
-            '{{VIEW_BOOKINGS_URL}}' => $bookingData['view_bookings_url'],
-            '{{HOME_URL}}' => $bookingData['home_url'],
-            '{{CUSTOMER_NAME}}' => isset($bookingData['customer_name']) ? $bookingData['customer_name'] : '',
-            '{{CUSTOMER_EMAIL}}' => isset($bookingData['customer_email']) ? $bookingData['customer_email'] : '',
+            '{{EVENT_LOCATION}}' => htmlspecialchars($bookingData['event_location'] ?? $bookingInfo['eventLocation'] ?? ''),
+            '{{BOOKING_ID}}' => htmlspecialchars((string)$bookingId),
+            '{{VIEW_TICKET_URL}}' => htmlspecialchars($viewTicketUrl),
+            '{{VIEW_BOOKINGS_URL}}' => htmlspecialchars($viewBookingsUrl),
+            '{{HOME_URL}}' => htmlspecialchars($homeUrl),
+            '{{CUSTOMER_NAME}}' => htmlspecialchars($customerName),
+            '{{CUSTOMER_EMAIL}}' => htmlspecialchars($bookingData['customer_email'] ?? $bookingInfo['email'] ?? ''),
+            '{{YEAR}}' => date('Y'),
+            '{{TOTAL_PRICE}}' => $totalPriceFormatted,
+            '{{AMOUNT_PAID}}' => $amountPaidFormatted,
+            '{{BALANCE_DUE_ROW}}' => $balanceDueRow,
+            '{{TICKET_ROWS}}' => $ticketRowsHtml,
+            '{{PAYMENT_STATUS_BADGE}}' => $statusBadgeHtml,
+            '{{QR_CODE_SRC}}' => 'cid:ticket_qr',
+            '{{QR_CODE_VALUE}}' => htmlspecialchars($qrCodeVal),
         ];
 
         // Replace all placeholders
@@ -733,11 +856,525 @@ class BookingController
         return $emailTemplate;
     }
 
+    public function generateTicketPDF($bookingData, $bookingInfo = null)
+    {
+        $bookingId = $bookingData['booking_id'] ?? null;
+        if (!$bookingInfo && $bookingId) {
+            $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+        }
+
+        $qrCodeValue = $bookingData['qr_code_value'] 
+            ?? $bookingInfo['qrCodeValue'] 
+            ?? ('BOOK-' . $bookingId);
+
+        // Generate QR Code as base64 PNG data URI for Dompdf
+        $qrOptions = new QROptions([
+            'outputType' => QRCode::OUTPUT_IMAGE_PNG,
+            'eccLevel' => QRCode::ECC_M,
+            'scale' => 6,
+            'imageBase64' => true,
+        ]);
+        $qrCodeDataUri = (new QRCode($qrOptions))->render($qrCodeValue);
+
+        $customerName = trim($bookingData['customer_name'] ?? '');
+        if (empty($customerName) && !empty($bookingInfo['first_name'])) {
+            $customerName = trim($bookingInfo['first_name'] . ' ' . ($bookingInfo['last_name'] ?? ''));
+        }
+        if (empty($customerName) && !empty($bookingInfo['user_billing_info']['name'])) {
+            $customerName = $bookingInfo['user_billing_info']['name'];
+        }
+        if (empty($customerName)) {
+            $customerName = 'Valued Customer';
+        }
+
+        $customerContact = $bookingData['customer_email'] 
+            ?? $bookingInfo['email'] 
+            ?? $bookingInfo['contact_number'] 
+            ?? 'N/A';
+
+        $eventName = $bookingData['event_name'] ?? $bookingInfo['eventName'] ?? 'Event';
+        $eventDate = $bookingData['event_date'] ?? $bookingInfo['eventDate'] ?? date('Y-m-d H:i:s');
+        $eventLocation = $bookingData['event_location'] ?? $bookingInfo['eventLocation'] ?? 'Sri Lanka';
+        $bookingDate = $bookingData['booking_date'] ?? $bookingInfo['bookingDate'] ?? date('Y-m-d H:i:s');
+
+        $eventDateFormatted = date('l, F j, Y', strtotime($eventDate));
+        $eventTimeFormatted = date('g:i A', strtotime($eventDate));
+        $issuedDateFormatted = date('F j, Y', strtotime($bookingDate));
+
+        // Collect ticket items
+        $tickets = [];
+        if (!empty($bookingInfo['booking_event'])) {
+            foreach ($bookingInfo['booking_event'] as $be) {
+                if (!empty($be['booking_showtime'])) {
+                    foreach ($be['booking_showtime'] as $st) {
+                        $tickets[] = [
+                            'type' => $st['ticket_type'] ?? 'Standard',
+                            'count' => intval($st['ticket_count'] ?? 1),
+                            'time' => !empty($st['showtime']) ? date('g:i A', strtotime($st['showtime'])) : $eventTimeFormatted,
+                        ];
+                    }
+                }
+            }
+        }
+        if (empty($tickets)) {
+            $tickets[] = [
+                'type' => 'General Admission',
+                'count' => 1,
+                'time' => $eventTimeFormatted
+            ];
+        }
+
+        $totalQuantity = array_sum(array_column($tickets, 'count'));
+        $totalPrice = floatval($bookingData['total_price'] ?? $bookingInfo['totalPrice'] ?? 0);
+        $amountPaid = floatval($bookingData['amount_paid'] ?? $bookingInfo['amount_paid'] ?? $totalPrice);
+        $balanceDue = floatval($bookingData['balance_amount'] ?? $bookingInfo['balance_amount'] ?? max(0, $totalPrice - $amountPaid));
+
+        $totalPriceFormatted = number_format($totalPrice, 2);
+        $amountPaidFormatted = number_format($amountPaid, 2);
+        $balanceDueFormatted = number_format($balanceDue, 2);
+
+        $paymentStatus = strtolower($bookingData['payment_status'] ?? $bookingInfo['payment_status'] ?? 'paid');
+        $isPaid = ($paymentStatus === 'paid' || $balanceDue <= 0);
+
+        $ticketRowsHtml = '';
+        foreach ($tickets as $t) {
+            $ticketRowsHtml .= '<tr>';
+            $ticketRowsHtml .= '<td style="font-weight: 600; color: #0f172a;">' . htmlspecialchars($t['type']) . '</td>';
+            $ticketRowsHtml .= '<td style="text-align: center; font-weight: bold; color: #2563eb;">' . $t['count'] . '</td>';
+            $ticketRowsHtml .= '<td style="text-align: right; color: #64748b;">' . htmlspecialchars($t['time']) . '</td>';
+            $ticketRowsHtml .= '</tr>';
+        }
+
+        $balanceDueRowHtml = '';
+        if ($balanceDue > 0) {
+            $balanceDueRowHtml = '<tr><td style="color: #d97706; font-weight: bold;">Balance Due at Venue:</td><td style="text-align: right; font-weight: bold; color: #d97706;">LKR ' . $balanceDueFormatted . '</td></tr>';
+        }
+
+        $pdfHtml = '
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GoTickets E-Ticket - #' . htmlspecialchars((string)$bookingId) . '</title>
+<style>
+    @page {
+        margin: 20px 25px;
+        size: A4 portrait;
+    }
+    body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+    .header-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #2563eb;
+        padding-bottom: 12px;
+    }
+    .brand-logo {
+        font-size: 26px;
+        font-weight: bold;
+        color: #0f172a;
+        letter-spacing: -0.5px;
+    }
+    .brand-blue { color: #2563eb; }
+    .brand-orange { color: #ff6b35; }
+    .header-badge {
+        text-align: right;
+    }
+    .badge-pass {
+        display: inline-block;
+        background-color: #0f172a;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: bold;
+        padding: 6px 14px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .ticket-container {
+        width: 100%;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        background-color: #ffffff;
+        margin-bottom: 20px;
+    }
+    
+    .ticket-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .main-pass-td {
+        width: 68%;
+        padding: 24px;
+        vertical-align: top;
+        border-right: 2px dashed #cbd5e1;
+    }
+    
+    .stub-td {
+        width: 32%;
+        padding: 24px 16px;
+        vertical-align: top;
+        text-align: center;
+        background-color: #f8fafc;
+        border-top-right-radius: 10px;
+        border-bottom-right-radius: 10px;
+    }
+    
+    .event-title {
+        font-size: 22px;
+        font-weight: bold;
+        color: #0f172a;
+        margin: 0 0 6px 0;
+    }
+    
+    .event-subtitle {
+        font-size: 12px;
+        color: #64748b;
+        margin: 0 0 18px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .meta-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 16px;
+    }
+    
+    .meta-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+        padding-bottom: 3px;
+    }
+    
+    .meta-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: #0f172a;
+        padding-bottom: 12px;
+    }
+    
+    .tickets-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0 16px 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    
+    .tickets-table th {
+        background-color: #f1f5f9;
+        color: #475569;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 7px 10px;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .tickets-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 12px;
+    }
+    
+    .finance-box {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-top: 10px;
+    }
+    
+    .finance-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .finance-table td {
+        padding: 2px 0;
+        font-size: 12px;
+    }
+    
+    .status-badge-paid {
+        display: inline-block;
+        background-color: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+    
+    .status-badge-pending {
+        display: inline-block;
+        background-color: #fffbeb;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+    
+    .stub-ref-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+    
+    .stub-ref-id {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2563eb;
+        font-family: monospace;
+        margin: 2px 0 14px 0;
+    }
+    
+    .qr-box {
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 8px;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+    
+    .qr-code-img {
+        width: 140px;
+        height: 140px;
+        display: block;
+    }
+    
+    .qr-text {
+        font-family: monospace;
+        font-size: 9px;
+        color: #64748b;
+        word-break: break-all;
+        margin-bottom: 12px;
+    }
+    
+    .stub-instructions {
+        font-size: 10px;
+        color: #475569;
+        line-height: 1.3;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 8px;
+    }
+
+    .guidelines {
+        margin-top: 15px;
+        padding: 14px 18px;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+    
+    .guidelines-title {
+        font-size: 11px;
+        font-weight: bold;
+        color: #0f172a;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+    }
+    
+    .guidelines ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 10.5px;
+        color: #475569;
+        line-height: 1.5;
+    }
+    
+    .footer {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 10px;
+        color: #94a3b8;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 12px;
+    }
+</style>
+</head>
+<body>
+
+    <table class="header-table">
+        <tr>
+            <td style="vertical-align: middle;">
+                <div class="brand-logo">GoTickets<span class="brand-blue">.</span><span class="brand-orange">lk</span></div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Sri Lanka\'s Premier Online Event Ticketing Platform</div>
+            </td>
+            <td class="header-badge" style="vertical-align: middle;">
+                <div class="badge-pass">Official E-Ticket</div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Issued on ' . $issuedDateFormatted . '</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="ticket-container">
+        <table class="ticket-table">
+            <tr>
+                <td class="main-pass-td">
+                    <h1 class="event-title">' . htmlspecialchars($eventName) . '</h1>
+                    <div class="event-subtitle">Official Admission Pass &bull; ' . $totalQuantity . ' Ticket' . ($totalQuantity > 1 ? 's' : '') . '</div>
+
+                    <table class="meta-table">
+                        <tr>
+                            <td style="width: 50%;">
+                                <div class="meta-label">Date & Time</div>
+                                <div class="meta-value">' . $eventDateFormatted . '<br><span style="color:#2563eb;">' . $eventTimeFormatted . '</span></div>
+                            </td>
+                            <td style="width: 50%;">
+                                <div class="meta-label">Venue Location</div>
+                                <div class="meta-value">' . htmlspecialchars($eventLocation) . '</div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="meta-label">Attendee Name</div>
+                                <div class="meta-value">' . htmlspecialchars($customerName) . '</div>
+                            </td>
+                            <td>
+                                <div class="meta-label">Contact / Email</div>
+                                <div class="meta-value">' . htmlspecialchars($customerContact) . '</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="tickets-table">
+                        <thead>
+                            <tr>
+                                <th>Ticket Tier</th>
+                                <th style="text-align: center; width: 60px;">Qty</th>
+                                <th style="text-align: right; width: 100px;">Showtime</th>
+                            </tr>
+                        </thead>
+                        <tbody>' . $ticketRowsHtml . '</tbody>
+                    </table>
+
+                    <div class="finance-box">
+                        <table class="finance-table">
+                            <tr>
+                                <td style="color: #64748b;">Payment Status:</td>
+                                <td style="text-align: right;">' . ($isPaid ? '<span class="status-badge-paid">&check; Fully Paid</span>' : '<span class="status-badge-pending">Partially Paid / Pending</span>') . '</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Total Amount:</td>
+                                <td style="text-align: right; font-weight: bold; color: #0f172a;">LKR ' . $totalPriceFormatted . '</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Amount Paid:</td>
+                                <td style="text-align: right; font-weight: bold; color: #059669;">LKR ' . $amountPaidFormatted . '</td>
+                            </tr>' . $balanceDueRowHtml . '
+                        </table>
+                    </div>
+                </td>
+
+                <td class="stub-td">
+                    <div class="stub-ref-label">Booking Reference</div>
+                    <div class="stub-ref-id">#' . htmlspecialchars((string)$bookingId) . '</div>
+
+                    <div class="qr-box">
+                        <img src="' . $qrCodeDataUri . '" class="qr-code-img" alt="QR Code" />
+                    </div>
+
+                    <div class="qr-text">' . htmlspecialchars($qrCodeValue) . '</div>
+
+                    <div class="stub-instructions">
+                        <strong>&bull; SCAN FOR ENTRY &bull;</strong><br>
+                        Present this QR code on mobile or printed copy at the entrance scanner.
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="guidelines">
+        <div class="guidelines-title">Important Admission Guidelines</div>
+        <ul>
+            <li>Please have this e-ticket ready along with a valid photo ID (NIC / Driving License / Passport) at the entry gate.</li>
+            <li>Each QR code is cryptographically unique and will only grant admission for one verification. Duplication or resale is strictly prohibited.</li>
+            <li>Gates typically open 1 hour before scheduled showtime. Please arrive early to avoid queue delays.</li>
+            <li>Tickets are non-refundable and subject to the terms and conditions of GoTickets.lk and event organizers.</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        GoTickets.lk &bull; Grand Silver Ray, Pelmadulla, Sri Lanka &bull; Support: support@gotickets.lk | +94 71 678 7700<br>
+        &copy; ' . date('Y') . ' GoTickets.lk. All rights reserved.
+    </div>
+
+</body>
+</html>
+';
+
+        $pdfOptions = new Options();
+        $pdfOptions->set('isRemoteEnabled', true);
+        $pdfOptions->set('isHtml5ParserEnabled', true);
+        $pdfOptions->set('defaultFont', 'Helvetica');
+
+        $dompdf = new Dompdf($pdfOptions);
+        $dompdf->loadHtml($pdfHtml);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return $dompdf->output();
+    }
+
     public function sendOrderConfirmationEmail($orderData, $customerEmail)
     {
         $mail = new PHPMailer(true);
 
         try {
+            $bookingId = $orderData['booking_id'] ?? null;
+            $bookingInfo = $bookingId ? $this->getRecordByIdWithRelationsArray($bookingId) : null;
+
+            // Normalize missing fields from booking relations if available
+            if ($bookingInfo) {
+                if (empty($orderData['customer_name'])) {
+                    $orderData['customer_name'] = trim(($bookingInfo['first_name'] ?? '') . ' ' . ($bookingInfo['last_name'] ?? ''));
+                    if (empty($orderData['customer_name']) && !empty($bookingInfo['user_billing_info']['name'])) {
+                        $orderData['customer_name'] = $bookingInfo['user_billing_info']['name'];
+                    }
+                }
+                if (empty($orderData['qr_code_value'])) {
+                    $orderData['qr_code_value'] = $bookingInfo['qrCodeValue'] ?? ('BOOK-' . $bookingId);
+                }
+                if (!isset($orderData['total_price'])) {
+                    $orderData['total_price'] = $bookingInfo['totalPrice'] ?? 0;
+                }
+                if (!isset($orderData['amount_paid'])) {
+                    $orderData['amount_paid'] = $bookingInfo['amount_paid'] ?? $orderData['total_price'];
+                }
+                if (!isset($orderData['balance_amount'])) {
+                    $orderData['balance_amount'] = $bookingInfo['balance_amount'] ?? 0;
+                }
+                if (!isset($orderData['payment_status'])) {
+                    $orderData['payment_status'] = $bookingInfo['payment_status'] ?? 'Paid';
+                }
+            }
+
             // Server settings from environment
             $mail->isSMTP();
             $mail->Host = env('SMTP_HOST', 'mail.gotickets.lk');
@@ -770,17 +1407,39 @@ class BookingController
                 }
             }
 
-            // Generate email content
-            $emailContent = $this->generateBookingEmailHTML($orderData);
+            // 1. Generate & embed QR Code into email body
+            $qrCodeVal = $orderData['qr_code_value'] ?? ('BOOK-' . $bookingId);
+            $qrOptionsRaw = new QROptions([
+                'outputType' => QRCode::OUTPUT_IMAGE_PNG,
+                'eccLevel' => QRCode::ECC_M,
+                'scale' => 6,
+                'imageBase64' => false,
+            ]);
+            $qrPngBinary = (new QRCode($qrOptionsRaw))->render($qrCodeVal);
+            $mail->addStringEmbeddedImage($qrPngBinary, 'ticket_qr', 'qrcode.png', 'base64', 'image/png');
+
+            // 2. Generate PDF Ticket and attach to email
+            try {
+                $pdfBytes = $this->generateTicketPDF($orderData, $bookingInfo);
+                if (!empty($pdfBytes)) {
+                    $pdfFileName = 'GoTickets_Ticket_' . $orderData['booking_id'] . '.pdf';
+                    $mail->addStringAttachment($pdfBytes, $pdfFileName, 'base64', 'application/pdf');
+                }
+            } catch (Exception $pdfEx) {
+                error_log("Failed to generate/attach PDF ticket: " . $pdfEx->getMessage());
+            }
+
+            // 3. Generate HTML email content
+            $emailContent = $this->generateBookingEmailHTML($orderData, $bookingInfo);
 
             // Content
             $mail->isHTML(true); // Email format is HTML
-            $mail->Subject = 'Booking Confirmation - GoTickets.lk | Booking ID - ' . $orderData['booking_id']; // Email subject
-            $mail->Body = $emailContent; // Email body content
+            $mail->Subject = 'Booking Confirmation - GoTickets.lk | ' . $orderData['event_name'] . ' [Ref: #' . $orderData['booking_id'] . ']';
+            $mail->Body = $emailContent;
 
             // Send the email
             $mail->send();
-            return ['status' => 'success', 'message' => 'Email Sent Successfully'];
+            return ['status' => 'success', 'message' => 'Email Sent Successfully with PDF Attachment'];
         } catch (Exception $e) {
             // Log the error
             error_log("Email could not be sent. Mailer Error: {$mail->ErrorInfo}");
@@ -811,18 +1470,27 @@ class BookingController
             // If booking is fully paid, send confirmation email if requested
             if ($result['payment_status'] === 'Paid' && !empty($data['send_email'])) {
                 try {
-                    $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+                    $customerName = trim(($bookingInfo['first_name'] ?? '') . ' ' . ($bookingInfo['last_name'] ?? ''));
+                    if (empty($customerName) && !empty($bookingInfo['user_billing_info']['name'])) {
+                        $customerName = $bookingInfo['user_billing_info']['name'];
+                    }
+                    $domain = rtrim(env('PAYHERE_DOMAIN_NAME', 'https://gotickets.silverray.lk'), '/');
                     $bookingData = [
                         'booking_id' => $bookingId,
                         'event_name' => $bookingInfo['eventName'],
                         'event_date' => $bookingInfo['eventDate'],
                         'event_location' => $bookingInfo['eventLocation'],
                         'booking_date' => $bookingInfo['bookingDate'],
-                        'customer_name' => $bookingInfo['first_name'] . ' ' . $bookingInfo['last_name'],
+                        'customer_name' => $customerName,
                         'customer_email' => $bookingInfo['email'],
-                        'view_ticket_url' => 'http://localhost:9002/booking-confirmation?order_id=' . $bookingId,
-                        'view_bookings_url' => 'http://localhost:9002/account_dashboard',
-                        'home_url' => 'http://localhost:9002'
+                        'total_price' => $bookingInfo['totalPrice'],
+                        'amount_paid' => $bookingInfo['amount_paid'] ?? $bookingInfo['totalPrice'],
+                        'balance_amount' => $bookingInfo['balance_amount'] ?? 0,
+                        'payment_status' => $bookingInfo['payment_status'] ?? 'Paid',
+                        'qr_code_value' => $bookingInfo['qrCodeValue'],
+                        'view_ticket_url' => $domain . '/booking-confirmation?order_id=' . $bookingId,
+                        'view_bookings_url' => $domain . '/account_dashboard',
+                        'home_url' => $domain
                     ];
                     if (!empty($bookingInfo['email'])) {
                         $this->sendOrderConfirmationEmail($bookingData, $bookingInfo['email']);
