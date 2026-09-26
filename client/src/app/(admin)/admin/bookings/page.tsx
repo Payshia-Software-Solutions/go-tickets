@@ -116,8 +116,14 @@ export default function AdminBookingsPage() {
     let paid = 0;
     let partiallyPaid = 0;
     let pending = 0;
+    let complimentary = 0;
 
     eventFilteredBookings.forEach(b => {
+      const isComp = b.payment_method?.toLowerCase() === 'complimentary';
+      if (isComp) {
+        complimentary++;
+        return;
+      }
       const s = (b.payment_status || 'pending').toLowerCase().trim();
       if (s === 'paid') {
         paid++;
@@ -132,7 +138,8 @@ export default function AdminBookingsPage() {
       all: eventFilteredBookings.length,
       paid,
       partiallyPaid,
-      pending
+      pending,
+      complimentary
     };
   }, [eventFilteredBookings]);
 
@@ -143,6 +150,13 @@ export default function AdminBookingsPage() {
     }
 
     return eventFilteredBookings.filter(booking => {
+      const isComp = booking.payment_method?.toLowerCase() === 'complimentary';
+      if (statusFilter === 'complimentary') {
+        return isComp;
+      }
+      if (isComp) {
+        return false;
+      }
       const s = (booking.payment_status || 'pending').toLowerCase().trim();
       if (statusFilter === 'paid') {
         return s === 'paid';
@@ -193,6 +207,7 @@ export default function AdminBookingsPage() {
     if (status === 'paid') return 'Paid';
     if (status === 'partially_paid') return 'Partially Paid';
     if (status === 'pending') return 'Pending';
+    if (status === 'complimentary') return 'Complimentary';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
@@ -268,7 +283,7 @@ export default function AdminBookingsPage() {
         {/* Right Status Filter Tabs */}
         <div className="flex items-center gap-2">
           <Tabs value={statusFilter} onValueChange={handleStatusFilterChange} className="w-full sm:w-auto">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-4 sm:w-auto h-auto p-1 gap-1 bg-muted/60">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-5 sm:w-auto h-auto p-1 gap-1 bg-muted/60">
               <TabsTrigger 
                 value="all" 
                 className="px-3 py-1.5 text-xs font-medium"
@@ -292,6 +307,12 @@ export default function AdminBookingsPage() {
                 className="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 data-[state=active]:bg-background"
               >
                 Pending <span className="ml-1.5 opacity-80 font-mono">({statusCounts.pending})</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="complimentary" 
+                className="px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-400 data-[state=active]:bg-background"
+              >
+                Complimentary <span className="ml-1.5 opacity-80 font-mono">({statusCounts.complimentary})</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
