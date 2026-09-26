@@ -23,6 +23,8 @@ server/vendor/
 server/config/database.php
 server/logs/*
 !server/logs/.gitkeep
+server/uploads/*
+!server/uploads/.gitkeep
 
 # System & Editor
 .DS_Store

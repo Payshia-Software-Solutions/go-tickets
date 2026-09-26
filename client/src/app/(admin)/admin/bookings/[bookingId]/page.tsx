@@ -38,7 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { API_BASE_URL } from '@/lib/constants';
+import { API_BASE_URL, CONTENT_PROVIDER_URL } from '@/lib/constants';
 import Image from 'next/image';
 
 export default function BookingDetailsPage() {
@@ -233,6 +233,10 @@ export default function BookingDetailsPage() {
     if (!slipPath) return null;
     if (slipPath.startsWith('http://') || slipPath.startsWith('https://')) {
       return slipPath;
+    }
+    if (slipPath.startsWith('/payment-slips') || slipPath.startsWith('payment-slips')) {
+      const cleanPath = slipPath.startsWith('/') ? slipPath : `/${slipPath}`;
+      return `${CONTENT_PROVIDER_URL}${cleanPath}`;
     }
     const cleanBase = API_BASE_URL.replace(/\/$/, "");
     const cleanPath = slipPath.replace(/^\//, "");

@@ -22,6 +22,7 @@ class BookingController
     private $userModel;
     private $paymentController;
     private $EventController;
+    private $ftpConfig;
 
     // @Local Keys
     // private $merchant_id = '1227940'; // Your merchant ID
@@ -50,6 +51,66 @@ class BookingController
         $this->bookingShowtimeController = new BookingShowtimeController($pdo);
         $this->paymentController = new PaymentController($pdo);
         $this->EventController = new EventController($pdo);
+        $this->ftpConfig = include('./config/ftp.php');
+    }
+
+    // FTP Helper Methods for remote slip and media upload
+    private function ensureDirectoryExists($ftp_conn, $dir)
+    {
+        $parts = explode('/', $dir);
+        $path = '';
+        foreach ($parts as $part) {
+            if (empty($part)) {
+                continue;
+            }
+            $path .= '/' . $part;
+            if (!@ftp_chdir($ftp_conn, $path)) {
+                if (!@ftp_mkdir($ftp_conn, $path)) {
+                    throw new Exception("Could not create directory: $path on FTP server.");
+                }
+            }
+        }
+    }
+
+    private function uploadToFTP($localFile, $ftpFilePath)
+    {
+        ini_set('memory_limit', '256M');
+
+        $ftp_server   = $this->ftpConfig['ftp_server'];
+        $ftp_username = $this->ftpConfig['ftp_username'];
+        $ftp_password = $this->ftpConfig['ftp_password'];
+        $ftp_port     = $this->ftpConfig['ftp_port'] ?? 21;
+
+        $ftp_conn = @ftp_connect($ftp_server, $ftp_port, 25);
+        if (!$ftp_conn) {
+            error_log("FTP connection failed: $ftp_server on port $ftp_port");
+            return false;
+        }
+
+        if (!@ftp_login($ftp_conn, $ftp_username, $ftp_password)) {
+            @ftp_close($ftp_conn);
+            error_log("FTP login failed for user: $ftp_username");
+            return false;
+        }
+
+        ftp_pasv($ftp_conn, true);
+
+        try {
+            $this->ensureDirectoryExists($ftp_conn, dirname($ftpFilePath));
+        } catch (Exception $e) {
+            error_log("Directory creation failed on FTP: " . $e->getMessage());
+            @ftp_close($ftp_conn);
+            return false;
+        }
+
+        if (!@ftp_put($ftp_conn, $ftpFilePath, $localFile, FTP_BINARY)) {
+            @ftp_close($ftp_conn);
+            error_log("Failed to upload: $localFile to $ftpFilePath on FTP");
+            return false;
+        }
+
+        @ftp_close($ftp_conn);
+        return true;
     }
 
     /**
@@ -825,7 +886,7 @@ class BookingController
         }
     }
 
-    // ✅ Upload payment slip
+    // ✅ Upload payment slip directly to FTP server under /payment-slips/
     public function uploadSlip()
     {
         try {
@@ -851,27 +912,46 @@ class BookingController
                 return;
             }
 
-            $uploadDir = dirname(__DIR__, 2) . '/uploads/slips/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
+            $originalFileName = pathinfo($file['name'], PATHINFO_FILENAME);
+            $sanitizedFileName = preg_replace('/[^a-zA-Z0-9\-_]/', '', $originalFileName);
+            if (empty($sanitizedFileName)) {
+                $sanitizedFileName = 'slip';
             }
+            $fileName = $sanitizedFileName . '_' . uniqid() . '_' . time() . '.' . $extension;
 
-            $fileName = 'slip_' . uniqid() . '_' . time() . '.' . $extension;
-            $targetPath = $uploadDir . $fileName;
-
-            if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            // Move to local temporary directory first
+            $localTempPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $fileName;
+            if (!move_uploaded_file($file['tmp_name'], $localTempPath)) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Failed to move uploaded slip.']);
+                echo json_encode(['success' => false, 'error' => 'Failed to process temporary uploaded slip file.']);
                 return;
             }
 
-            $publicPath = 'uploads/slips/' . $fileName;
-            echo json_encode([
-                'success' => true,
-                'filePath' => $publicPath,
-                'fileName' => $fileName,
-                'fileUrl' => $publicPath
-            ]);
+            // Target path on remote FTP server: /payment-slips/{fileName}
+            $ftpFilePath = "/payment-slips/" . $fileName;
+
+            // Upload directly to FTP server
+            if ($this->uploadToFTP($localTempPath, $ftpFilePath)) {
+                // Remove local temp file
+                if (file_exists($localTempPath)) {
+                    @unlink($localTempPath);
+                }
+
+                $fileUrl = "https://content-provider.gotickets.lk" . $ftpFilePath;
+
+                echo json_encode([
+                    'success' => true,
+                    'filePath' => $ftpFilePath, // e.g. /payment-slips/receipt_xxx.jpg
+                    'fileName' => $fileName,
+                    'fileUrl' => $fileUrl       // https://content-provider.gotickets.lk/payment-slips/receipt_xxx.jpg
+                ]);
+            } else {
+                if (file_exists($localTempPath)) {
+                    @unlink($localTempPath);
+                }
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Failed to upload slip to FTP server. Please verify FTP settings.']);
+            }
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
