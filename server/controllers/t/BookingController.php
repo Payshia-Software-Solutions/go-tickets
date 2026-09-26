@@ -926,14 +926,6 @@ class BookingController
                     }
                 }
 
-                // Sync total tickets into booking_event
-                $totStmt = $this->pdo->prepare("SELECT SUM(ticket_count) as total_count FROM `booking_showtime` WHERE `booking_id` = ?");
-                $totStmt->execute([$bookingId]);
-                $totalTicketsCount = intval($totStmt->fetch(PDO::FETCH_ASSOC)['total_count'] ?? 0);
-
-                $updBe = $this->pdo->prepare("UPDATE `booking_event` SET `ticket_count` = ? WHERE `booking_id` = ?");
-                $updBe->execute([$totalTicketsCount, $bookingId]);
-
                 // Update totalPrice & balance_amount
                 $currentBooking = $this->model->getBookingById($bookingId);
                 $isComp = strtolower($currentBooking['payment_method'] ?? '') === 'complimentary';
