@@ -166,10 +166,11 @@ class BookingController
         }
     }
 
-    // ✅ Get bookings by user ID
+    // ✅ Get bookings by user ID (defaults to last 5 bookings, newest first)
     public function getRecordsByUserId($userId)
     {
-        $records = $this->model->getBookingsByUserId($userId);
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 5;
+        $records = $this->model->getBookingsByUserId($userId, $limit);
         if ($records) {
             echo json_encode($records);
         } else {

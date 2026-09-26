@@ -34,7 +34,7 @@ const AccountDashboardPage = () => {
     if (user) {
       setIsLoadingBookings(true);
       try {
-        const userBookingsData = await getUserBookings(user.id);
+        const userBookingsData = await getUserBookings(user.id, 5);
         setBookings(userBookingsData);
       } catch (error) {
         console.error("Error fetching user bookings:", error);
@@ -111,8 +111,8 @@ const AccountDashboardPage = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center"><Ticket className="mr-2 h-6 w-6 text-primary" /> Your Bookings</CardTitle>
-          <CardDescription>Here are the events you&apos;ve booked tickets for.</CardDescription>
+          <CardTitle className="flex items-center"><Ticket className="mr-2 h-6 w-6 text-primary" /> Recent Bookings</CardTitle>
+          <CardDescription>Showing your latest 5 event bookings.</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={statusFilter} onValueChange={setStatusFilter} className="mb-6">

@@ -502,13 +502,13 @@ export const adminGetBookingSummaries = async (): Promise<Booking[]> => {
 };
 
 
-export const getUserBookings = async (userId: string): Promise<Booking[]> => {
+export const getUserBookings = async (userId: string, limit: number = 5): Promise<Booking[]> => {
   if (!BOOKINGS_API_URL) {
     console.error("BOOKINGS_API_URL is not defined. Cannot fetch user bookings.");
     return [];
   }
-  const url = `${BOOKINGS_API_URL}/user/${userId}`;
-  console.log(`[getUserBookings] Fetching bookings for user ID ${userId} from: ${url}`);
+  const url = `${BOOKINGS_API_URL}/user/${userId}/?limit=${limit}`;
+  console.log(`[getUserBookings] Fetching latest ${limit} bookings for user ID ${userId} from: ${url}`);
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -525,9 +525,12 @@ export const getUserBookings = async (userId: string): Promise<Booking[]> => {
       console.error(`[getUserBookings] Expected array of bookings for user ${userId}, got:`, apiBookings);
       return [];
     }
-    console.log(`[getUserBookings] Found ${apiBookings.length} bookings for user ${userId}. Mapping now...`);
     
-    const mappedBookingsPromises = apiBookings.map(async (bookingData) => {
+    // Process at most `limit` items to ensure fast page load
+    const targetBookings = apiBookings.slice(0, limit);
+    console.log(`[getUserBookings] Loading latest ${targetBookings.length} bookings for user ${userId}...`);
+    
+    const mappedBookingsPromises = targetBookings.map(async (bookingData) => {
         return getBookingById(String(bookingData.id));
     });
 

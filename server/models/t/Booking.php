@@ -25,10 +25,14 @@ class Booking
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    // Get bookings by User ID
-    public function getBookingsByUserId($userId)
+    // Get bookings by User ID (newest first, default limit of 5)
+    public function getBookingsByUserId($userId, $limit = 5)
     {
-        $stmt = $this->pdo->prepare("SELECT * FROM `booking` WHERE `userId` = ?");
+        $sql = "SELECT * FROM `booking` WHERE `userId` = ? ORDER BY `id` DESC";
+        if ($limit !== null && intval($limit) > 0) {
+            $sql .= " LIMIT " . intval($limit);
+        }
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([$userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
