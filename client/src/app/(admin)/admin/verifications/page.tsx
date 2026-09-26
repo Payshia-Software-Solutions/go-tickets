@@ -5,18 +5,21 @@ import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Loader2, ClipboardCheck, Search, Ticket, Users, Percent, Download } from 'lucide-react';
+import { Loader2, ClipboardCheck, Search, Ticket, Users, Percent, Download, Gift } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { adminGetAllEvents } from '@/lib/mockData';
+import { adminGetAllEvents, adminGetBookingSummaries } from '@/lib/mockData';
 import type { VerificationLog, Event, TicketType } from '@/lib/types';
 import { fetchTicketTypesForEvent } from '@/lib/services/ticket.service';
 import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { TICKET_TYPES_API_URL, API_BASE_URL } from '@/lib/constants';
 
 const VERIFICATIONS_API_URL = `${API_BASE_URL}/tickets-verifications/`;
+const BOOKING_SHOWTIMES_API_URL = `${API_BASE_URL}/booking-showtimes`;
 
 interface TicketTypeSummary {
     id: string;
@@ -27,6 +30,7 @@ interface TicketTypeSummary {
 
 interface EnrichedVerificationLog extends VerificationLog {
     ticketTypeName?: string;
+    isComplimentary?: boolean;
 }
 
 const VerificationBreakdownPage = () => {
@@ -34,6 +38,8 @@ const VerificationBreakdownPage = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [allTicketTypes, setAllTicketTypes] = useState<TicketType[]>([]);
   const [ticketTypesForFilter, setTicketTypesForFilter] = useState<TicketType[]>([]);
+  const [complimentaryBookingIds, setComplimentaryBookingIds] = useState<Set<string>>(new Set());
+  const [allBookedShowtimes, setAllBookedShowtimes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingTicketTypes, setIsLoadingTicketTypes] = useState(false);
   const { toast } = useToast();
@@ -41,15 +47,18 @@ const VerificationBreakdownPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
   const [ticketTypeFilter, setTicketTypeFilter] = useState('all');
+  const [passTypeFilter, setPassTypeFilter] = useState<'all' | 'paid' | 'complimentary'>('all');
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [verificationsResponse, eventsResponse, allTicketTypesResponse] = await Promise.all([
+        const [verificationsResponse, eventsResponse, allTicketTypesResponse, allBookings, allBookedShowtimesResponse] = await Promise.all([
           fetch(VERIFICATIONS_API_URL),
           adminGetAllEvents(),
-          fetch(TICKET_TYPES_API_URL)
+          fetch(TICKET_TYPES_API_URL),
+          adminGetBookingSummaries().catch(() => []),
+          fetch(BOOKING_SHOWTIMES_API_URL).then(res => res.ok ? res.json() : []).catch(() => [])
         ]);
         
         if (!verificationsResponse.ok) throw new Error('Failed to fetch verification logs');
@@ -62,13 +71,21 @@ const VerificationBreakdownPage = () => {
         const eventMap = new Map(allEvents.map(e => [String(e.id), e.name]));
         const ticketTypeMap = new Map(allTicketTypesData.map(t => [String(t.id), t.name]));
         
+        const compIds = new Set<string>(
+          (allBookings || [])
+            .filter((b: any) => (b.payment_method || '').toLowerCase() === 'complimentary')
+            .map((b: any) => String(b.id))
+        );
+        setComplimentaryBookingIds(compIds);
+        setAllBookedShowtimes(allBookedShowtimesResponse || []);
         setAllTicketTypes(allTicketTypesData);
 
-        const enhancedLogs = rawLogs.map(log => ({
+        const enhancedLogs: EnrichedVerificationLog[] = rawLogs.map(log => ({
           ...log,
           ticket_count: parseInt(String(log.ticket_count), 10) || 0,
           eventName: eventMap.get(String(log.event_id)) || `Event ID: ${log.event_id}`,
           ticketTypeName: ticketTypeMap.get(String(log.tickettype_id)) || `Type ID: ${log.tickettype_id}`,
+          isComplimentary: compIds.has(String(log.booking_id)),
         }));
 
         setLogs(enhancedLogs.sort((a,b) => new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime()));
@@ -126,6 +143,12 @@ const VerificationBreakdownPage = () => {
       filtered = filtered.filter(log => String(log.tickettype_id) === ticketTypeFilter);
     }
 
+    if (passTypeFilter === 'paid') {
+      filtered = filtered.filter(log => !log.isComplimentary);
+    } else if (passTypeFilter === 'complimentary') {
+      filtered = filtered.filter(log => !!log.isComplimentary);
+    }
+
     if (searchQuery.trim() !== '') {
       const lowercasedQuery = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(log =>
@@ -137,17 +160,32 @@ const VerificationBreakdownPage = () => {
     }
     
     return filtered;
-  }, [logs, eventFilter, ticketTypeFilter, searchQuery]);
+  }, [logs, eventFilter, ticketTypeFilter, passTypeFilter, searchQuery]);
 
   const summary = useMemo(() => {
     const totalVerifications = filteredLogs.length;
     const totalTicketsVerified = filteredLogs.reduce((acc, log) => acc + (log.ticket_count || 0), 0);
     
+    const complimentaryTicketsVerified = filteredLogs
+      .filter(l => l.isComplimentary)
+      .reduce((acc, log) => acc + (log.ticket_count || 0), 0);
+
+    const relevantShowtimes = allBookedShowtimes.filter(st => {
+      const matchesEvent = eventFilter === 'all' || String(st.eventId) === eventFilter;
+      const matchesType = ticketTypeFilter === 'all' || String(st.tickettype_id) === ticketTypeFilter;
+      const isComp = complimentaryBookingIds.has(String(st.booking_id));
+      return matchesEvent && matchesType && isComp;
+    });
+
+    const totalComplimentaryIssued = relevantShowtimes.reduce((sum, st) => sum + (parseInt(st.ticket_count, 10) || 0), 0);
+    
     return {
         totalVerifications,
         totalTicketsVerified,
+        complimentaryTicketsVerified,
+        totalComplimentaryIssued
     };
-  }, [filteredLogs]);
+  }, [filteredLogs, allBookedShowtimes, eventFilter, ticketTypeFilter, complimentaryBookingIds]);
 
   const ticketTypeSummary = useMemo((): TicketTypeSummary[] | null => {
       if (eventFilter === 'all' || ticketTypesForFilter.length === 0) {
@@ -168,6 +206,47 @@ const VerificationBreakdownPage = () => {
       }));
 
   }, [filteredLogs, ticketTypesForFilter, eventFilter]);
+
+  const complimentarySummary = useMemo(() => {
+    if (eventFilter === 'all') return null;
+
+    const eventCompShowtimes = allBookedShowtimes.filter(st => 
+      String(st.eventId) === eventFilter && complimentaryBookingIds.has(String(st.booking_id))
+    );
+
+    const totalIssued = eventCompShowtimes.reduce((sum, st) => sum + (parseInt(st.ticket_count, 10) || 0), 0);
+    if (totalIssued === 0) return null;
+
+    const verifiedCount = logs
+      .filter(log => String(log.event_id) === eventFilter && log.isComplimentary)
+      .reduce((sum, log) => sum + log.ticket_count, 0);
+
+    const percentage = totalIssued > 0 ? (verifiedCount / totalIssued) * 100 : 0;
+
+    const byType: Record<string, { issued: number; verified: number }> = {};
+    eventCompShowtimes.forEach(st => {
+      const typeName = st.ticket_type || 'Ticket';
+      if (!byType[typeName]) {
+        byType[typeName] = { issued: 0, verified: 0 };
+      }
+      byType[typeName].issued += (parseInt(st.ticket_count, 10) || 0);
+    });
+
+    logs.filter(log => String(log.event_id) === eventFilter && log.isComplimentary).forEach(log => {
+      const typeName = log.ticketTypeName || 'Ticket';
+      if (!byType[typeName]) {
+        byType[typeName] = { issued: 0, verified: 0 };
+      }
+      byType[typeName].verified += log.ticket_count;
+    });
+
+    return {
+      totalIssued,
+      verifiedCount,
+      percentage,
+      byType
+    };
+  }, [eventFilter, allBookedShowtimes, complimentaryBookingIds, logs]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
@@ -192,6 +271,7 @@ const VerificationBreakdownPage = () => {
       "Log ID",
       "Event Name",
       "Ticket Type",
+      "Pass Type",
       "Booking ID",
       "Showtime ID",
       "Tickets Verified",
@@ -214,6 +294,7 @@ const VerificationBreakdownPage = () => {
             escapeCsvCell(log.id),
             escapeCsvCell(log.eventName),
             escapeCsvCell(log.ticketTypeName),
+            escapeCsvCell(log.isComplimentary ? 'Complimentary' : 'Paid'),
             escapeCsvCell(log.booking_id),
             escapeCsvCell(log.showtime_id),
             escapeCsvCell(log.ticket_count),
@@ -250,7 +331,7 @@ const VerificationBreakdownPage = () => {
         <p className="text-muted-foreground">A detailed log of all ticket check-ins.</p>
       </header>
 
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Verifications</CardTitle>
@@ -271,10 +352,29 @@ const VerificationBreakdownPage = () => {
                 <p className="text-xs text-muted-foreground">Total individual tickets admitted for current filters.</p>
             </CardContent>
         </Card>
+        <Card className="border-purple-200 dark:border-purple-900/60 bg-purple-50/40 dark:bg-purple-950/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                  <Gift className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  Complimentary Passes
+                </CardTitle>
+                <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 text-[10px] py-0 h-4">
+                  Free Pass
+                </Badge>
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                  {isLoading ? <Loader2 className="h-6 w-6 animate-spin"/> : `${summary.complimentaryTicketsVerified.toLocaleString()} / ${summary.totalComplimentaryIssued.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-purple-700/80 dark:text-purple-300/80">
+                  Complimentary tickets verified out of total issued.
+                </p>
+            </CardContent>
+        </Card>
        </div>
 
-       <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative w-full md:w-1/3">
+       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search booking ID, checker, type..."
@@ -283,8 +383,8 @@ const VerificationBreakdownPage = () => {
             className="pl-10"
           />
         </div>
-         <Select value={eventFilter} onValueChange={handleEventFilterChange} disabled={isLoading}>
-            <SelectTrigger className="w-full md:w-1/3">
+        <Select value={eventFilter} onValueChange={handleEventFilterChange} disabled={isLoading}>
+            <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by event..." />
             </SelectTrigger>
             <SelectContent>
@@ -297,7 +397,7 @@ const VerificationBreakdownPage = () => {
             </SelectContent>
         </Select>
         <Select value={ticketTypeFilter} onValueChange={handleTicketTypeFilterChange} disabled={isLoadingTicketTypes || eventFilter === 'all'}>
-            <SelectTrigger className="w-full md:w-1/3">
+            <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter by ticket type..." />
             </SelectTrigger>
             <SelectContent>
@@ -308,6 +408,16 @@ const VerificationBreakdownPage = () => {
                         {tt.name}
                     </SelectItem>
                 ))}
+            </SelectContent>
+        </Select>
+        <Select value={passTypeFilter} onValueChange={(val: 'all' | 'paid' | 'complimentary') => setPassTypeFilter(val)} disabled={isLoading}>
+            <SelectTrigger className="w-full">
+                <SelectValue placeholder="Pass type..." />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">All Pass Types</SelectItem>
+                <SelectItem value="paid">Paid Tickets Only</SelectItem>
+                <SelectItem value="complimentary">Complimentary Only</SelectItem>
             </SelectContent>
         </Select>
       </div>
@@ -347,6 +457,40 @@ const VerificationBreakdownPage = () => {
                   </div>
                 )
               })
+            )}
+
+            {/* Dedicated Complimentary Tickets Bar */}
+            {complimentarySummary && complimentarySummary.totalIssued > 0 && (
+              <div className="pt-4 border-t border-purple-200 dark:border-purple-900/60 mt-4 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                    <Gift className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    Complimentary Passes (Free Tickets)
+                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 font-semibold text-[10px] py-0 h-4">
+                      Free Pass
+                    </Badge>
+                  </span>
+                  <span className="text-muted-foreground font-mono text-xs">
+                    {complimentarySummary.verifiedCount.toLocaleString()} / {complimentarySummary.totalIssued.toLocaleString()} verified
+                  </span>
+                </div>
+                <div className="relative w-full h-2.5 bg-purple-100 dark:bg-purple-950/60 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-600 dark:bg-purple-500 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, complimentarySummary.percentage)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                  <span className="font-mono text-[11px]">
+                    {Object.entries(complimentarySummary.byType).map(([typeName, data]) => 
+                      `${typeName}: ${data.verified}/${data.issued} verified`
+                    ).join('  |  ')}
+                  </span>
+                  <span className="font-mono font-medium text-purple-600 dark:text-purple-400">
+                    {complimentarySummary.percentage.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -389,7 +533,17 @@ const VerificationBreakdownPage = () => {
                         <TableBody>
                             {filteredLogs.map((log) => (
                                 <TableRow key={log.id}>
-                                    <TableCell className="font-mono text-xs">{log.booking_id}</TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{log.booking_id}</span>
+                                        {log.isComplimentary && (
+                                          <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 text-[10px] py-0 px-1 font-semibold flex items-center gap-0.5">
+                                            <Gift className="h-2.5 w-2.5" />
+                                            Free Pass
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </TableCell>
                                     <TableCell>{log.ticketTypeName}</TableCell>
                                     <TableCell className="text-center">{log.ticket_count}</TableCell>
                                     <TableCell className="font-medium">{log.eventName}</TableCell>
