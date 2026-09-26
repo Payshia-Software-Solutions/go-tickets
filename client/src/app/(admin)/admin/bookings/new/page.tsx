@@ -2,23 +2,23 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Loader2, ArrowLeft, Ticket, CalendarDays, User, MapPin, 
-  CheckCircle, MinusCircle, PlusCircle, CreditCard, UploadCloud, 
-  FileText, X, AlertCircle, Banknote, DollarSign 
+  CheckCircle, Minus, Plus, CreditCard, UploadCloud, 
+  FileText, X, AlertCircle, Banknote, DollarSign, Clock,
+  ChevronDown, ChevronUp, Phone, Mail, Building2, Sparkles,
+  Receipt, ShieldCheck, Check
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { adminGetAllEvents, getAdminEventById, createBooking } from '@/lib/mockData';
 import { uploadPaymentSlip } from '@/lib/services/booking.service';
 import type { Event, BillingAddress, CartItem } from '@/lib/types';
-import { BillingAddressSchema } from '@/lib/types';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Separator } from '@/components/ui/separator';
@@ -26,6 +26,23 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
+import { z } from 'zod';
+
+// Practical schema for manual booking: makes phone & name required, address fields optional for quick counter bookings
+const ManualBookingFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  email: z.string().email("A valid email is required for ticket delivery."),
+  phone_number: z.string().min(7, "A valid phone number is required."),
+  nic: z.string().optional().or(z.literal('')),
+  street: z.string().optional().or(z.literal('')),
+  city: z.string().optional().or(z.literal('')),
+  state: z.string().optional().or(z.literal('')),
+  postalCode: z.string().optional().or(z.literal('')),
+  country: z.string().optional().or(z.literal('')),
+});
+
+type ManualBookingFormData = z.infer<typeof ManualBookingFormSchema>;
 
 export default function AdminNewBookingPage() {
   const router = useRouter();
@@ -42,6 +59,7 @@ export default function AdminNewBookingPage() {
 
   const [selectedShowtimeId, setSelectedShowtimeId] = useState<string | null>(null);
   const [ticketQuantities, setTicketQuantities] = useState<Record<string, number>>({});
+  const [showAddressFields, setShowAddressFields] = useState<boolean>(false);
 
   // Payment Tracking State
   const [paymentMethod, setPaymentMethod] = useState<string>("Bank Transfer");
@@ -53,8 +71,8 @@ export default function AdminNewBookingPage() {
   const [paymentNotes, setPaymentNotes] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const billingForm = useForm<BillingAddress>({
-    resolver: zodResolver(BillingAddressSchema),
+  const billingForm = useForm<ManualBookingFormData>({
+    resolver: zodResolver(ManualBookingFormSchema),
     mode: "onChange",
     defaultValues: {
       firstName: "",
@@ -63,9 +81,9 @@ export default function AdminNewBookingPage() {
       phone_number: "",
       nic: "",
       street: "",
-      city: "",
-      state: "",
-      postalCode: "",
+      city: "Colombo",
+      state: "Western",
+      postalCode: "00100",
       country: "Sri Lanka",
     },
   });
@@ -94,7 +112,7 @@ export default function AdminNewBookingPage() {
           const details = await getAdminEventById(selectedEventId);
           setEventDetails(details || null);
           if (details?.showTimes?.length === 1) {
-              setSelectedShowtimeId(details.showTimes[0].id);
+            setSelectedShowtimeId(details.showTimes[0].id);
           }
         } catch (e) {
           toast({ title: "Error", description: "Failed to load event details.", variant: "destructive" });
@@ -110,9 +128,18 @@ export default function AdminNewBookingPage() {
     return eventDetails?.showTimes?.find(st => st.id === selectedShowtimeId);
   }, [eventDetails, selectedShowtimeId]);
 
+  const totalTicketsCount = useMemo(() => {
+    return Object.values(ticketQuantities).reduce((acc, qty) => acc + (qty || 0), 0);
+  }, [ticketQuantities]);
+
   const handleQuantityChange = (ticketTypeId: string, change: number, max: number) => {
     const current = ticketQuantities[ticketTypeId] || 0;
     const next = Math.max(0, Math.min(max, current + change));
+    setTicketQuantities(prev => ({ ...prev, [ticketTypeId]: next }));
+  };
+
+  const setExactQuantity = (ticketTypeId: string, value: number, max: number) => {
+    const next = isNaN(value) ? 0 : Math.max(0, Math.min(max, value));
     setTicketQuantities(prev => ({ ...prev, [ticketTypeId]: next }));
   };
 
@@ -165,11 +192,11 @@ export default function AdminNewBookingPage() {
     }
   };
 
-  const onSubmit = async (billingData: BillingAddress) => {
+  const onSubmit = async (formData: ManualBookingFormData) => {
     if (!eventDetails || !selectedShowtime) return;
     
     const cart: CartItem[] = selectedShowtime.ticketAvailabilities
-      .filter(avail => ticketQuantities[avail.ticketType.id] > 0)
+      .filter(avail => (ticketQuantities[avail.ticketType.id] || 0) > 0)
       .map(avail => ({
         eventId: eventDetails.id,
         eventNsid: eventDetails.slug,
@@ -183,7 +210,7 @@ export default function AdminNewBookingPage() {
       }));
 
     if (cart.length === 0) {
-      toast({ title: "Validation Error", description: "Please select at least one ticket.", variant: "destructive" });
+      toast({ title: "No Tickets Selected", description: "Please select at least one ticket before proceeding.", variant: "destructive" });
       return;
     }
 
@@ -191,7 +218,7 @@ export default function AdminNewBookingPage() {
     try {
       let uploadedSlipUrl: string | null = null;
       if (paymentSlipFile) {
-        toast({ title: "Uploading Slip", description: "Uploading payment slip receipt to server..." });
+        toast({ title: "Uploading Slip", description: "Uploading payment slip receipt..." });
         const uploadResult = await uploadPaymentSlip(paymentSlipFile);
         uploadedSlipUrl = uploadResult.filePath;
       }
@@ -200,11 +227,24 @@ export default function AdminNewBookingPage() {
         paymentStatusMode === 'paid' ? 'Paid' : 
         (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'pending');
 
+      const billingPayload: BillingAddress = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone_number: formData.phone_number,
+        nic: formData.nic || undefined,
+        street: formData.street || 'N/A',
+        city: formData.city || 'Colombo',
+        state: formData.state || 'Western',
+        postalCode: formData.postalCode || '00100',
+        country: formData.country || 'Sri Lanka',
+      };
+
       const responseText = await createBooking({
         userId: currentAdmin?.id || '1',
         cart,
         totalPrice,
-        billingAddress: billingData,
+        billingAddress: billingPayload,
         isGuest: true,
         booked_type: 'manualy',
         payment_status: paymentStatusValue,
@@ -224,7 +264,7 @@ export default function AdminNewBookingPage() {
           bookingId = String(parsed.booking.id);
         }
       } catch (e) {
-        // Fallback if not direct json
+        // Fallback
       }
 
       toast({ 
@@ -240,7 +280,7 @@ export default function AdminNewBookingPage() {
     } catch (error) {
       console.error("Failed to create manual booking:", error);
       toast({ 
-        title: "Error", 
+        title: "Error Creating Booking", 
         description: error instanceof Error ? error.message : "Failed to create booking.", 
         variant: "destructive" 
       });
@@ -250,187 +290,422 @@ export default function AdminNewBookingPage() {
 
   if (isLoadingEvents) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Loading...</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground text-sm font-medium">Loading events catalogue...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
-      <header>
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Bookings
-        </Button>
-        <h1 className="text-3xl font-bold font-headline mt-4">New Manual Booking</h1>
-        <p className="text-muted-foreground">Issue offline / direct bookings with payment record & slip tracking.</p>
-      </header>
+    <div className="w-full space-y-6 pb-16 animate-in fade-in duration-300">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
+        <div>
+          <div className="flex items-center space-x-2 mb-1.5">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => router.back()}
+              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
+            </Button>
+            <Badge variant="secondary" className="text-xs font-semibold px-2 py-0.5">
+              Offline Ticketing & Counter Sales
+            </Badge>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Manual Booking Creation</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Issue direct bookings, record bank transfers/cash, attach payment slips, and manage partial installments.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-6">
-          {/* Step 1: Select Event */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <Ticket className="mr-2 h-5 w-5 text-primary"/> 1. Select Event & Showtime
-              </CardTitle>
+        {/* Quick Progress / Step Indicators */}
+        <div className="hidden lg:flex items-center space-x-3 text-xs text-muted-foreground bg-muted/30 px-3.5 py-2 rounded-lg border">
+          <span className={`flex items-center font-medium ${selectedEventId && selectedShowtimeId ? 'text-primary' : ''}`}>
+            <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold mr-1.5 text-[11px]">1</span>
+            Tickets
+          </span>
+          <span>&rarr;</span>
+          <span className="flex items-center font-medium">
+            <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold mr-1.5 text-[11px]">2</span>
+            Attendee
+          </span>
+          <span>&rarr;</span>
+          <span className="flex items-center font-medium">
+            <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold mr-1.5 text-[11px]">3</span>
+            Payment & Slip
+          </span>
+        </div>
+      </div>
+
+      {/* Main Full-Width Grid: Left Form (7 cols) + Right Summary & Actions (5 cols) */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        
+        {/* ================= LEFT COLUMN (TICKETS & ATTENDEE INFO) ================= */}
+        <div className="xl:col-span-7 space-y-6">
+          
+          {/* Card 1: Event & Ticket Selection */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
+                  <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                    <Ticket className="h-5 w-5" />
+                  </div>
+                  <span>1. Select Event, Showtime & Tickets</span>
+                </CardTitle>
+                {selectedEventId && (
+                  <Badge variant="outline" className="text-xs">
+                    {totalTicketsCount} Ticket{totalTicketsCount === 1 ? '' : 's'} Selected
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                Choose an active event and select the ticket category with quantities.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Event</Label>
-                <Select value={selectedEventId || ""} onValueChange={setSelectedEventId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose an event..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {events.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            <CardContent className="space-y-5">
+              
+              {/* Event & Showtime side-by-side on tablet/desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    Select Event <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={selectedEventId || ""} onValueChange={setSelectedEventId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose an event..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {events.map(e => (
+                        <SelectItem key={e.id} value={e.id}>
+                          <span className="font-medium">{e.name}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    Showtime & Session <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={selectedShowtimeId || ""} 
+                    onValueChange={setSelectedShowtimeId}
+                    disabled={!selectedEventId || isLoadingDetails}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={isLoadingDetails ? "Loading sessions..." : (selectedEventId ? "Choose showtime..." : "Select event first")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eventDetails?.showTimes?.map(st => (
+                        <SelectItem key={st.id} value={st.id}>
+                          {format(new Date(st.dateTime), 'PPp')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {isLoadingDetails && <div className="flex justify-center py-4"><Loader2 className="animate-spin h-6 w-6"/></div>}
+              {/* Event Quick Details Banner */}
+              {isLoadingDetails && (
+                <div className="flex items-center justify-center py-6 bg-muted/20 rounded-lg border border-dashed">
+                  <Loader2 className="animate-spin h-5 w-5 text-primary mr-2"/>
+                  <span className="text-xs text-muted-foreground">Fetching event information...</span>
+                </div>
+              )}
 
-              {eventDetails && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="space-y-2">
-                    <Label>Showtime</Label>
-                    <Select value={selectedShowtimeId || ""} onValueChange={setSelectedShowtimeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a showtime..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {eventDetails.showTimes?.map(st => (
-                          <SelectItem key={st.id} value={st.id}>{format(new Date(st.dateTime), 'PPp')}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {eventDetails && !isLoadingDetails && (
+                <div className="flex flex-wrap items-center gap-y-2 gap-x-4 p-3 bg-muted/20 rounded-lg border text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 font-medium text-foreground">
+                    <MapPin className="h-3.5 w-3.5 text-primary shrink-0"/>
+                    <span className="truncate max-w-[280px]">{eventDetails.location || 'Colombo, Sri Lanka'}</span>
                   </div>
-
+                  {eventDetails.category && (
+                    <Badge variant="outline" className="text-[11px] py-0 px-2">
+                      {eventDetails.category}
+                    </Badge>
+                  )}
                   {selectedShowtime && (
-                    <div className="space-y-3 pt-4">
-                      <Label>Ticket Quantities</Label>
-                      {selectedShowtime.ticketAvailabilities.map(avail => (
-                        <div key={avail.ticketType.id} className="flex items-center justify-between p-3 border rounded-md bg-muted/20">
-                          <div>
-                            <p className="font-medium">{avail.ticketType.name}</p>
-                            <p className="text-sm text-muted-foreground">LKR {avail.ticketType.price.toLocaleString()} ({avail.availableCount} left)</p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8" 
-                              onClick={() => handleQuantityChange(avail.ticketType.id, -1, avail.availableCount)}
-                              disabled={!ticketQuantities[avail.ticketType.id]}
-                            >
-                              <MinusCircle className="h-4 w-4"/>
-                            </Button>
-                            <span className="w-8 text-center font-bold">{ticketQuantities[avail.ticketType.id] || 0}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8" 
-                              onClick={() => handleQuantityChange(avail.ticketType.id, 1, avail.availableCount)}
-                              disabled={(ticketQuantities[avail.ticketType.id] || 0) >= avail.availableCount}
-                            >
-                              <PlusCircle className="h-4 w-4"/>
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center gap-1 text-primary font-medium ml-auto">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      <span>{format(new Date(selectedShowtime.dateTime), 'EEEE, MMMM d, yyyy')}</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Ticket Quantities Grid */}
+              {selectedShowtime && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Available Ticket Categories
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      Adjust counts using buttons or type quantity
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedShowtime.ticketAvailabilities.map(avail => {
+                      const qty = ticketQuantities[avail.ticketType.id] || 0;
+                      const isSelected = qty > 0;
+                      const isSoldOut = avail.availableCount <= 0;
+
+                      return (
+                        <div 
+                          key={avail.ticketType.id} 
+                          className={`p-3.5 rounded-lg border transition-all ${
+                            isSelected 
+                              ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/20 shadow-sm' 
+                              : 'border-border bg-card hover:border-muted-foreground/30'
+                          } ${isSoldOut ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-semibold text-sm leading-tight text-foreground">
+                                {avail.ticketType.name}
+                              </p>
+                              <p className="text-sm font-bold text-primary mt-0.5">
+                                LKR {avail.ticketType.price.toLocaleString()}
+                              </p>
+                            </div>
+                            <Badge 
+                              variant={avail.availableCount > 10 ? "secondary" : "destructive"} 
+                              className="text-[10px] font-mono font-medium px-1.5 py-0"
+                            >
+                              {avail.availableCount} left
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t mt-2">
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {isSelected ? `Sub: LKR ${(qty * avail.ticketType.price).toLocaleString()}` : 'Qty'}
+                            </span>
+                            <div className="flex items-center space-x-1.5">
+                              <Button 
+                                type="button"
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 rounded-md" 
+                                onClick={() => handleQuantityChange(avail.ticketType.id, -1, avail.availableCount)}
+                                disabled={qty <= 0}
+                              >
+                                <Minus className="h-3.5 w-3.5"/>
+                              </Button>
+                              <Input 
+                                type="number" 
+                                min="0" 
+                                max={avail.availableCount}
+                                value={qty || ''} 
+                                onChange={(e) => setExactQuantity(avail.ticketType.id, parseInt(e.target.value) || 0, avail.availableCount)}
+                                placeholder="0"
+                                className="h-7 w-12 text-center font-bold text-xs p-1"
+                              />
+                              <Button 
+                                type="button"
+                                variant="outline" 
+                                size="icon" 
+                                className="h-7 w-7 rounded-md" 
+                                onClick={() => handleQuantityChange(avail.ticketType.id, 1, avail.availableCount)}
+                                disabled={qty >= avail.availableCount}
+                              >
+                                <Plus className="h-3.5 w-3.5"/>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Step 2: Attendee Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <User className="mr-2 h-5 w-5 text-primary"/> 2. Attendee & Contact Details
-              </CardTitle>
+          {/* Card 2: Attendee & Customer Details */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
+                  <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                    <User className="h-5 w-5" />
+                  </div>
+                  <span>2. Customer & Attendee Details</span>
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">e-Ticket will be delivered here</span>
+              </div>
+              <CardDescription>
+                Essential contact information for booking confirmation and QR code admission.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...billingForm}>
-                <form className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  {/* Row 1: Name fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={billingForm.control} name="firstName" render={({ field }) => (
-                      <FormItem><FormLabel>First Name</FormLabel><FormControl><Input placeholder="John" {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs font-semibold">First Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Samantha" className="h-9 text-sm" {...field}/>
+                        </FormControl>
+                        <FormMessage className="text-[11px]"/>
+                      </FormItem>
                     )}/>
                     <FormField control={billingForm.control} name="lastName" render={({ field }) => (
-                      <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input placeholder="Doe" {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs font-semibold">Last Name *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Perera" className="h-9 text-sm" {...field}/>
+                        </FormControl>
+                        <FormMessage className="text-[11px]"/>
+                      </FormItem>
                     )}/>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={billingForm.control} name="email" render={({ field }) => (
-                      <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="customer@example.com" {...field}/></FormControl><FormMessage/></FormItem>
-                    )}/>
+
+                  {/* Row 2: Contact fields (Phone, Email, NIC) in 3-column desktop grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <FormField control={billingForm.control} name="phone_number" render={({ field }) => (
-                      <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="0771234567" {...field}/></FormControl><FormMessage/></FormItem>
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs font-semibold flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-muted-foreground"/> Phone Number *
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="0771234567" className="h-9 text-sm" {...field}/>
+                        </FormControl>
+                        <FormMessage className="text-[11px]"/>
+                      </FormItem>
+                    )}/>
+                    <FormField control={billingForm.control} name="email" render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs font-semibold flex items-center gap-1">
+                          <Mail className="h-3 w-3 text-muted-foreground"/> Email Address *
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="customer@example.com" className="h-9 text-sm" {...field}/>
+                        </FormControl>
+                        <FormMessage className="text-[11px]"/>
+                      </FormItem>
+                    )}/>
+                    <FormField control={billingForm.control} name="nic" render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs font-semibold">NIC / Passport (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., 199512345678" className="h-9 text-sm" {...field}/>
+                        </FormControl>
+                        <FormMessage className="text-[11px]"/>
+                      </FormItem>
                     )}/>
                   </div>
-                  
-                  <FormField control={billingForm.control} name="nic" render={({ field }) => (
-                    <FormItem><FormLabel>NIC (Optional)</FormLabel><FormControl><Input placeholder="e.g., 952345678V" {...field}/></FormControl><FormMessage/></FormItem>
-                  )}/>
 
-                  <Separator />
+                  {/* Collapsible Address Details to keep the page clean and compact */}
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAddressFields(!showAddressFields)}
+                      className="text-xs text-muted-foreground hover:text-foreground h-8 px-2 flex items-center gap-1.5"
+                    >
+                      {showAddressFields ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      <span>{showAddressFields ? "Hide Address Details" : "+ Add Billing / Street Address (Optional)"}</span>
+                    </Button>
 
-                  <FormField control={billingForm.control} name="street" render={({ field }) => (
-                    <FormItem><FormLabel>Street Address</FormLabel><FormControl><Input placeholder="123 Main St" {...field}/></FormControl><FormMessage/></FormItem>
-                  )}/>
+                    {showAddressFields && (
+                      <div className="space-y-3 mt-3 p-3.5 bg-muted/20 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-200">
+                        <FormField control={billingForm.control} name="street" render={({ field }) => (
+                          <FormItem className="space-y-1">
+                            <FormLabel className="text-xs font-semibold">Street Address</FormLabel>
+                            <FormControl><Input placeholder="123 Galle Road" className="h-9 text-sm" {...field}/></FormControl>
+                            <FormMessage className="text-[11px]"/>
+                          </FormItem>
+                        )}/>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={billingForm.control} name="city" render={({ field }) => (
-                      <FormItem><FormLabel>City</FormLabel><FormControl><Input placeholder="Colombo" {...field}/></FormControl><FormMessage/></FormItem>
-                    )}/>
-                    <FormField control={billingForm.control} name="state" render={({ field }) => (
-                      <FormItem><FormLabel>State / Province</FormLabel><FormControl><Input placeholder="Western" {...field}/></FormControl><FormMessage/></FormItem>
-                    )}/>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <FormField control={billingForm.control} name="city" render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="text-xs font-semibold">City</FormLabel>
+                              <FormControl><Input placeholder="Colombo" className="h-9 text-sm" {...field}/></FormControl>
+                              <FormMessage className="text-[11px]"/>
+                            </FormItem>
+                          )}/>
+                          <FormField control={billingForm.control} name="state" render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="text-xs font-semibold">Province / State</FormLabel>
+                              <FormControl><Input placeholder="Western" className="h-9 text-sm" {...field}/></FormControl>
+                              <FormMessage className="text-[11px]"/>
+                            </FormItem>
+                          )}/>
+                          <FormField control={billingForm.control} name="postalCode" render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="text-xs font-semibold">Postal Code</FormLabel>
+                              <FormControl><Input placeholder="00100" className="h-9 text-sm" {...field}/></FormControl>
+                              <FormMessage className="text-[11px]"/>
+                            </FormItem>
+                          )}/>
+                          <FormField control={billingForm.control} name="country" render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="text-xs font-semibold">Country</FormLabel>
+                              <FormControl><Input placeholder="Sri Lanka" className="h-9 text-sm" {...field}/></FormControl>
+                              <FormMessage className="text-[11px]"/>
+                            </FormItem>
+                          )}/>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={billingForm.control} name="postalCode" render={({ field }) => (
-                      <FormItem><FormLabel>Postal / Zip Code</FormLabel><FormControl><Input placeholder="00100" {...field}/></FormControl><FormMessage/></FormItem>
-                    )}/>
-                    <FormField control={billingForm.control} name="country" render={({ field }) => (
-                      <FormItem><FormLabel>Country</FormLabel><FormControl><Input placeholder="Sri Lanka" {...field}/></FormControl><FormMessage/></FormItem>
-                    )}/>
-                  </div>
-                </form>
+                </div>
               </Form>
             </CardContent>
           </Card>
+        </div>
 
-          {/* Step 3: Payment Record & Slip */}
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <CreditCard className="mr-2 h-5 w-5 text-primary"/> 3. Payment Record & Slip Verification
+        {/* ================= RIGHT COLUMN (PAYMENT, SLIP & SUMMARY) ================= */}
+        <div className="xl:col-span-5 space-y-6">
+
+          {/* Card 3: Payment Record & Slip Upload */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
+                <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <span>3. Payment Record & Slip Verification</span>
               </CardTitle>
+              <CardDescription>
+                Record paid amounts, installment advances, and attach bank transfer receipts.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Payment Mode Selector */}
+            <CardContent className="space-y-5">
+              
+              {/* Payment Mode Selector Pills */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Payment Status</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Payment Status
+                </Label>
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setPaymentStatusMode('paid');
                       setCustomAmountPaid('');
                     }}
-                    className={`p-3 rounded-lg border text-sm font-medium text-center transition-all ${
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
                       paymentStatusMode === 'paid'
-                        ? 'border-green-600 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300 ring-2 ring-green-600/20'
-                        : 'border-border hover:bg-muted/50'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 ring-2 ring-emerald-600/20'
+                        : 'border-border bg-card hover:bg-muted/40'
                     }`}
                   >
-                    <div className="font-semibold">Full Payment</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">100% Paid</div>
+                    <div className="flex items-center gap-1 font-semibold text-xs">
+                      <Check className="h-3.5 w-3.5 text-emerald-600" /> Full Paid
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">100% Upfront</div>
                   </button>
 
                   <button
@@ -441,14 +716,16 @@ export default function AdminNewBookingPage() {
                         setCustomAmountPaid((totalPrice / 2).toString());
                       }
                     }}
-                    className={`p-3 rounded-lg border text-sm font-medium text-center transition-all ${
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
                       paymentStatusMode === 'partially_paid'
-                        ? 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 ring-2 ring-amber-500/20'
-                        : 'border-border hover:bg-muted/50'
+                        ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 ring-2 ring-amber-500/20'
+                        : 'border-border bg-card hover:bg-muted/40'
                     }`}
                   >
-                    <div className="font-semibold">Installment / Advance</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Partially Paid</div>
+                    <div className="flex items-center gap-1 font-semibold text-xs">
+                      <Clock className="h-3.5 w-3.5 text-amber-600" /> Advance
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Installment</div>
                   </button>
 
                   <button
@@ -457,56 +734,65 @@ export default function AdminNewBookingPage() {
                       setPaymentStatusMode('pending');
                       setCustomAmountPaid('');
                     }}
-                    className={`p-3 rounded-lg border text-sm font-medium text-center transition-all ${
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
                       paymentStatusMode === 'pending'
-                        ? 'border-red-500 bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300 ring-2 ring-red-500/20'
-                        : 'border-border hover:bg-muted/50'
+                        ? 'border-rose-500 bg-rose-50 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300 ring-2 ring-rose-500/20'
+                        : 'border-border bg-card hover:bg-muted/40'
                     }`}
                   >
-                    <div className="font-semibold">Unpaid / Pending</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Pay Later</div>
+                    <div className="flex items-center gap-1 font-semibold text-xs">
+                      <AlertCircle className="h-3.5 w-3.5 text-rose-600" /> Pending
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">Pay Later</div>
                   </button>
                 </div>
               </div>
 
-              {/* Payment Method & Amount Paid inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
+              {/* Payment Method & Paid Amount (2-col grid) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Payment Method</Label>
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Select method" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Bank Transfer">Bank Transfer / Online Transfer</SelectItem>
-                      <SelectItem value="Direct Cash Deposit">Direct Cash Deposit (CDM)</SelectItem>
+                      <SelectItem value="Bank Transfer">Bank Transfer / Slip</SelectItem>
+                      <SelectItem value="Direct Cash Deposit">Cash Deposit (CDM)</SelectItem>
                       <SelectItem value="Cash">Cash in Hand</SelectItem>
-                      <SelectItem value="Cheque">Cheque</SelectItem>
                       <SelectItem value="Card / POS">Credit / Debit Card (POS)</SelectItem>
+                      <SelectItem value="Cheque">Cheque</SelectItem>
                       <SelectItem value="Complimentary">Complimentary / Free</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
-                    <Label>Amount Paid (LKR)</Label>
+                    <Label className="text-xs font-semibold">Amount Paid (LKR)</Label>
                     {paymentStatusMode === 'partially_paid' && totalPrice > 0 && (
                       <div className="flex gap-1">
                         <button
                           type="button"
+                          onClick={() => setCustomAmountPaid((totalPrice * 0.25).toString())}
+                          className="text-[10px] px-1 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-mono"
+                        >
+                          25%
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setCustomAmountPaid((totalPrice * 0.5).toString())}
-                          className="text-xs px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-mono"
+                          className="text-[10px] px-1 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-mono"
                         >
                           50%
                         </button>
                         <button
                           type="button"
-                          onClick={() => setCustomAmountPaid(totalPrice.toString())}
-                          className="text-xs px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-mono"
+                          onClick={() => setCustomAmountPaid((totalPrice * 0.75).toString())}
+                          className="text-[10px] px-1 py-0.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground font-mono"
                         >
-                          100%
+                          75%
                         </button>
                       </div>
                     )}
@@ -519,45 +805,49 @@ export default function AdminNewBookingPage() {
                     value={paymentStatusMode === 'paid' ? totalPrice : (paymentStatusMode === 'pending' ? '0' : customAmountPaid)}
                     disabled={paymentStatusMode !== 'partially_paid'}
                     onChange={(e) => setCustomAmountPaid(e.target.value)}
+                    className="h-9 text-xs font-mono font-bold"
                   />
                 </div>
               </div>
 
               {/* Payment Slip Upload Box */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  <UploadCloud className="h-4 w-4 text-primary"/> Payment Slip / Proof of Payment (Optional)
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <UploadCloud className="h-3.5 w-3.5 text-primary"/> Bank Slip / Payment Proof
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-normal">Optional</span>
                 </Label>
                 
                 {paymentSlipFile ? (
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/20">
                     <div className="flex items-center space-x-3">
                       {paymentSlipPreview ? (
-                        <div className="relative w-12 h-12 rounded overflow-hidden border">
+                        <div className="relative w-11 h-11 rounded-md overflow-hidden border shadow-xs">
                           <Image src={paymentSlipPreview} alt="Slip Preview" fill className="object-cover" />
                         </div>
                       ) : (
-                        <div className="w-12 h-12 rounded bg-muted flex items-center justify-center border">
-                          <FileText className="h-6 w-6 text-muted-foreground" />
+                        <div className="w-11 h-11 rounded-md bg-muted flex items-center justify-center border">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-medium truncate max-w-xs">{paymentSlipFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(paymentSlipFile.size / 1024).toFixed(1)} KB</p>
+                        <p className="text-xs font-medium truncate max-w-[200px]">{paymentSlipFile.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{(paymentSlipFile.size / 1024).toFixed(1)} KB</p>
                       </div>
                     </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={clearSlip} className="text-destructive hover:text-destructive">
-                      <X className="h-4 w-4 mr-1"/> Remove
+                    <Button type="button" variant="ghost" size="sm" onClick={clearSlip} className="h-7 px-2 text-destructive hover:text-destructive text-xs">
+                      <X className="h-3.5 w-3.5 mr-1"/> Remove
                     </Button>
                   </div>
                 ) : (
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/60 rounded-lg p-6 text-center cursor-pointer transition-colors bg-muted/10 hover:bg-muted/20"
+                    className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/60 rounded-lg p-3.5 text-center cursor-pointer transition-colors bg-muted/5 hover:bg-muted/15"
                   >
-                    <UploadCloud className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm font-medium">Click to upload bank transfer slip or receipt</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports JPG, PNG, WEBP, or PDF (Max 10MB)</p>
+                    <UploadCloud className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                    <p className="text-xs font-medium">Click to upload deposit slip or bank receipt</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">JPG, PNG, WEBP, or PDF (Max 10MB)</p>
                     <input 
                       ref={fileInputRef} 
                       type="file" 
@@ -569,120 +859,146 @@ export default function AdminNewBookingPage() {
                 )}
               </div>
 
-              {/* Reference & Notes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Bank Reference / Txn No.</Label>
+              {/* Reference & Notes (2-col grid) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Bank / Txn Ref No.</Label>
                   <Input 
                     placeholder="e.g., TXN-98432174" 
                     value={paymentReference} 
                     onChange={(e) => setPaymentReference(e.target.value)} 
+                    className="h-8 text-xs"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Payment Notes / Remarks</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Payment Notes / Remarks</Label>
                   <Input 
-                    placeholder="e.g., Advance paid via HNB. Balance on event day." 
+                    placeholder="e.g., Advance paid via CDM" 
                     value={paymentNotes} 
                     onChange={(e) => setPaymentNotes(e.target.value)} 
+                    className="h-8 text-xs"
                   />
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Sidebar Summary */}
-        <div className="space-y-6">
-          <Card className="sticky top-24 border-primary">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Booking & Payment Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              {eventDetails && (
-                <div className="flex items-start space-x-2">
-                  <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground"/>
-                  <div>
-                    <p className="font-semibold">{eventDetails.name}</p>
-                    <p className="text-muted-foreground text-xs">{eventDetails.location}</p>
-                  </div>
-                </div>
-              )}
-              {selectedShowtime && (
-                <div className="flex items-start space-x-2">
-                  <CalendarDays className="h-4 w-4 mt-0.5 text-muted-foreground"/>
-                  <p className="text-xs">{format(new Date(selectedShowtime.dateTime), 'PPp')}</p>
-                </div>
-              )}
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                {Object.entries(ticketQuantities).map(([id, qty]) => {
-                  if (qty <= 0) return null;
-                  const type = selectedShowtime?.ticketAvailabilities.find(a => a.ticketType.id === id);
-                  return (
-                    <div key={id} className="flex justify-between text-xs">
-                      <span>{qty} x {type?.ticketType.name}</span>
-                      <span>LKR {(qty * (type?.ticketType.price || 0)).toLocaleString()}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <Separator />
-
-              {/* Financial Ledger Breakdown */}
-              <div className="space-y-2 pt-1 font-mono text-xs">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Total Amount:</span>
-                  <span className="font-bold text-foreground">LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between text-green-600 dark:text-green-400">
-                  <span>Amount Paid:</span>
-                  <span className="font-bold">LKR {effectivePaidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between text-amber-600 dark:text-amber-400 border-t pt-1 font-semibold">
-                  <span>Balance Due:</span>
-                  <span>LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-
-              <div className="pt-2">
+          {/* Card 4: Live Booking & Financial Summary (Sticky) */}
+          <Card className="border-2 border-primary/40 shadow-md sticky top-6 bg-card/95 backdrop-blur-sm">
+            <CardHeader className="pb-3 pt-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold flex items-center gap-1.5">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <span>Order & Ledger Summary</span>
+                </CardTitle>
                 <Badge 
                   variant="outline" 
-                  className={`w-full justify-center py-1 text-xs font-semibold uppercase tracking-wider ${
+                  className={`text-[11px] font-semibold uppercase px-2 py-0.5 ${
                     paymentStatusMode === 'paid' 
-                      ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-950 dark:text-green-300' 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300' 
                       : (paymentStatusMode === 'partially_paid' 
-                        ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300' 
-                        : 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-300')
+                        ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300' 
+                        : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300')
                   }`}
                 >
                   {paymentStatusMode === 'paid' ? 'Fully Paid' : (paymentStatusMode === 'partially_paid' ? 'Partially Paid' : 'Pending')}
                 </Badge>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                className="w-full" 
-                size="lg" 
-                disabled={isSubmitting || totalPrice === 0}
-                onClick={billingForm.handleSubmit(onSubmit)}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="animate-spin h-4 w-4 mr-2"/>
-                    Creating Booking...
-                  </>
+            </CardHeader>
+
+            <CardContent className="space-y-3.5 text-xs">
+              {/* Event & Showtime info in summary */}
+              {eventDetails && (
+                <div className="p-2.5 rounded-md bg-muted/30 border space-y-1 text-xs">
+                  <p className="font-semibold text-foreground truncate">{eventDetails.name}</p>
+                  {selectedShowtime && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3 text-primary shrink-0"/>
+                      {format(new Date(selectedShowtime.dateTime), 'PPp')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Ticket Breakdown */}
+              <div className="space-y-1.5 border-t pt-2.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Ticket Breakdown ({totalTicketsCount})
+                </p>
+                {totalTicketsCount === 0 ? (
+                  <p className="text-xs text-muted-foreground italic py-1">
+                    No tickets selected yet. Choose counts on the left.
+                  </p>
                 ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2"/>
-                    Confirm & Issue Booking
-                  </>
+                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                    {Object.entries(ticketQuantities).map(([id, qty]) => {
+                      if (qty <= 0) return null;
+                      const type = selectedShowtime?.ticketAvailabilities.find(a => a.ticketType.id === id);
+                      return (
+                        <div key={id} className="flex justify-between items-center text-xs py-0.5">
+                          <span className="text-muted-foreground truncate max-w-[200px]">
+                            <strong className="text-foreground font-mono">{qty}x</strong> {type?.ticketType.name}
+                          </span>
+                          <span className="font-mono font-medium">
+                            LKR {(qty * (type?.ticketType.price || 0)).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </Button>
-            </CardFooter>
+              </div>
+
+              {/* Financial Ledger (Total / Paid / Balance) */}
+              <div className="space-y-2 border-t pt-3 font-mono">
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Total Amount:</span>
+                  <span className="text-sm font-bold text-foreground">
+                    LKR {totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Amount Paid:
+                  </span>
+                  <span className="font-bold">
+                    LKR {effectivePaidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t pt-2">
+                  <span className="font-semibold text-foreground">Balance Due:</span>
+                  <span className={`text-sm font-bold ${balanceDue > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    LKR {balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="pt-2">
+                <Button 
+                  className="w-full h-11 text-sm font-bold shadow-md" 
+                  disabled={isSubmitting || totalPrice === 0 || totalTicketsCount === 0}
+                  onClick={billingForm.handleSubmit(onSubmit)}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="animate-spin h-4 w-4 mr-2"/>
+                      Issuing Booking & Tickets...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="h-4 w-4 mr-2"/>
+                      Confirm & Issue Booking ({totalTicketsCount} Ticket{totalTicketsCount === 1 ? '' : 's'})
+                    </>
+                  )}
+                </Button>
+                {totalPrice === 0 && (
+                  <p className="text-[11px] text-center text-muted-foreground mt-1.5">
+                    Select at least 1 ticket to enable booking creation
+                  </p>
+                )}
+              </div>
+            </CardContent>
           </Card>
         </div>
       </div>
