@@ -67,9 +67,11 @@ const TicketVerificationPage = () => {
   const [manualCode, setManualCode] = useState('');
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [recentCheckIns, setRecentCheckIns] = useState<RecentVerificationItem[]>([]);
+  const [isInsecureOrigin, setIsInsecureOrigin] = useState(false);
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraCaptureRef = useRef<HTMLInputElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   // Web Audio API synthesized sound feedback (zero-dependency, always works on any device)
@@ -126,8 +128,15 @@ const TicketVerificationPage = () => {
     }
   }, []);
 
-  // Fetch camera list on mount
+  // Check secure context and fetch camera list on mount
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!window.isSecureContext && !isLocal) {
+        setIsInsecureOrigin(true);
+      }
+    }
+
     Html5Qrcode.getCameras()
       .then(cameras => {
         if (cameras && cameras.length > 0) {
@@ -225,6 +234,20 @@ const TicketVerificationPage = () => {
     setIsScannerStarting(true);
 
     try {
+      if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        const origin = window.location.origin;
+        const msg = `Mobile browsers block live video streams on HTTP (${origin}). Please tap "Take Photo with Camera" below or configure chrome://flags.`;
+        setScannerError(msg);
+        setIsScanning(false);
+        setIsScannerStarting(false);
+        toast({
+          variant: 'destructive',
+          title: 'HTTPS Required on Mobile',
+          description: 'Mobile Chrome & Safari restrict live camera streaming to HTTPS or localhost.',
+        });
+        return;
+      }
+
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode('qr-reader-container', {
           formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
@@ -794,6 +817,38 @@ const TicketVerificationPage = () => {
 
                 {/* Scan Tab */}
                 <TabsContent value="scan" className="pt-4 space-y-4">
+                  {/* Insecure Origin (HTTP on Phone) Helper Banner */}
+                  {isInsecureOrigin && (
+                    <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg text-xs space-y-2.5">
+                      <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>Phone Camera Security Rule (HTTP vs HTTPS)</span>
+                      </div>
+                      <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                        Mobile browsers (Chrome / Safari) strictly block live video streams over non-secure local IP (<code className="font-mono bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded font-bold">{typeof window !== 'undefined' ? window.location.host : '192.168.x.x:9002'}</code>).
+                      </p>
+                      <div>
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          onClick={() => cameraCaptureRef.current?.click()}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-2.5 shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <Camera className="h-4 w-4" /> Tap to Snap Photo with Camera (Works on HTTP)
+                        </Button>
+                      </div>
+                      <details className="text-[11px] text-amber-900/80 dark:text-amber-200/80 pt-1 cursor-pointer">
+                        <summary className="font-semibold hover:underline">How to unlock live video scanning on this phone (30s):</summary>
+                        <ol className="list-decimal pl-4 space-y-1 mt-1 font-sans">
+                          <li>In phone Chrome, type: <code className="font-mono font-bold bg-amber-100 dark:bg-amber-900/60 px-1 rounded">chrome://flags</code></li>
+                          <li>Search for: <b>Insecure origins treated as secure</b></li>
+                          <li>Select <b>Enabled</b> and enter: <code className="font-mono font-bold bg-amber-100 dark:bg-amber-900/60 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : 'http://192.168.8.115:9002'}</code></li>
+                          <li>Tap <b>Relaunch</b> at the bottom.</li>
+                        </ol>
+                      </details>
+                    </div>
+                  )}
+
                   {/* Camera Controls & Device Picker */}
                   {availableCameras.length > 1 && (
                     <div className="flex items-center gap-2">
@@ -822,7 +877,7 @@ const TicketVerificationPage = () => {
                         <VideoOff className="h-12 w-12 mb-3 text-muted-foreground/50" />
                         <p className="font-semibold text-foreground text-sm">Camera is Stopped</p>
                         <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                          Click "Start Scanning" to open camera. Compatible with Chrome, Safari, Edge, Firefox, and mobile browsers.
+                          Click "Start Scanning" to open camera, or tap the Camera button below.
                         </p>
                       </div>
                     )}
@@ -875,7 +930,26 @@ const TicketVerificationPage = () => {
                       </Button>
                     )}
 
-                    {/* Upload QR Image fallback */}
+                    {/* Camera Snap Input (Works on mobile even over HTTP) */}
+                    <input 
+                      type="file" 
+                      ref={cameraCaptureRef} 
+                      onChange={handleFileUpload} 
+                      accept="image/*" 
+                      capture="environment" 
+                      className="hidden" 
+                    />
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      onClick={() => cameraCaptureRef.current?.click()}
+                      className="px-3.5 py-5 text-xs text-muted-foreground hover:text-foreground"
+                      title="Take Photo with Camera"
+                    >
+                      <Camera className="h-4 w-4" />
+                    </Button>
+
+                    {/* Upload QR Image file input */}
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -887,8 +961,8 @@ const TicketVerificationPage = () => {
                       size="lg" 
                       variant="outline" 
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-5 text-xs text-muted-foreground hover:text-foreground"
-                      title="Upload QR Code Image"
+                      className="px-3.5 py-5 text-xs text-muted-foreground hover:text-foreground"
+                      title="Upload QR Code from Gallery"
                     >
                       <UploadCloud className="h-4 w-4" />
                     </Button>
