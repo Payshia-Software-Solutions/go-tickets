@@ -49,6 +49,8 @@ interface EventTicketSummary {
     tickets: {
         typeName: string;
         count: number;
+        paidCount: number;
+        complimentaryCount: number;
     }[];
 }
 
@@ -202,11 +204,15 @@ export default function AdminReportsPage() {
   const eventTicketBreakdown = useMemo((): EventTicketSummary[] => {
     if (ticketReportData.length === 0) return [];
 
-    const summaryMap = new Map<string, { eventName: string, tickets: Map<string, number> }>();
+    const summaryMap = new Map<string, { 
+      eventName: string; 
+      tickets: Map<string, { total: number; paid: number; comp: number }>;
+    }>();
     
     const validTickets = ticketReportData.filter(t => {
+      const isComp = (t.paymentMethod || '').toLowerCase() === 'complimentary';
       const s = t.paymentStatus.toLowerCase().trim();
-      return s === 'paid' || s === 'partially paid' || s === 'partially_paid';
+      return isComp || s === 'paid' || s === 'partially paid' || s === 'partially_paid';
     });
 
     validTickets.forEach(ticket => {
@@ -214,14 +220,26 @@ export default function AdminReportsPage() {
             summaryMap.set(ticket.eventId, { eventName: ticket.eventName, tickets: new Map() });
         }
         const eventSummary = summaryMap.get(ticket.eventId)!;
-        const currentCount = eventSummary.tickets.get(ticket.ticketTypeName) || 0;
-        eventSummary.tickets.set(ticket.ticketTypeName, currentCount + ticket.quantity);
+        const current = eventSummary.tickets.get(ticket.ticketTypeName) || { total: 0, paid: 0, comp: 0 };
+        const isComp = (ticket.paymentMethod || '').toLowerCase() === 'complimentary';
+
+        current.total += ticket.quantity;
+        if (isComp) {
+            current.comp += ticket.quantity;
+        } else {
+            current.paid += ticket.quantity;
+        }
+        eventSummary.tickets.set(ticket.ticketTypeName, current);
     });
     
     return Array.from(summaryMap.values()).map(eventSum => ({
         eventName: eventSum.eventName,
-        tickets: Array.from(eventSum.tickets.entries()).map(([typeName, count]) => ({ typeName, count }))
-                      .sort((a,b) => a.typeName.localeCompare(b.typeName))
+        tickets: Array.from(eventSum.tickets.entries()).map(([typeName, counts]) => ({ 
+            typeName, 
+            count: counts.total,
+            paidCount: counts.paid,
+            complimentaryCount: counts.comp,
+        })).sort((a,b) => a.typeName.localeCompare(b.typeName))
     })).sort((a,b) => a.eventName.localeCompare(b.eventName));
 
   }, [ticketReportData]);
@@ -455,8 +473,8 @@ export default function AdminReportsPage() {
             {eventTicketBreakdown.length > 0 && (
                  <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Ticket Sales Breakdown</CardTitle>
-                        <CardDescription>A breakdown of all 'Paid' tickets sold for each event in the selected period.</CardDescription>
+                        <CardTitle className="flex items-center"><BarChart3 className="mr-2 h-5 w-5" /> Ticket Breakdown</CardTitle>
+                        <CardDescription>A breakdown of tickets sold and complimentary passes issued for each event in the selected period.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Accordion type="multiple" className="w-full">
@@ -466,9 +484,25 @@ export default function AdminReportsPage() {
                                     <AccordionContent>
                                         <ul className="space-y-2 pt-2">
                                             {event.tickets.map((ticket, ticketIndex) => (
-                                                <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1 bg-muted/50 rounded-md">
+                                                <li key={ticketIndex} className="flex justify-between items-center text-sm pl-4 pr-2 py-1.5 bg-muted/50 rounded-md">
                                                     <span><Ticket className="inline-block mr-2 h-4 w-4 text-muted-foreground"/>{ticket.typeName}</span>
-                                                    <Badge variant="secondary">{ticket.count.toLocaleString()} sold</Badge>
+                                                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                                      {ticket.paidCount > 0 && (
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                          {ticket.paidCount.toLocaleString()} sold
+                                                        </Badge>
+                                                      )}
+                                                      {ticket.complimentaryCount > 0 && (
+                                                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950 dark:text-purple-300 font-mono text-xs font-semibold">
+                                                          {ticket.complimentaryCount.toLocaleString()} free pass{ticket.complimentaryCount > 1 ? 'es' : ''}
+                                                        </Badge>
+                                                      )}
+                                                      {ticket.paidCount === 0 && ticket.complimentaryCount === 0 && (
+                                                        <Badge variant="outline" className="font-mono text-xs">
+                                                          {ticket.count.toLocaleString()} issued
+                                                        </Badge>
+                                                      )}
+                                                    </div>
                                                 </li>
                                             ))}
                                         </ul>
