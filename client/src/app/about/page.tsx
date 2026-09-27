@@ -1,47 +1,15 @@
 
-import { Building, Lightbulb, Users, Target, Heart, Handshake, ShieldCheck, MapPin } from 'lucide-react';
+import { Building, Lightbulb, Target, Heart, Handshake, ShieldCheck, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
-import Image from 'next/image';
 
 export const metadata: Metadata = {
-  title: 'About GoTickets.lk - Our Mission, Vision, and Team',
+  title: 'About GoTickets.lk - Our Mission, Vision, and Values',
   description: 'Learn more about GoTickets.lk, your trusted platform for event ticket booking in Sri Lanka.',
   openGraph: {
     title: 'About GoTickets.lk - Our Story and Commitment',
     description: 'Discover the mission, vision, and values that drive GoTickets.lk.',
   },
 };
-
-const teamMembers = [
-  {
-    name: 'Alex Johnson',
-    role: 'CEO & Founder',
-    imageUrl: 'https://placehold.co/300x300.png',
-    bio: 'Visionary leader with a passion for connecting people with unforgettable experiences.',
-    dataAiHint: 'professional portrait',
-  },
-  {
-    name: 'Maria Garcia',
-    role: 'Head of Engineering',
-    imageUrl: 'https://placehold.co/300x300.png',
-    bio: 'Expert technologist ensuring our platform is robust, scalable, and user-friendly.',
-    dataAiHint: 'professional portrait',
-  },
-  {
-    name: 'David Lee',
-    role: 'Director of Marketing',
-    imageUrl: 'https://placehold.co/300x300.png',
-    bio: 'Creative strategist dedicated to sharing the magic of live events with the world.',
-    dataAiHint: 'professional portrait',
-  },
-  {
-    name: 'Sarah Chen',
-    role: 'Customer Success',
-    imageUrl: 'https://placehold.co/300x300.png',
-    bio: 'Champion for our users, ensuring every interaction is smooth and supportive.',
-    dataAiHint: 'professional portrait',
-  },
-];
 
 const whyChooseUsItems = [
   {
@@ -146,36 +114,6 @@ export default function AboutPage() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{item.title}</h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Team Section */}
-        <div className="container mx-auto px-4 mt-24 mb-10">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-2xl mb-4 text-primary">
-              <Users className="h-6 w-6" />
-            </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white mb-4">Meet Our Team</h2>
-            <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">The passionate people behind Sri Lanka&apos;s leading ticketing platform.</p>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {teamMembers.map((member) => (
-              <div key={member.name} className="bg-white dark:bg-card rounded-2xl p-6 text-center border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all duration-300">
-                <div className="relative w-32 h-32 mx-auto mb-5 rounded-full overflow-hidden border-4 border-slate-50 dark:border-slate-800 shadow-sm">
-                  <Image 
-                    src={member.imageUrl} 
-                    alt={member.name} 
-                    fill 
-                    className="object-cover" 
-                    data-ai-hint={member.dataAiHint}
-                  />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{member.name}</h3>
-                <p className="text-accent font-semibold text-sm mb-4">{member.role}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{member.bio}</p>
               </div>
             ))}
           </div>
