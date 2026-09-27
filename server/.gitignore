@@ -1,2 +1,6 @@
 /vendor
 /config/database.php
+.env
+.env.*
+logs/*
+!logs/.gitkeep
