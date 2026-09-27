@@ -545,27 +545,41 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
               )}
 
               {/* WhatsApp Updates Card */}
-              <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out ${event.name} on GoTickets: ${currentUrl || `https://gotickets.lk/events/${event.slug}`}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-[#15192c] hover:bg-[#1d223c] transition-all border border-white/5 rounded-2xl p-3 flex items-center gap-3 mb-6 group cursor-pointer"
-              >
-                <div className="w-9 h-9 rounded-full bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-md">
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.972.531 1.77.817 2.796.817 3.18 0 5.767-2.587 5.767-5.768.001-3.18-2.585-5.766-5.767-5.766zm3.393 8.163c-.144.405-.837.774-1.17.824-.312.045-.694.075-2.227-.565-1.834-.766-3.007-2.637-3.099-2.76-.092-.122-.743-.988-.743-1.884 0-.895.467-1.336.634-1.517.167-.181.365-.227.487-.227.122 0 .243.002.35.007.113.005.263-.043.411.314.152.366.518 1.266.564 1.358.046.092.077.2.015.323-.061.122-.092.198-.183.305-.091.106-.192.237-.274.318-.092.091-.188.19-.081.373.107.183.475.783 1.019 1.267.7.624 1.29.817 1.473.908.183.091.29.076.397-.046.107-.122.457-.533.58-.716.122-.183.244-.152.411-.091.168.061 1.066.503 1.249.594.183.092.305.137.35.214.046.076.046.442-.098.847zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.662 1.434 5.178L2 22l4.981-1.396A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs md:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
-                    Get updates for this event
-                  </div>
-                  <div className="text-[11px] text-slate-400 leading-tight">
-                    Gate times, line-up changes and extra releases, on WhatsApp.
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors shrink-0" />
-              </a>
+              {(() => {
+                const rawPhone = (event as any).organizerPhone || (event as any).phone || "94718750770";
+                const cleanDigits = String(rawPhone).replace(/[^0-9]/g, '');
+                const targetWhatsAppNumber = cleanDigits.startsWith('0')
+                  ? '94' + cleanDigits.substring(1)
+                  : cleanDigits.startsWith('94')
+                  ? cleanDigits
+                  : '94' + cleanDigits;
+                const waMessage = `Hi GoTickets, I'd like to get updates for "${event.name}" (Gate times, line-up changes, extra releases). Event: ${currentUrl || `https://gotickets.lk/events/${event.slug}`}`;
+                const waLink = `https://wa.me/${targetWhatsAppNumber}?text=${encodeURIComponent(waMessage)}`;
+
+                return (
+                  <a
+                    href={waLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-[#15192c] hover:bg-[#1d223c] transition-all border border-white/5 rounded-2xl p-3 flex items-center gap-3 mb-6 group cursor-pointer"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-md">
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.972.531 1.77.817 2.796.817 3.18 0 5.767-2.587 5.767-5.768.001-3.18-2.585-5.766-5.767-5.766zm3.393 8.163c-.144.405-.837.774-1.17.824-.312.045-.694.075-2.227-.565-1.834-.766-3.007-2.637-3.099-2.76-.092-.122-.743-.988-.743-1.884 0-.895.467-1.336.634-1.517.167-.181.365-.227.487-.227.122 0 .243.002.35.007.113.005.263-.043.411.314.152.366.518 1.266.564 1.358.046.092.077.2.015.323-.061.122-.092.198-.183.305-.091.106-.192.237-.274.318-.092.091-.188.19-.081.373.107.183.475.783 1.019 1.267.7.624 1.29.817 1.473.908.183.091.29.076.397-.046.107-.122.457-.533.58-.716.122-.183.244-.152.411-.091.168.061 1.066.503 1.249.594.183.092.305.137.35.214.046.076.046.442-.098.847zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.662 1.434 5.178L2 22l4.981-1.396A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs md:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
+                        Get updates for this event
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-tight">
+                        Gate times, line-up changes and extra releases, on WhatsApp.
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors shrink-0" />
+                  </a>
+                );
+              })()}
 
               {/* Utility Row: Open on Phone QR Code + Add to Calendar & Share Event */}
               <div className="flex items-center justify-between pt-1">
