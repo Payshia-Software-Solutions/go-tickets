@@ -1,39 +1,74 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Event } from '@/lib/types';
 import * as fpixel from '@/lib/fpixel';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, MapPin, Building, Info, Ticket as TicketIcon, Clock, Briefcase, Ban, ExternalLink, ChevronRight } from 'lucide-react';
+import {
+  CalendarDays,
+  MapPin,
+  Building,
+  Info,
+  Ticket as TicketIcon,
+  Clock,
+  Briefcase,
+  Ban,
+  ExternalLink,
+  ChevronRight,
+  Crown,
+  Share2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { format, parseISO } from 'date-fns';
+import QRCode from '@/components/QRCode';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-const safeParseDate = (dateStr: string | undefined): Date | null => {
+const safeParseDate = (dateStr: string | undefined | Date): Date | null => {
   if (!dateStr) return null;
+  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
   try {
-    return parseISO(dateStr);
+    const d = parseISO(dateStr);
+    if (!isNaN(d.getTime())) return d;
   } catch (e) {
-    try {
-      const parts = dateStr.split(/[\s:-]/);
-      if (parts.length >= 3) {
-        return new Date(
-          parseInt(parts[0]),
-          parseInt(parts[1]) - 1,
-          parseInt(parts[2]),
-          parseInt(parts[3]) || 0,
-          parseInt(parts[4]) || 0,
-          parseInt(parts[5]) || 0
-        );
-      }
-    } catch (parseError) {
-      console.warn(`Could not parse date string: ${dateStr}`, e, parseError);
-    }
-    return null;
+    // continue to fallback
   }
+  try {
+    const parts = dateStr.split(/[\s:-]/);
+    if (parts.length >= 3) {
+      return new Date(
+        parseInt(parts[0]),
+        parseInt(parts[1]) - 1,
+        parseInt(parts[2]),
+        parseInt(parts[3]) || 0,
+        parseInt(parts[4]) || 0,
+        parseInt(parts[5]) || 0
+      );
+    }
+  } catch (parseError) {
+    console.warn(`Could not parse date string: ${dateStr}`, parseError);
+  }
+  return null;
 };
 
 export default function EventDetailsClientView({ event }: { event: Event }) {
+  const { toast } = useToast();
+  const [mounted, setMounted] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== 'undefined') {
+      setCurrentUrl(window.location.href);
+    }
+  }, []);
+
   useEffect(() => {
     fpixel.track('ViewContent', {
       content_name: event.name,
@@ -52,6 +87,66 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
     ? format(mainEventDateObj, "EEEE, MMMM do, yyyy")
     : "Date TBD";
 
+  // Determine target show date/time for countdown and calendar
+  const targetDateTime = useMemo(() => {
+    if (event.showTimes && event.showTimes.length > 0) {
+      const parsedTimes = event.showTimes
+        .map((st) => safeParseDate(typeof st.dateTime === 'string' ? st.dateTime : (st.dateTime as any)?.toISOString?.()))
+        .filter((d): d is Date => d !== null)
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      const now = Date.now();
+      const upcoming = parsedTimes.find((d) => d.getTime() > now);
+      if (upcoming) return upcoming;
+      if (parsedTimes.length > 0) return parsedTimes[0];
+    }
+    return safeParseDate(event.date);
+  }, [event.showTimes, event.date]);
+
+  // Live countdown timer state
+  const [timeLeft, setTimeLeft] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+    isPast: boolean;
+  }>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isPast: false,
+  });
+
+  useEffect(() => {
+    if (!targetDateTime) return;
+
+    const calculate = () => {
+      const diff = targetDateTime.getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: true });
+        return;
+      }
+      setTimeLeft({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((diff / (1000 * 60)) % 60),
+        seconds: Math.floor((diff / 1000) % 60),
+        isPast: false,
+      });
+    };
+
+    calculate();
+    const interval = setInterval(calculate, 1000);
+    return () => clearInterval(interval);
+  }, [targetDateTime]);
+
+  // Formatted date and time values for the countdown badge row
+  const formattedEventDay = targetDateTime ? format(targetDateTime, "dd") : "--";
+  const formattedEventMonth = targetDateTime ? format(targetDateTime, "MMM") : "TBD";
+  const formattedEventTime = targetDateTime ? format(targetDateTime, "hh:mm") : "--:--";
+  const formattedEventAmPm = targetDateTime ? format(targetDateTime, "a") : "";
+
   const venueName = event.venueName;
   const venueAddress = event.venueAddress;
   const venueMapLink =
@@ -64,6 +159,105 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
   // Calculate lowest ticket price if available
   const allPrices = event.ticketTypes?.map((t) => t.price) || [];
   const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : null;
+
+  // Calendar Helpers
+  const getEventEndDateTime = (start: Date) => {
+    return new Date(start.getTime() + 3 * 60 * 60 * 1000); // 3 hours duration
+  };
+
+  const handleAddToGoogleCalendar = () => {
+    if (!targetDateTime) return;
+    const end = getEventEndDateTime(targetDateTime);
+    const formatG = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, "");
+    const title = event.name;
+    const details = `Book tickets and view event details: ${currentUrl || `https://gotickets.lk/events/${event.slug}`}`;
+    const location = venueAddress || venueName || event.location || "";
+    const gUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatG(targetDateTime)}/${formatG(end)}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}`;
+    window.open(gUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleAddToAppleCalendar = () => {
+    if (!targetDateTime) return;
+    const end = getEventEndDateTime(targetDateTime);
+    const formatICS = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, "");
+    const location = venueAddress || venueName || event.location || "";
+    const url = currentUrl || `https://gotickets.lk/events/${event.slug}`;
+
+    const icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//GoTickets//Event Details//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "BEGIN:VEVENT",
+      `UID:${event.id || Date.now()}@gotickets.lk`,
+      `DTSTAMP:${formatICS(new Date())}`,
+      `DTSTART:${formatICS(targetDateTime)}`,
+      `DTEND:${formatICS(end)}`,
+      `SUMMARY:${event.name}`,
+      `DESCRIPTION:Event tickets & info: ${url}`,
+      `LOCATION:${location}`,
+      `URL:${url}`,
+      "STATUS:CONFIRMED",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `${event.slug || "event"}-gotickets.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+
+    toast({
+      title: "Calendar Event Downloaded",
+      description: "Open the downloaded file to add to Apple Calendar / iCal.",
+    });
+  };
+
+  const handleAddToOutlookCalendar = () => {
+    if (!targetDateTime) return;
+    const end = getEventEndDateTime(targetDateTime);
+    const location = venueAddress || venueName || event.location || "";
+    const url = currentUrl || `https://gotickets.lk/events/${event.slug}`;
+    const outlookUrl = `https://outlook.live.com/calendar/0/action/compose?allday=false&subject=${encodeURIComponent(event.name)}&body=${encodeURIComponent(`Event tickets & info: ${url}`)}&location=${encodeURIComponent(location)}&startdt=${targetDateTime.toISOString()}&enddt=${end.toISOString()}`;
+    window.open(outlookUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareEvent = async () => {
+    const urlToShare = currentUrl || (typeof window !== 'undefined' ? window.location.href : `https://gotickets.lk/events/${event.slug}`);
+    const shareData = {
+      title: event.name,
+      text: `Join me at ${event.name} on GoTickets!`,
+      url: urlToShare,
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(urlToShare);
+      toast({
+        title: "Link Copied!",
+        description: "Event link copied to clipboard. Share it with your friends!",
+      });
+    } catch {
+      toast({
+        title: "Event URL",
+        description: urlToShare,
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-background pb-20">
@@ -235,32 +429,205 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
           {/* Right Sidebar Column (4 cols on desktop - STICKY) */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-24">
             
-            {/* Booking Action Card */}
-            <div className="bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-md">
-              {minPrice !== null && canBook && (
-                <div className="mb-4">
-                  <span className="text-xs text-slate-400 font-medium uppercase tracking-wider block">Starting from</span>
-                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                    {minPrice === 0 ? 'Free' : `LKR ${minPrice.toLocaleString('en-US')}`}
+            {/* TicketsMinistry Style Hero Booking & Countdown Card */}
+            <div className="bg-[#0b0d17] text-white border border-[#1b1f33] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+              
+              {/* Crown Icon / Featured Badge Row */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-9 h-9 rounded-full bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
+                  <Crown className="w-5 h-5 fill-emerald-400/20" />
+                </div>
+                {event.is_featured ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                    Featured Event
                   </span>
+                ) : null}
+              </div>
+
+              {/* Event will start on label */}
+              <p className="text-xs font-medium text-slate-400 mb-3 tracking-wide">
+                Event will start on
+              </p>
+
+              {/* Live Countdown Stat Boxes */}
+              {timeLeft.isPast ? (
+                <div className="bg-[#141829] border border-emerald-500/25 rounded-2xl py-3 px-4 text-center mb-5 flex items-center justify-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                    Event Started / Happening Now
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 mb-5">
+                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                      {mounted ? timeLeft.days : "-"}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Days</span>
+                  </div>
+
+                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                      {mounted ? String(timeLeft.hours).padStart(2, '0') : "-"}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Hours</span>
+                  </div>
+
+                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                      {mounted ? String(timeLeft.minutes).padStart(2, '0') : "-"}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Mins</span>
+                  </div>
+
+                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                      {mounted ? String(timeLeft.seconds).padStart(2, '0') : "-"}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Secs</span>
+                  </div>
                 </div>
               )}
 
+              {/* Date, Time & Category row */}
+              <div className="flex items-center gap-2.5 py-1 mb-5 flex-wrap">
+                <div className="flex items-center gap-1 text-sm">
+                  <span className="text-orange-500 font-bold text-base">{formattedEventDay}</span>
+                  <span className="text-white font-semibold">{formattedEventMonth}</span>
+                </div>
+                <div className="flex items-center gap-1 text-sm">
+                  <span className="text-orange-500 font-bold text-base">{formattedEventTime}</span>
+                  <span className="text-white font-semibold">{formattedEventAmPm}</span>
+                </div>
+                <span className="text-slate-600 font-light">|</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#22213d] text-indigo-300 border border-indigo-500/25">
+                  {event.category || "Concerts"}
+                </span>
+              </div>
+
+              {/* Price section */}
+              <div className="mb-5">
+                <span className="text-xs font-medium text-slate-400 block mb-1">Price</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                    {minPrice === null
+                      ? "TBD"
+                      : minPrice === 0
+                      ? "Free"
+                      : `LKR ${minPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </span>
+                  {minPrice !== null && minPrice > 0 && (
+                    <span className="text-xs md:text-sm font-medium text-slate-400">Upwards</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Primary Action Button (Get Tickets) */}
               {canBook ? (
-                <Button asChild size="lg" className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-bold rounded-xl text-base shadow-sm">
+                <Button
+                  asChild
+                  className="w-full h-12 py-3 rounded-2xl bg-[#ff5500] hover:bg-[#ff681a] text-white font-bold text-base shadow-lg shadow-orange-500/25 transition-all transform active:scale-[0.99] flex items-center justify-center mb-4 cursor-pointer"
+                >
                   <Link href={`/events/${event.slug}/book`}>
-                    <TicketIcon className="mr-2 h-5 w-5" /> Book Tickets Now
+                    Get Tickets
                   </Link>
                 </Button>
               ) : (
-                <Button size="lg" disabled className="w-full h-12 bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold rounded-xl text-base cursor-not-allowed">
+                <Button
+                  disabled
+                  className="w-full h-12 py-3 rounded-2xl bg-slate-800 text-slate-500 font-bold text-base cursor-not-allowed mb-4"
+                >
                   <Ban className="mr-2 h-5 w-5" /> Bookings Closed / Sold Out
                 </Button>
               )}
 
-              <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 mt-3">
-                Instant digital ticket confirmation &amp; QR validation
-              </p>
+              {/* WhatsApp Updates Card */}
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out ${event.name} on GoTickets: ${currentUrl || `https://gotickets.lk/events/${event.slug}`}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-[#15192c] hover:bg-[#1d223c] transition-all border border-white/5 rounded-2xl p-3 flex items-center gap-3 mb-6 group cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-full bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-md">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.972.531 1.77.817 2.796.817 3.18 0 5.767-2.587 5.767-5.768.001-3.18-2.585-5.766-5.767-5.766zm3.393 8.163c-.144.405-.837.774-1.17.824-.312.045-.694.075-2.227-.565-1.834-.766-3.007-2.637-3.099-2.76-.092-.122-.743-.988-.743-1.884 0-.895.467-1.336.634-1.517.167-.181.365-.227.487-.227.122 0 .243.002.35.007.113.005.263-.043.411.314.152.366.518 1.266.564 1.358.046.092.077.2.015.323-.061.122-.092.198-.183.305-.091.106-.192.237-.274.318-.092.091-.188.19-.081.373.107.183.475.783 1.019 1.267.7.624 1.29.817 1.473.908.183.091.29.076.397-.046.107-.122.457-.533.58-.716.122-.183.244-.152.411-.091.168.061 1.066.503 1.249.594.183.092.305.137.35.214.046.076.046.442-.098.847zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.662 1.434 5.178L2 22l4.981-1.396A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs md:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
+                    Get updates for this event
+                  </div>
+                  <div className="text-[11px] text-slate-400 leading-tight">
+                    Gate times, line-up changes and extra releases, on WhatsApp.
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors shrink-0" />
+              </a>
+
+              {/* Utility Row: Open on Phone QR Code + Add to Calendar & Share Event */}
+              <div className="flex items-center justify-between pt-1">
+                {/* QR Code */}
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">
+                    OPEN ON PHONE
+                  </span>
+                  <div className="p-1.5 bg-white rounded-xl shadow-md inline-block w-[88px] h-[88px]">
+                    <QRCode
+                      data={currentUrl || `https://gotickets.lk/events/${event.slug}`}
+                      size={76}
+                      className="w-[76px] h-[76px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Calendar & Share Actions */}
+                <div className="flex flex-col justify-center space-y-3 pl-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer group py-1"
+                      >
+                        <CalendarDays className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                        <span>Add to Calendar</span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-[#15192c] border border-white/10 text-white rounded-xl p-1.5 min-w-[170px] shadow-2xl">
+                      <DropdownMenuItem
+                        onClick={handleAddToGoogleCalendar}
+                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                      >
+                        Google Calendar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handleAddToAppleCalendar}
+                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                      >
+                        Apple Calendar (.ics)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handleAddToOutlookCalendar}
+                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                      >
+                        Outlook Calendar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <button
+                    type="button"
+                    onClick={handleShareEvent}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer group py-1"
+                  >
+                    <Share2 className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                    <span>Share Event</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
 
             {/* Venue Details Card */}
