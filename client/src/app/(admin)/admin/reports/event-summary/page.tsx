@@ -10,14 +10,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import jsPDF from 'jspdf';
-import * as htmlToImage from 'html-to-image';
 import {
   TrendingUp,
   BarChart3,
@@ -45,6 +52,8 @@ import {
   Receipt,
   XCircle,
   Info,
+  Mail,
+  Send,
 } from 'lucide-react';
 import { TICKET_TYPES_API_URL, API_BASE_URL } from '@/lib/constants';
 
@@ -92,6 +101,13 @@ export default function EventSummaryReportPage() {
 
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Email Dialog State
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientName, setRecipientName] = useState('Director / Management');
+  const [emailNotes, setEmailNotes] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
   // Ledger Filters & Search
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerStatusFilter, setLedgerStatusFilter] = useState('all');
@@ -101,9 +117,6 @@ export default function EventSummaryReportPage() {
 
   // Verifications tab pagination
   const [verificationsPage, setVerificationsPage] = useState(1);
-
-  // Ref for PDF capture
-  const printContainerRef = useRef<HTMLDivElement>(null);
 
   // Load available events
   const fetchEvents = useCallback(async () => {
@@ -209,12 +222,7 @@ export default function EventSummaryReportPage() {
         return matchesEvent && matchesChannel;
       });
 
-      // 4. Enrich every booking with accurate business logic:
-      // - Online pending bookings = Incomplete / abandoned checkout (customer never paid, no tickets issued, not a gate receivable)
-      // - Manual pending bookings = Reserved at counter / pay on arrival (real receivable for gate/counter)
-      // - Partially paid = Manual advance paid, balance due at gate
-      // - Paid = 100% Cleared
-      // - Complimentary = 100% Waived free pass
+      // 4. Enrich every booking
       const enrichedBookings: EnrichedBooking[] = filteredRawBookings.map((b) => {
         const isComp =
           (b.payment_method || '').toLowerCase() === 'complimentary' ||
@@ -742,79 +750,97 @@ export default function EventSummaryReportPage() {
     : 1;
 
   // ==========================================
-  // 6. PDF Export Handler
+  // 6. Official Dompdf PDF Download Handler
   // ==========================================
-  const handleDownloadPdf = async () => {
-    if (!printContainerRef.current) return;
+  const handleDownloadDompdf = async () => {
+    if (!eventFilter) return;
     setIsDownloadingPdf(true);
     toast({
-      title: 'Generating PDF...',
-      description: 'Rendering high-resolution executive audit report. Please wait...',
+      title: 'Preparing PDF...',
+      description: 'Generating official Dompdf executive audit report from server...',
     });
 
     try {
-      const element = printContainerRef.current;
-
-      const dataUrl = await htmlToImage.toPng(element, {
-        cacheBust: true,
-        quality: 0.98,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-      });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
-
-      const imgWidth = pdfWidth;
-      const imgHeight = (img.height * pdfWidth) / img.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Page 1
-      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      // Extra Pages
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+      const url = `${API_BASE_URL}/reports/event-summary/pdf/?event_id=${eventFilter}&channel=${channelFilter}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
       }
 
-      const eventSlug = (reportData?.event?.name || 'Event')
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .toLowerCase();
-      const dateStamp = format(new Date(), 'yyyy-MM-dd_HHmm');
-      pdf.save(`GoTickets_Audit_Report_${eventSlug}_${dateStamp}.pdf`);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const safeName = (reportData?.event?.name || 'Event').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `GoTickets_Report_${safeName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
 
       toast({
         title: 'PDF Downloaded',
-        description: 'Your official Event Summary Report has been saved.',
+        description: 'Official Dompdf report downloaded successfully.',
       });
     } catch (error) {
-      console.error('PDF generation error:', error);
+      console.error('Failed to download PDF:', error);
       toast({
-        title: 'Export Failed',
-        description: 'Could not export PDF directly. You can use the Print button to Save as PDF.',
+        title: 'Download Failed',
+        description: 'Could not download PDF from server. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsDownloadingPdf(false);
+    }
+  };
+
+  // ==========================================
+  // 7. Email Dompdf Report Handler
+  // ==========================================
+  const handleSendEmailReport = async () => {
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid recipient email address.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/reports/event-summary/email/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventFilter,
+          channel: channelFilter,
+          recipient_email: recipientEmail,
+          recipient_name: recipientName,
+          notes: emailNotes,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to send email');
+      }
+
+      toast({
+        title: 'Report Emailed Successfully',
+        description: `The official Dompdf report has been sent to ${recipientEmail} with PDF attachment.`,
+      });
+      setIsEmailDialogOpen(false);
+      setEmailNotes('');
+    } catch (error: any) {
+      console.error('Failed to email report:', error);
+      toast({
+        title: 'Email Failed',
+        description: error.message || 'Could not send report email. Please verify SMTP settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -836,7 +862,7 @@ export default function EventSummaryReportPage() {
         </div>
 
         {reportData && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -844,11 +870,20 @@ export default function EventSummaryReportPage() {
               className="border-slate-300 dark:border-slate-700"
             >
               <Printer className="mr-2 h-4 w-4 text-slate-600 dark:text-slate-300" />
-              Print Report
+              Print
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEmailDialogOpen(true)}
+              className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+            >
+              <Mail className="mr-2 h-4 w-4 text-blue-600" />
+              Email Report
             </Button>
             <Button
               size="sm"
-              onClick={handleDownloadPdf}
+              onClick={handleDownloadDompdf}
               disabled={isDownloadingPdf}
               className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
             >
@@ -857,7 +892,7 @@ export default function EventSummaryReportPage() {
               ) : (
                 <Download className="mr-2 h-4 w-4" />
               )}
-              {isDownloadingPdf ? 'Generating PDF...' : 'Download PDF'}
+              {isDownloadingPdf ? 'Generating PDF...' : 'Download Official PDF'}
             </Button>
           </div>
         )}
@@ -951,10 +986,9 @@ export default function EventSummaryReportPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 1: EXECUTIVE AUDIT & OVERVIEW (This container is also captured for the PDF) */}
+          {/* TAB 1: EXECUTIVE AUDIT & OVERVIEW */}
           <TabsContent value="overview" className="mt-0 space-y-6">
             <div
-              ref={printContainerRef}
               id="printable-report"
               className="bg-card text-card-foreground p-6 sm:p-8 rounded-xl border border-border shadow-sm space-y-8"
             >
@@ -1095,7 +1129,7 @@ export default function EventSummaryReportPage() {
                 </div>
               </div>
 
-              {/* SECTION: Payment Status Breakdown (Clearly separating Confirmed Orders from Uncompleted Online Checkouts) */}
+              {/* SECTION: Payment Status Breakdown */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold flex items-center">
@@ -1482,7 +1516,7 @@ export default function EventSummaryReportPage() {
               {/* Document Sign-off / Print Footer */}
               <div className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center text-xs text-muted-foreground gap-2">
                 <p>Official Event Performance & Financial Reconciliation Document • GoTickets.lk</p>
-                <p>CONFIDENTIAL • For Authorized Event Organizers & System Administrators Only</p>
+                <p>CONFIDENTIAL • For Authorized Event Organizers & Management Only</p>
               </div>
             </div>
           </TabsContent>
@@ -1898,6 +1932,108 @@ export default function EventSummaryReportPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* EMAIL REPORT DIALOG */}
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" /> Email Event Summary Report
+            </DialogTitle>
+            <DialogDescription>
+              Send the official Dompdf audit report with executive breakdown and attached PDF directly to Director or management.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Recipient Email Address *
+              </label>
+              <Input
+                type="email"
+                placeholder="e.g. director@silverray.lk"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+              />
+              <div className="flex gap-2 pt-1 flex-wrap">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[11px] px-2 text-primary"
+                  onClick={() => setRecipientEmail('director@silverray.lk')}
+                >
+                  + director@silverray.lk
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[11px] px-2 text-primary"
+                  onClick={() => setRecipientEmail('reservation@silverray.lk')}
+                >
+                  + reservation@silverray.lk
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Recipient Name
+              </label>
+              <Input
+                placeholder="Director / Management"
+                value={recipientName}
+                onChange={(e) => setRecipientName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Personalized Note / Comments (Optional)
+              </label>
+              <Textarea
+                placeholder="e.g. Dear Director, please find the latest financial reconciliation report for Oktoberfest 2026 attached."
+                value={emailNotes}
+                onChange={(e) => setEmailNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-primary" /> Attachment Included:
+              </p>
+              <p className="font-mono text-[11px]">
+                GoTickets_Report_{reportData?.event?.name ? reportData.event.name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Event'}_{format(new Date(), 'yyyy-MM-dd')}.pdf (Official Server Dompdf Document)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsEmailDialogOpen(false)}
+              disabled={isSendingEmail}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmailReport}
+              disabled={isSendingEmail || !recipientEmail}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isSendingEmail ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              {isSendingEmail ? 'Sending Email...' : 'Send Report by Email'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
