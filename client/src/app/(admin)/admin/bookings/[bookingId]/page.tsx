@@ -2,14 +2,16 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import type { Booking, BookingPayment, TicketType } from '@/lib/types';
+import type { Booking, BookingPayment, TicketType, Salesman } from '@/lib/types';
 import { getBookingById } from '@/lib/mockData';
 import { 
   getBookingPayments, 
   addBookingPayment, 
   updateBookingDetails, 
-  uploadPaymentSlip 
+  uploadPaymentSlip,
+  updateBookingSalesman 
 } from '@/lib/services/booking.service';
+import { getAllSalesmen } from '@/lib/services/salesman.service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -87,6 +89,48 @@ export default function BookingDetailsPage() {
   const [editNic, setEditNic] = useState('');
   const [editedTickets, setEditedTickets] = useState<EditableTicket[]>([]);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Salesman Assignment State
+  const [salesmenList, setSalesmenList] = useState<Salesman[]>([]);
+  const [isChangeSalesmanOpen, setIsChangeSalesmanOpen] = useState(false);
+  const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>('none');
+  const [isUpdatingSalesman, setIsUpdatingSalesman] = useState(false);
+
+  useEffect(() => {
+    getAllSalesmen().then(data => setSalesmenList(data)).catch(() => {});
+  }, []);
+
+  const handleUpdateSalesman = async () => {
+    if (!booking) return;
+    setIsUpdatingSalesman(true);
+    try {
+      const salesmanId = selectedSalesmanId === 'none' ? null : selectedSalesmanId;
+      const matchedSalesman = salesmenList.find(s => String(s.id) === String(salesmanId));
+      const salesmanName = matchedSalesman ? matchedSalesman.name : 'Direct';
+
+      const res = await updateBookingSalesman(booking.id, salesmanId, salesmanName);
+      
+      setBooking(prev => prev ? ({
+        ...prev,
+        salesman_id: res.salesman_id,
+        salesman_name: res.salesman_name
+      }) : prev);
+
+      toast({
+        title: "Salesman Updated",
+        description: res.salesman_id ? `Assigned to ${res.salesman_name}.` : "Set to Direct Booking (No Salesman).",
+      });
+      setIsChangeSalesmanOpen(false);
+    } catch (err: any) {
+      toast({
+        title: "Failed to Update Salesman",
+        description: err.message || "An error occurred.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdatingSalesman(false);
+    }
+  };
 
   const fetchBookingAndPayments = useCallback(async () => {
     if (!bookingId) return;
@@ -660,7 +704,19 @@ export default function BookingDetailsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm bg-muted/20 p-3 rounded-lg">
                 <p><strong>Event:</strong> {booking.eventName}</p>
-                <p><strong>Showtime:</strong> {new Date(booking.eventDate).toLocaleString()}</p>
+                <p><strong>Showtime:</strong> {(() => {
+                  if (booking.showtime) {
+                    const st = new Date(booking.showtime);
+                    if (!isNaN(st.getTime())) return st.toLocaleString();
+                    return booking.showtime;
+                  }
+                  const ed = new Date(booking.eventDate);
+                  if (isNaN(ed.getTime())) return booking.eventDate;
+                  if (ed.getHours() === 0 && ed.getMinutes() === 0) {
+                    return ed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                  }
+                  return ed.toLocaleString();
+                })()}</p>
                 <p><strong>Venue / Location:</strong> {booking.eventLocation}</p>
                 <p><strong>Total Tickets:</strong> {booking.bookedTickets.reduce((sum, t) => sum + t.quantity, 0)} Seats</p>
               </div>
@@ -762,15 +818,28 @@ export default function BookingDetailsPage() {
 
           {/* Sales Attribution Card */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-primary" /> Sales Attribution
               </CardTitle>
+              {booking.booked_type === 'manualy' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSalesmanId(booking.salesman_id ? String(booking.salesman_id) : 'none');
+                    setIsChangeSalesmanOpen(true);
+                  }}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <Edit3 className="h-3 w-3" /> Change
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="text-sm space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Assigned Salesman / Agent</p>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2">
                   {booking.salesman_name && booking.salesman_name.toLowerCase() !== 'direct' ? (
                     <Badge variant="outline" className="bg-primary/5 text-primary border-primary/30 font-semibold text-xs py-1 px-2.5 flex items-center gap-1.5 w-fit">
                       <Briefcase className="h-3.5 w-3.5" />
@@ -1130,6 +1199,61 @@ export default function BookingDetailsPage() {
             )}
             <Button variant="secondary" size="sm" onClick={() => setSlipModalUrl(null)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Salesman Dialog */}
+      <Dialog open={isChangeSalesmanOpen} onOpenChange={setIsChangeSalesmanOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+              Change Assigned Salesman
+            </DialogTitle>
+            <DialogDescription>
+              Assign or update the sales representative responsible for this manual counter order.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Select Salesman / Agent</Label>
+              <Select value={selectedSalesmanId} onValueChange={setSelectedSalesmanId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select salesman" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Direct Counter (No Salesman)</SelectItem>
+                  {salesmenList.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name} {s.code ? `(${s.code})` : ''} {s.status === 'inactive' ? '[Inactive]' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Current: <strong className="text-foreground">{booking?.salesman_name || 'Direct'}</strong>
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsChangeSalesmanOpen(false)}
+              disabled={isUpdatingSalesman}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateSalesman}
+              disabled={isUpdatingSalesman}
+              className="gap-2"
+            >
+              {isUpdatingSalesman && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save & Update Salesman
             </Button>
           </DialogFooter>
         </DialogContent>

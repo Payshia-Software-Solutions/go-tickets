@@ -339,7 +339,9 @@ class BookingController
                 'payment_slip' => $data['payment_slip'] ?? null,
                 'payment_notes' => $data['payment_notes'] ?? null,
                 'eventName' => $data['eventName'],
-                'eventDate' => $data['eventDate'],
+                'eventDate' => (!empty($data['booking_showtime'][0]['showtime']) && (date('H:i:s', strtotime($data['eventDate'])) === '00:00:00' || strlen(trim($data['eventDate'])) <= 10))
+                    ? date('Y-m-d H:i:s', strtotime($data['booking_showtime'][0]['showtime']))
+                    : $data['eventDate'],
                 'eventLocation' => $data['eventLocation'],
                 'qrCodeValue' => $data['qrCodeValue'],
                 'payment_status' => $paymentStatus,
@@ -777,6 +779,128 @@ class BookingController
         }
     }
 
+    /**
+     * Resolves the accurate event date and showtime for a booking.
+     * Prevents default midnight (12:00 AM) timestamps from overwriting actual event showtimes.
+     */
+    public function resolveBookingDateTime($bookingData, $bookingInfo = null)
+    {
+        $rawEventDate = $bookingData['event_date'] ?? $bookingInfo['eventDate'] ?? null;
+        $bookingId = $bookingData['booking_id'] ?? $bookingInfo['id'] ?? null;
+
+        $showtimeTimes = [];
+        $firstShowtimeTs = null;
+
+        // 1. Check booking relations booking_event -> booking_showtime
+        if (!empty($bookingInfo['booking_event'])) {
+            foreach ($bookingInfo['booking_event'] as $be) {
+                if (!empty($be['booking_showtime'])) {
+                    foreach ($be['booking_showtime'] as $st) {
+                        if (!empty($st['showtime'])) {
+                            $ts = strtotime($st['showtime']);
+                            if ($ts !== false) {
+                                $timeStr = date('g:i A', $ts);
+                                if (!in_array($timeStr, $showtimeTimes)) {
+                                    $showtimeTimes[] = $timeStr;
+                                }
+                                if ($firstShowtimeTs === null) {
+                                    $firstShowtimeTs = $ts;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Direct database query on booking_showtime if not found in relations
+        if (empty($showtimeTimes) && $bookingId && isset($this->pdo)) {
+            try {
+                $stmt = $this->pdo->prepare("SELECT showtime FROM booking_showtime WHERE booking_id = ? AND showtime IS NOT NULL AND showtime != ''");
+                $stmt->execute([$bookingId]);
+                $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($rows as $stStr) {
+                    $ts = strtotime($stStr);
+                    if ($ts !== false) {
+                        $timeStr = date('g:i A', $ts);
+                        if (!in_array($timeStr, $showtimeTimes)) {
+                            $showtimeTimes[] = $timeStr;
+                        }
+                        if ($firstShowtimeTs === null) {
+                            $firstShowtimeTs = $ts;
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                // Ignore DB error
+            }
+        }
+
+        // 3. Check showtimes table for the event as fallback
+        $eventId = null;
+        if (!empty($bookingInfo['booking_event'][0]['eventId'])) {
+            $eventId = $bookingInfo['booking_event'][0]['eventId'];
+        } elseif (!empty($bookingInfo['eventId'])) {
+            $eventId = $bookingInfo['eventId'];
+        }
+        if (empty($showtimeTimes) && $eventId && isset($this->pdo)) {
+            try {
+                $stmt = $this->pdo->prepare("SELECT dateTime FROM showtime WHERE eventId = ? ORDER BY dateTime ASC LIMIT 1");
+                $stmt->execute([$eventId]);
+                $eventSt = $stmt->fetchColumn();
+                if ($eventSt) {
+                    $ts = strtotime($eventSt);
+                    if ($ts !== false) {
+                        $timeStr = date('g:i A', $ts);
+                        $showtimeTimes[] = $timeStr;
+                        if ($firstShowtimeTs === null) {
+                            $firstShowtimeTs = $ts;
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                // Ignore DB error
+            }
+        }
+
+        // Format event date
+        if ($firstShowtimeTs !== null) {
+            $eventDateFormatted = date('l, F j, Y', $firstShowtimeTs);
+            $eventDateOnly = date('n/j/Y', $firstShowtimeTs);
+        } elseif (!empty($rawEventDate)) {
+            $ts = strtotime($rawEventDate);
+            $eventDateFormatted = date('l, F j, Y', $ts);
+            $eventDateOnly = date('n/j/Y', $ts);
+        } else {
+            $eventDateFormatted = date('l, F j, Y');
+            $eventDateOnly = date('n/j/Y');
+        }
+
+        // Format event time
+        if (!empty($showtimeTimes)) {
+            $eventTimeFormatted = implode(' / ', $showtimeTimes);
+        } elseif (!empty($rawEventDate) && date('H:i:s', strtotime($rawEventDate)) !== '00:00:00') {
+            $eventTimeFormatted = date('g:i A', strtotime($rawEventDate));
+        } else {
+            $eventTimeFormatted = '';
+        }
+
+        // Combined Date & Time (for email header/cards)
+        if (!empty($eventTimeFormatted)) {
+            $eventDateTime = $eventDateFormatted . ' at ' . $eventTimeFormatted;
+        } else {
+            $eventDateTime = $eventDateFormatted;
+        }
+
+        return [
+            'dateFormatted' => $eventDateFormatted,
+            'timeFormatted' => $eventTimeFormatted,
+            'dateTimeFormatted' => $eventDateTime,
+            'dateOnly' => $eventDateOnly,
+            'firstShowtimeTs' => $firstShowtimeTs
+        ];
+    }
+
     public function generateBookingEmailHTML($bookingData, $bookingInfo = null)
     {
         // Load the email template
@@ -795,9 +919,11 @@ class BookingController
             $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
         }
 
-        // Format dates
-        $eventDateTime = date('l, F j, Y \a\t g:i A', strtotime($bookingData['event_date']));
-        $eventDateOnly = date('n/j/Y', strtotime($bookingData['event_date']));
+        // Format dates using actual showtime instead of 12:00 AM midnight default
+        $dateTimeInfo = $this->resolveBookingDateTime($bookingData, $bookingInfo);
+        $eventDateTime = $dateTimeInfo['dateTimeFormatted'];
+        $eventDateOnly = $dateTimeInfo['dateOnly'];
+        $eventTimeFormatted = $dateTimeInfo['timeFormatted'];
         $bookingTimestamp = !empty($bookingData['booking_date'])
             ? date('F j, Y \a\t g:i A', strtotime($bookingData['booking_date']))
             : date('F j, Y \a\t g:i A');
@@ -820,10 +946,13 @@ class BookingController
             foreach ($bookingInfo['booking_event'] as $be) {
                 if (!empty($be['booking_showtime'])) {
                     foreach ($be['booking_showtime'] as $st) {
+                        $timeStr = !empty($st['showtime']) 
+                            ? date('g:i A', strtotime($st['showtime'])) 
+                            : (!empty($eventTimeFormatted) ? $eventTimeFormatted : date('g:i A', strtotime($bookingData['event_date'] ?? 'now')));
                         $tickets[] = [
                             'type' => $st['ticket_type'] ?? 'Standard',
                             'count' => intval($st['ticket_count'] ?? 1),
-                            'time' => !empty($st['showtime']) ? date('g:i A', strtotime($st['showtime'])) : date('g:i A', strtotime($bookingData['event_date'])),
+                            'time' => $timeStr,
                         ];
                     }
                 }
@@ -833,7 +962,7 @@ class BookingController
             $tickets[] = [
                 'type' => 'General Admission',
                 'count' => 1,
-                'time' => date('g:i A', strtotime($bookingData['event_date'])),
+                'time' => !empty($eventTimeFormatted) ? $eventTimeFormatted : date('g:i A', strtotime($bookingData['event_date'] ?? 'now')),
             ];
         }
 
@@ -937,13 +1066,19 @@ class BookingController
             ?? $bookingInfo['contact_number'] 
             ?? 'N/A';
 
+        $bookingId = $bookingData['booking_id'] ?? null;
+        if (!$bookingInfo && $bookingId) {
+            $bookingInfo = $this->getRecordByIdWithRelationsArray($bookingId);
+        }
+
+        // Resolve accurate event date and showtime
+        $dateTimeInfo = $this->resolveBookingDateTime($bookingData, $bookingInfo);
+        $eventDateFormatted = $dateTimeInfo['dateFormatted'];
+        $eventTimeFormatted = $dateTimeInfo['timeFormatted'];
+
         $eventName = $bookingData['event_name'] ?? $bookingInfo['eventName'] ?? 'Event';
-        $eventDate = $bookingData['event_date'] ?? $bookingInfo['eventDate'] ?? date('Y-m-d H:i:s');
         $eventLocation = $bookingData['event_location'] ?? $bookingInfo['eventLocation'] ?? 'Sri Lanka';
         $bookingDate = $bookingData['booking_date'] ?? $bookingInfo['bookingDate'] ?? date('Y-m-d H:i:s');
-
-        $eventDateFormatted = date('l, F j, Y', strtotime($eventDate));
-        $eventTimeFormatted = date('g:i A', strtotime($eventDate));
         $issuedDateFormatted = date('F j, Y', strtotime($bookingDate));
 
         // Collect ticket items
@@ -952,10 +1087,13 @@ class BookingController
             foreach ($bookingInfo['booking_event'] as $be) {
                 if (!empty($be['booking_showtime'])) {
                     foreach ($be['booking_showtime'] as $st) {
+                        $timeStr = !empty($st['showtime']) 
+                            ? date('g:i A', strtotime($st['showtime'])) 
+                            : (!empty($eventTimeFormatted) ? $eventTimeFormatted : 'Standard Entry');
                         $tickets[] = [
                             'type' => $st['ticket_type'] ?? 'Standard',
                             'count' => intval($st['ticket_count'] ?? 1),
-                            'time' => !empty($st['showtime']) ? date('g:i A', strtotime($st['showtime'])) : $eventTimeFormatted,
+                            'time' => $timeStr,
                         ];
                     }
                 }
@@ -965,7 +1103,7 @@ class BookingController
             $tickets[] = [
                 'type' => 'General Admission',
                 'count' => 1,
-                'time' => $eventTimeFormatted
+                'time' => !empty($eventTimeFormatted) ? $eventTimeFormatted : 'Standard Entry'
             ];
         }
 
@@ -1288,7 +1426,7 @@ class BookingController
                         <tr>
                             <td style="width: 50%;">
                                 <div class="meta-label">Date & Time</div>
-                                <div class="meta-value">' . $eventDateFormatted . '<br><span style="color:#2563eb;">' . $eventTimeFormatted . '</span></div>
+                                <div class="meta-value">' . $eventDateFormatted . (!empty($eventTimeFormatted) ? '<br><span style="color:#2563eb;">' . $eventTimeFormatted . '</span>' : '') . '</div>
                             </td>
                             <td style="width: 50%;">
                                 <div class="meta-label">Venue Location</div>
@@ -1759,5 +1897,65 @@ class BookingController
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }
+
+    // ✅ Update assigned salesman for manual booking
+    public function updateBookingSalesman($bookingId)
+    {
+        $data = json_decode(file_get_contents("php://input"), true);
+        if ($data === null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Invalid JSON input']);
+            return;
+        }
+
+        $booking = $this->model->getBookingById($bookingId);
+        if (!$booking) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Booking not found']);
+            return;
+        }
+
+        // Only allow changing salesman for manual bookings
+        if (($booking['booked_type'] ?? '') !== 'manualy') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Salesman can only be assigned or changed for manual counter bookings.']);
+            return;
+        }
+
+        $salesmanId = !empty($data['salesman_id']) ? intval($data['salesman_id']) : null;
+        $salesmanName = 'Direct';
+
+        if ($salesmanId) {
+            $stmt = $this->pdo->prepare("SELECT id, name FROM `salesman` WHERE id = ?");
+            $stmt->execute([$salesmanId]);
+            $s = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($s) {
+                $salesmanName = $s['name'];
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Selected salesman does not exist']);
+                return;
+            }
+        } elseif (!empty($data['salesman_name']) && trim($data['salesman_name']) !== '') {
+            $salesmanName = trim($data['salesman_name']);
+        }
+
+        try {
+            $stmtUpdate = $this->pdo->prepare("UPDATE `booking` SET `salesman_id` = ?, `salesman_name` = ?, `updatedAt` = NOW() WHERE `id` = ?");
+            $stmtUpdate->execute([$salesmanId, $salesmanName, $bookingId]);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Salesman updated successfully',
+                'booking_id' => $bookingId,
+                'salesman_id' => $salesmanId,
+                'salesman_name' => $salesmanName
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
 }
+
 

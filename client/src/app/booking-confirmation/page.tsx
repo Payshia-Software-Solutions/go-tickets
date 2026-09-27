@@ -262,10 +262,29 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
   const isFullyPaid = balanceDue <= 0 && amountPaid > 0;
 
   const eventDate = new Date(booking.eventDate);
-  const formattedEventDate = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const formattedEventTime = eventDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const formattedEventDate = !isNaN(eventDate.getTime()) 
+    ? eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    : booking.eventDate;
+  
+  const displayEventTime = (() => {
+    if (booking.showtime) {
+      const st = new Date(booking.showtime);
+      if (!isNaN(st.getTime())) {
+        return st.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      }
+      return booking.showtime;
+    }
+    if (!isNaN(eventDate.getTime()) && (eventDate.getHours() !== 0 || eventDate.getMinutes() !== 0)) {
+      return eventDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+    return '';
+  })();
+  const formattedEventTime = displayEventTime;
+
   const bookingDate = new Date(booking.bookingDate);
-  const formattedBookingDate = bookingDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formattedBookingDate = !isNaN(bookingDate.getTime())
+    ? bookingDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : booking.bookingDate;
 
   if (!isConfirmed) {
     // RENDER PENDING PAYMENT VIEW
@@ -375,7 +394,7 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
             </h3>
             <p className="font-bold text-lg">{booking.eventName}</p>
             <div className="text-sm text-muted-foreground space-y-1.5">
-              <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-accent" /> {formattedEventDate} at {formattedEventTime}</p>
+              <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-accent" /> {formattedEventDate}{displayEventTime ? ` at ${displayEventTime}` : ''}</p>
               <p className="flex items-center"><MapPin className="mr-2 h-4 w-4 text-accent" /> {booking.eventLocation}</p>
               <p className="flex items-center"><User className="mr-2 h-4 w-4 text-accent" /> Attendee: <strong>{booking.userName || 'Guest'}</strong></p>
             </div>

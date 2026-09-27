@@ -72,4 +72,7 @@ return [
     'PUT /bookings/{id}/update-tickets/' => function ($id) use ($bookingController) {
         $bookingController->updateBookingTickets($id);
     },
+    'PUT /bookings/{id}/update-salesman/' => function ($id) use ($bookingController) {
+        $bookingController->updateBookingSalesman($id);
+    },
 ];

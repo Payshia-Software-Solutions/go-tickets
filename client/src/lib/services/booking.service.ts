@@ -255,7 +255,7 @@ export const createBooking = async (
     payment_slip: payment_slip || null,
     payment_notes: payment_notes || null,
     eventName: cart[0].eventName,
-    eventDate: format(parseISO(cart[0].showTimeDateTime), "yyyy-MM-dd"),
+    eventDate: format(parseISO(cart[0].showTimeDateTime), "yyyy-MM-dd HH:mm:ss"),
     eventLocation: (await getEventBySlug(cart[0].eventNsid))?.location || "N/A",
     qrCodeValue: `BOOK-${new Date().getFullYear()}-${isGuest ? 'GUEST' : 'USER'}-${generateId()}`,
     billing_street: billingAddress.street,
@@ -723,4 +723,31 @@ export const updateBookingDetails = async (
   }
   return result;
 };
+
+export const updateBookingSalesman = async (
+  bookingId: string | number,
+  salesmanId: string | number | null,
+  salesmanName?: string
+): Promise<{ success: boolean; message: string; booking_id: string | number; salesman_id: number | null; salesman_name: string }> => {
+  const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/update-salesman/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      salesman_id: salesmanId,
+      salesman_name: salesmanName,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({ error: 'Failed to update salesman' }));
+    throw new Error(errorBody.error || errorBody.message || `Update failed with status ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || result.message || 'Failed to update salesman');
+  }
+  return result;
+};
+
 
