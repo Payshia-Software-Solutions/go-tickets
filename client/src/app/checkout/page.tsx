@@ -44,7 +44,7 @@ const CheckoutPage = () => {
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
   const [saveNewAddress, setSaveNewAddress] = useState(true);
 
-  const [isGuestCheckout, setIsGuestCheckout] = useState(false);
+  const [isGuestCheckout, setIsGuestCheckout] = useState(true);
 
   const billingForm = useForm<BillingAddress>({
     resolver: zodResolver(BillingAddressSchema),
@@ -276,89 +276,51 @@ const CheckoutPage = () => {
               </div>
             </div>
 
-            {/* Account Options (If not logged in and not guest yet) */}
-            {!user && !isGuestCheckout && (
-              <div className="bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-sm">
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                    Select Checkout Option
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Choose guest checkout for fastest booking or log in to your account.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                  {/* Option 1: Pay as Guest (Primary / Highlighted) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsGuestCheckout(true)}
-                    className="p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-accent bg-orange-50/50 dark:bg-orange-900/20 hover:bg-orange-50 dark:hover:bg-orange-900/30 text-center sm:text-left transition-all group relative overflow-hidden shadow-sm flex flex-col items-center sm:items-start"
-                  >
-                    <span className="absolute top-0 right-0 bg-accent text-white text-[8px] sm:text-[10px] font-extrabold px-1.5 sm:px-2.5 py-0.5 rounded-bl-md sm:rounded-bl-lg uppercase tracking-wider">
-                      Rec
-                    </span>
-                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-accent text-white inline-block mb-1.5 sm:mb-3 group-hover:scale-105 transition-transform shadow-sm">
-                      <UserCheck className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </div>
-                    <p className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-base leading-tight">Pay Guest</p>
-                    <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 mt-0.5 sm:mt-1 font-medium hidden sm:block">Fastest &amp; Instant · No account needed</p>
-                  </button>
-
-                  {/* Option 2: Login */}
-                  <button
-                    type="button"
-                    onClick={() => router.push('/login?redirect=/checkout')}
-                    className="p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-primary hover:bg-blue-50/30 dark:hover:bg-blue-900/10 text-center sm:text-left transition-all group flex flex-col items-center sm:items-start"
-                  >
-                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-900/30 text-primary inline-block mb-1.5 sm:mb-3 group-hover:scale-105 transition-transform">
-                      <LogIn className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </div>
-                    <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight">Login</p>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 hidden sm:block">For existing customers</p>
-                  </button>
-
-                  {/* Option 3: Sign Up */}
-                  <button
-                    type="button"
-                    onClick={() => router.push('/signup?redirect=/checkout')}
-                    className="p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-primary hover:bg-blue-50/30 dark:hover:bg-blue-900/10 text-center sm:text-left transition-all group flex flex-col items-center sm:items-start"
-                  >
-                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 inline-block mb-1.5 sm:mb-3 group-hover:scale-105 transition-transform">
-                      <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </div>
-                    <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight">Sign Up</p>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1 hidden sm:block">Create a new account</p>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Billing & Contact Form */}
             {isBillingFormVisible && (
               <Form {...billingForm}>
                 <form onSubmit={billingForm.handleSubmit(handleConfirmBooking)} className="space-y-8">
                   <div className="bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+                    {/* Guest Checkout Banner for non-logged-in users */}
+                    {!user && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/80 dark:border-orange-800/40 text-xs">
+                        <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+                          <div className="p-1.5 rounded-lg bg-accent text-white shrink-0">
+                            <UserCheck className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-accent text-sm">Guest Checkout</span>
+                            <span className="text-slate-500 dark:text-slate-400 ml-1.5 hidden sm:inline">&bull; Quick &amp; direct ticket booking</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                          <span className="text-slate-500 dark:text-slate-400">Have an account?</span>
+                          <Link
+                            href="/login?redirect=/checkout"
+                            className="font-bold text-primary hover:underline flex items-center gap-1"
+                          >
+                            <LogIn className="h-3.5 w-3.5" /> Log In
+                          </Link>
+                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                          <Link
+                            href="/signup?redirect=/checkout"
+                            className="font-semibold text-slate-600 dark:text-slate-300 hover:text-primary hover:underline"
+                          >
+                            Sign Up
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                       <div>
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                           Billing &amp; Contact Details
                         </h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {isGuestCheckout ? "Provide your contact details for ticket delivery." : "Confirm your billing and contact details."}
+                          {user ? "Confirm your billing and contact details." : "Provide your contact details for ticket delivery."}
                         </p>
                       </div>
-                      {isGuestCheckout && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => setIsGuestCheckout(false)}
-                          className="text-xs font-semibold text-slate-500 hover:text-slate-900"
-                        >
-                          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Change Option
-                        </Button>
-                      )}
                     </div>
 
                     {user && hasSavedBillingAddress && (
