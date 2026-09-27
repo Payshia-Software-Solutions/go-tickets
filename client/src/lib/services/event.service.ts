@@ -6,6 +6,7 @@ import { getOrganizerById } from './organizer.service';
 import { createTicketType, deleteTicketType, fetchTicketTypesForEvent, getTicketAvailabilityCount, updateTicketType } from './ticket.service';
 import { createShowTime, deleteShowTime, getShowTimesForEvent, updateShowTime } from './showtime.service';
 import { format } from 'date-fns';
+import { cache } from 'react';
 
 interface ApiEventFlat {
   id: string | number;
@@ -261,7 +262,7 @@ export const getFullEventDetails = async (eventBase: Event): Promise<Event | und
   }
 };
 
-export const getEventBySlug = async (slug: string): Promise<Event | undefined> => {
+export const getEventBySlug = cache(async (slug: string): Promise<Event | undefined> => {
   console.log(`[getEventBySlug] Fetching event by slug: ${slug}`);
   const eventBase = await fetchEventBySlugFromApi(slug);
   
@@ -271,7 +272,7 @@ export const getEventBySlug = async (slug: string): Promise<Event | undefined> =
   }
   
   return getFullEventDetails(eventBase);
-};
+});
 
 export const adminGetAllEvents = async (): Promise<Event[]> => {
   if (!API_BASE_URL) {
