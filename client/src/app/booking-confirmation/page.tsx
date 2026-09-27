@@ -49,21 +49,11 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
     : (typeof rawToken === 'string' ? rawToken.split(',')[0].trim() : undefined);
 
   useEffect(() => {
-    if (bookingId && typeof window !== 'undefined') {
-      if (sessionStorage.getItem(`verified_booking_${bookingId}`) === 'true') {
-        setIsEmailVerified(true);
-      }
+    if (typeof window !== 'undefined' && bookingId) {
+      // Clear any legacy sessionStorage verification flags so each URL token is strictly validated fresh
+      sessionStorage.removeItem(`verified_booking_${bookingId}`);
     }
   }, [bookingId]);
-
-  useEffect(() => {
-    if (booking && urlToken && typeof window !== 'undefined' && bookingId) {
-      const isValid = (booking.token && urlToken === booking.token) || (booking.qrCodeValue && urlToken === booking.qrCodeValue);
-      if (isValid) {
-        sessionStorage.setItem(`verified_booking_${bookingId}`, 'true');
-      }
-    }
-  }, [booking, urlToken, bookingId]);
 
   useEffect(() => {
     document.title = isLoading ? 'Loading Booking...' : (booking ? `Booking ${booking.id} | GoTickets.lk` : 'Booking Not Found');
@@ -161,9 +151,6 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
     const inputEmail = verificationEmail.trim().toLowerCase();
     if (bookingEmail && inputEmail === bookingEmail) {
       setIsEmailVerified(true);
-      if (typeof window !== 'undefined' && bookingId) {
-        sessionStorage.setItem(`verified_booking_${bookingId}`, 'true');
-      }
       setVerificationError(null);
     } else {
       setVerificationError("The email address provided does not match our records for this booking. Please check the email used during checkout.");
@@ -184,6 +171,15 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
+            {urlToken && !isTokenValid && !verificationError && (
+              <Alert variant="destructive" className="py-2.5">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  The security token in your link is invalid or has expired. Please verify your email to view this booking.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {verificationError && (
               <Alert variant="destructive" className="py-2.5">
                 <AlertCircle className="h-4 w-4" />
