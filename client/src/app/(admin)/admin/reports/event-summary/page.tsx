@@ -250,16 +250,13 @@ export default function EventSummaryReportPage() {
         } else if (computedStatus === 'partially_paid') {
           collected = Number(b.amount_paid || 0);
           balance =
-            b.balance_amount !== undefined
+            b.balance_amount !== undefined && Number(b.balance_amount) > 0
               ? Number(b.balance_amount)
               : Math.max(0, gross - collected);
         } else {
-          // pending / unpaid
+          // pending / unpaid - full gross value minus any recorded deposit is to be collected
           collected = Number(b.amount_paid || 0);
-          balance =
-            b.balance_amount !== undefined
-              ? Number(b.balance_amount)
-              : Math.max(0, gross - collected);
+          balance = Math.max(0, gross - collected);
         }
 
         // Salesman & channel resolution

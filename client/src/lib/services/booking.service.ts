@@ -107,9 +107,19 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
 
   const isComp = (apiBooking.payment_method || apiBooking.paymentMethod || '').toLowerCase() === 'complimentary';
   const rawAmountPaid = apiBooking.amount_paid ?? apiBooking.amountPaid;
-  const parsedAmountPaid = isComp ? 0 : (rawAmountPaid !== undefined ? parseFloat(String(rawAmountPaid)) : (apiBooking.payment_status === 'paid' ? parsedPrice : 0));
+  const parsedAmountPaid = isComp ? 0 : (rawAmountPaid !== undefined && rawAmountPaid !== null && rawAmountPaid !== '' ? parseFloat(String(rawAmountPaid)) : (apiBooking.payment_status === 'paid' ? parsedPrice : 0));
+  
   const rawBalance = apiBooking.balance_amount ?? apiBooking.balanceAmount;
-  const parsedBalance = isComp ? 0 : (rawBalance !== undefined ? parseFloat(String(rawBalance)) : Math.max(0, parsedPrice - (Number.isFinite(parsedAmountPaid) ? parsedAmountPaid : 0)));
+  let parsedBalance = 0;
+  if (!isComp) {
+    if (apiBooking.payment_status === 'paid') {
+      parsedBalance = 0;
+    } else if (rawBalance !== undefined && rawBalance !== null && rawBalance !== '' && parseFloat(String(rawBalance)) > 0) {
+      parsedBalance = parseFloat(String(rawBalance));
+    } else {
+      parsedBalance = Math.max(0, parsedPrice - (Number.isFinite(parsedAmountPaid) ? parsedAmountPaid : 0));
+    }
+  }
   
   const rawBookedTicketsArray = Array.isArray(apiBooking.booked_tickets) 
       ? apiBooking.booked_tickets 
