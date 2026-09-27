@@ -90,6 +90,19 @@ interface ReportData {
   salesmen: Salesman[];
 }
 
+function formatSafeDate(dateVal: any, pattern: string, fallback: string = 'N/A'): string {
+  if (!dateVal) return fallback;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) {
+    return typeof dateVal === 'string' && dateVal.trim() !== '' ? dateVal : fallback;
+  }
+  try {
+    return format(d, pattern);
+  } catch {
+    return fallback;
+  }
+}
+
 export default function EventSummaryReportPage() {
   const [eventFilter, setEventFilter] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
@@ -331,13 +344,13 @@ export default function EventSummaryReportPage() {
         }))
         .sort(
           (a: any, b: any) =>
-            new Date(b.checking_time).getTime() - new Date(a.checking_time).getTime()
+            (new Date(b.checking_time).getTime() || 0) - (new Date(a.checking_time).getTime() || 0)
         );
 
       setReportData({
         event: eventRes,
         allBookings: enrichedBookings.sort(
-          (a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime()
+          (a, b) => (new Date(b.bookingDate).getTime() || 0) - (new Date(a.bookingDate).getTime() || 0)
         ),
         ticketTypes: safeTicketTypes,
         verifications: safeVerifications,
@@ -1012,7 +1025,7 @@ export default function EventSummaryReportPage() {
                       <MapPin className="mr-1 h-3.5 w-3.5 text-accent" /> {reportData.event?.location || 'Venue N/A'}
                     </span>
                     <span className="flex items-center">
-                      <Calendar className="mr-1 h-3.5 w-3.5 text-accent" /> {reportData.event?.date ? format(new Date(reportData.event.date), 'PPP') : 'Season 2026'}
+                      <Calendar className="mr-1 h-3.5 w-3.5 text-accent" /> {formatSafeDate(reportData.event?.date, 'PPP', 'Season 2026')}
                     </span>
                   </div>
                 </div>
@@ -1732,7 +1745,7 @@ export default function EventSummaryReportPage() {
                             <TableCell>
                               <div className="font-mono text-xs font-bold text-foreground">#{b.id}</div>
                               <div className="text-[11px] text-muted-foreground">
-                                {format(new Date(b.bookingDate), 'PP')}
+                                {formatSafeDate(b.bookingDate, 'PP', 'N/A')}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -1895,7 +1908,7 @@ export default function EventSummaryReportPage() {
                               {log.checking_by || 'Gate Scanner'}
                             </TableCell>
                             <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                              {log.checking_time ? format(new Date(log.checking_time), 'PPp') : 'N/A'}
+                              {formatSafeDate(log.checking_time, 'PPp', 'N/A')}
                             </TableCell>
                           </TableRow>
                         ))
