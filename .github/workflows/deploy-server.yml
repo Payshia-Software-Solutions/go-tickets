@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - server-live
-      - main
-      - master
     paths:
       - 'server/**'
       - '.github/workflows/deploy-server.yml'
