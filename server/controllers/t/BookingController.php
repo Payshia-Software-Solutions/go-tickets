@@ -303,6 +303,26 @@ class BookingController
                 $paymentStatus = $data['payment_status'] ?? ($amountPaid >= floatval($data['totalPrice']) ? 'Paid' : ($amountPaid > 0 ? 'Partially Paid' : 'pending'));
             }
 
+            // Salesman handling:
+            // Online bookings strictly default to Direct / null
+            $salesmanId = null;
+            $salesmanName = 'Direct';
+            if ($isManual) {
+                if (!empty($data['salesman_id'])) {
+                    $salesmanId = intval($data['salesman_id']);
+                    if (!empty($data['salesman_name'])) {
+                        $salesmanName = trim($data['salesman_name']);
+                    } else {
+                        $sStmt = $this->pdo->prepare("SELECT `name` FROM `salesman` WHERE `id` = ?");
+                        $sStmt->execute([$salesmanId]);
+                        $sRow = $sStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($sRow && !empty($sRow['name'])) {
+                            $salesmanName = $sRow['name'];
+                        }
+                    }
+                }
+            }
+
             $bookingData = [
                 'userId' => $data['userId'],
                 'first_name' => $data['first_name'] ?? '',
@@ -322,7 +342,9 @@ class BookingController
                 'eventDate' => $data['eventDate'],
                 'eventLocation' => $data['eventLocation'],
                 'qrCodeValue' => $data['qrCodeValue'],
-                'payment_status' => $paymentStatus
+                'payment_status' => $paymentStatus,
+                'salesman_id' => $salesmanId,
+                'salesman_name' => $salesmanName
             ];
 
             // ✅ Create booking

@@ -13,12 +13,13 @@ import {
   CheckCircle, Minus, Plus, CreditCard, UploadCloud, 
   FileText, X, AlertCircle, Banknote, DollarSign, Clock,
   ChevronDown, ChevronUp, Phone, Mail, Building2, Sparkles,
-  Receipt, ShieldCheck, Check, Gift
+  Receipt, ShieldCheck, Check, Gift, Briefcase
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { adminGetAllEvents, getAdminEventById, createBooking } from '@/lib/mockData';
 import { uploadPaymentSlip } from '@/lib/services/booking.service';
-import type { Event, BillingAddress, CartItem } from '@/lib/types';
+import { getActiveSalesmen } from '@/lib/services/salesman.service';
+import type { Event, BillingAddress, CartItem, Salesman } from '@/lib/types';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Separator } from '@/components/ui/separator';
@@ -60,6 +61,11 @@ export default function AdminNewBookingPage() {
   const [selectedShowtimeId, setSelectedShowtimeId] = useState<string | null>(null);
   const [ticketQuantities, setTicketQuantities] = useState<Record<string, number>>({});
   const [showAddressFields, setShowAddressFields] = useState<boolean>(false);
+
+  // Salesman State
+  const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+  const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>('direct');
+  const [isLoadingSalesmen, setIsLoadingSalesmen] = useState<boolean>(true);
 
   // Payment Tracking State
   const [paymentMethod, setPaymentMethod] = useState<string>("Bank Transfer");
@@ -103,17 +109,22 @@ export default function AdminNewBookingPage() {
   });
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchInitialData = async () => {
       try {
-        const allEvents = await adminGetAllEvents();
+        const [allEvents, allSalesmen] = await Promise.all([
+          adminGetAllEvents(),
+          getActiveSalesmen()
+        ]);
         setEvents(allEvents);
+        setSalesmen(allSalesmen);
       } catch (e) {
-        toast({ title: "Error", description: "Failed to load events.", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to load events or salesmen data.", variant: "destructive" });
       } finally {
         setIsLoadingEvents(false);
+        setIsLoadingSalesmen(false);
       }
     };
-    fetchEvents();
+    fetchInitialData();
   }, [toast]);
 
   useEffect(() => {
@@ -267,6 +278,10 @@ export default function AdminNewBookingPage() {
         country: formData.country || 'Sri Lanka',
       };
 
+      const chosenSalesman = salesmen.find(s => String(s.id) === selectedSalesmanId);
+      const salesmanIdPayload = selectedSalesmanId !== 'direct' ? Number(selectedSalesmanId) : null;
+      const salesmanNamePayload = chosenSalesman ? chosenSalesman.name : 'Direct';
+
       const responseText = await createBooking({
         userId: currentAdmin?.id || '1',
         cart,
@@ -274,6 +289,8 @@ export default function AdminNewBookingPage() {
         billingAddress: billingPayload,
         isGuest: true,
         booked_type: 'manualy',
+        salesman_id: salesmanIdPayload,
+        salesman_name: salesmanNamePayload,
         payment_status: paymentStatusValue,
         amount_paid: isComplimentary ? 0 : effectivePaidAmount,
         balance_amount: isComplimentary ? 0 : balanceDue,
@@ -689,6 +706,80 @@ export default function AdminNewBookingPage() {
                   </div>
                 </div>
               </Form>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Sales Attribution / Salesman Selection */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2 font-semibold">
+                  <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                    <Briefcase className="h-5 w-5" />
+                  </div>
+                  <span>3. Sales Attribution & Salesman</span>
+                </CardTitle>
+                <Badge variant={selectedSalesmanId === 'direct' ? "secondary" : "default"} className="text-xs">
+                  {selectedSalesmanId === 'direct' ? 'Direct Booking' : 'Agent Assigned'}
+                </Badge>
+              </div>
+              <CardDescription>
+                Assign the sales executive or agent who brought this manual sale. Defaults to &quot;Direct&quot;.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Assigned Salesman *</Label>
+                  <a
+                    href="/admin/salesmen"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    + Register New Salesman
+                  </a>
+                </div>
+                <Select value={selectedSalesmanId} onValueChange={setSelectedSalesmanId}>
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="Select salesman" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="direct">
+                      <span className="font-semibold text-foreground">Direct (No Salesman / Counter Walk-in)</span>
+                    </SelectItem>
+                    {salesmen.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        <span className="font-medium">{s.name}</span>
+                        {s.code && <span className="text-muted-foreground ml-1.5 text-xs font-mono">[{s.code}]</span>}
+                        {s.phone && <span className="text-muted-foreground ml-1.5 text-xs">({s.phone})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSalesmanId !== 'direct' && (() => {
+                const cur = salesmen.find(s => String(s.id) === selectedSalesmanId);
+                if (!cur) return null;
+                return (
+                  <div className="p-3 bg-muted/30 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-foreground flex items-center gap-1.5">
+                        <Briefcase className="h-3.5 w-3.5 text-primary" /> {cur.name}
+                        {cur.code && <Badge variant="outline" className="font-mono text-[10px] py-0">{cur.code}</Badge>}
+                      </p>
+                      <div className="text-muted-foreground flex items-center gap-3">
+                        {cur.phone && <span>Phone: {cur.phone}</span>}
+                        {cur.email && <span>Email: {cur.email}</span>}
+                      </div>
+                    </div>
+                    <Badge className="bg-emerald-600 text-white self-start sm:self-auto text-[10px]">
+                      Verified Agent
+                    </Badge>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>

@@ -58,6 +58,8 @@ interface RawApiBooking {
   billing_country?: string;
   guest?: number | boolean;
   token?: string;
+  salesman_id?: number | string | null;
+  salesman_name?: string | null;
 }
 
 interface RawApiBookedTicket {
@@ -135,6 +137,8 @@ export const transformApiBookingToAppBooking = (apiBooking: RawApiBooking): Book
     billingAddress: billingAddress,
     payment_status: apiBooking.payment_status || 'pending',
     booked_type: apiBooking.booked_type || 'online',
+    salesman_id: apiBooking.salesman_id !== undefined ? apiBooking.salesman_id : null,
+    salesman_name: apiBooking.salesman_name || 'Direct',
     bookedTickets: rawBookedTicketsArray.map((bt: RawApiBookedTicket) => ({
       id: String(bt.id),
       bookingId: String(bt.booking_id || bt.bookingId || apiBooking.id),
@@ -162,6 +166,8 @@ export const createBooking = async (
     billingAddress: BillingAddress;
     isGuest: boolean;
     booked_type?: 'online' | 'manualy';
+    salesman_id?: number | string | null;
+    salesman_name?: string | null;
     payment_status?: string;
     amount_paid?: number;
     balance_amount?: number;
@@ -180,6 +186,8 @@ export const createBooking = async (
     billingAddress, 
     isGuest, 
     booked_type = 'online', 
+    salesman_id,
+    salesman_name,
     payment_status,
     amount_paid,
     balance_amount,
@@ -247,6 +255,8 @@ export const createBooking = async (
     billing_country: billingAddress.country,
     guest: isGuest ? 1 : 0,
     booked_type: booked_type,
+    salesman_id: salesman_id ? parseInt(String(salesman_id), 10) : null,
+    salesman_name: salesman_name || (salesman_id ? undefined : 'Direct'),
     payment_status: effectiveStatus,
     booking_event: booking_event_payload,
     booking_showtime: booking_showtime_payload

@@ -11,6 +11,7 @@ export * from './services/organizer.service';
 export * from './services/showtime.service';
 export * from './services/ticket.service';
 export * from './services/user.service';
+export * from './services/salesman.service';
 
 // You can add back specific mock-only logic here if needed,
 // for example, functions that are only used for local testing

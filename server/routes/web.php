@@ -29,11 +29,11 @@ $TicketTypeRoutes = require './routes/ticket/TicketTypeRoutes.php';
 $ShowTimeRoutes = require './routes/ticket/ShowTimeRoutes.php';
 $ShowTimeTicketAvailabilityRoutes = require './routes/ticket/ShowTimeTicketAvailabilityRoutes.php';
 $CategoryRoutes = require './routes/ticket/CategoryRoutes.php';
-$CategoryRoutes = require './routes/ticket/CategoryRoutes.php';
 $BookingEventRoutes = require './routes/ticket/BookingEventRoutes.php';
 $BookingShowtimeRoutes = require './routes/ticket/BookingShowtimeRoutes.php';
 $PaymentRoutes = require './routes/ticket/PaymentRoutes.php';
 $TicketVerificationRoutes = require './routes/ticket/TicketVerificationRoutes.php';
+$SalesmanRoutes = require './routes/ticket/SalesmanRoutes.php';
 // Combine all routes
 $routes = array_merge(
     $BookedTicketRoutes,
@@ -48,7 +48,8 @@ $routes = array_merge(
     $CategoryRoutes,
     $BookingEventRoutes,
     $BookingShowtimeRoutes,
-    $TicketVerificationRoutes
+    $TicketVerificationRoutes,
+    $SalesmanRoutes
 );
 
 // Define the home route with trailing slash

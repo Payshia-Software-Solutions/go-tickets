@@ -18,7 +18,7 @@ import {
   Loader2, AlertTriangle, ArrowLeft, Phone, MessageSquare, 
   Mail, ExternalLink, CreditCard, PlusCircle, Edit3, 
   FileText, CheckCircle2, DollarSign, Clock, AlertCircle, 
-  Download, Eye, X, UploadCloud, MinusCircle, Gift
+  Download, Eye, X, UploadCloud, MinusCircle, Gift, Briefcase
 } from 'lucide-react';
 import QRCode from '@/components/QRCode';
 import { Badge } from "@/components/ui/badge";
@@ -431,6 +431,16 @@ export default function BookingDetailsPage() {
             >
               {booking.booked_type === 'manualy' ? 'Manual Booking' : 'Online Booking'}
             </Badge>
+            {booking.salesman_name && booking.salesman_name.toLowerCase() !== 'direct' ? (
+              <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-semibold flex items-center gap-1">
+                <Briefcase className="h-3 w-3 mr-1" />
+                Salesman: {booking.salesman_name}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground border-border">
+                {booking.booked_type === 'online' ? 'Online (Direct)' : 'Sales: Direct'}
+              </Badge>
+            )}
             <Badge 
               className={cn('capitalize text-xs font-semibold px-2.5 py-0.5', {
                 'bg-purple-600 text-white hover:bg-purple-600': isComplimentary,
@@ -746,6 +756,34 @@ export default function BookingDetailsPage() {
                 <p className="text-xs text-muted-foreground">
                   {[booking.billingAddress?.street, booking.billingAddress?.city, booking.billingAddress?.state, booking.billingAddress?.postalCode, booking.billingAddress?.country].filter(Boolean).join(', ') || 'N/A'}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sales Attribution Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-primary" /> Sales Attribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Assigned Salesman / Agent</p>
+                <div className="mt-1">
+                  {booking.salesman_name && booking.salesman_name.toLowerCase() !== 'direct' ? (
+                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/30 font-semibold text-xs py-1 px-2.5 flex items-center gap-1.5 w-fit">
+                      <Briefcase className="h-3.5 w-3.5" />
+                      {booking.salesman_name}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs font-medium">Direct Booking (No Agent)</span>
+                  )}
+                </div>
+              </div>
+              <Separator />
+              <div className="text-xs space-y-1 text-muted-foreground">
+                <p>Booking Channel: <strong className="text-foreground">{booking.booked_type === 'manualy' ? 'Counter / Offline Manual' : 'Online Website Checkout'}</strong></p>
               </div>
             </CardContent>
           </Card>

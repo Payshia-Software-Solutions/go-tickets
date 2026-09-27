@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText, Search, PlusCircle, X, RotateCcw } from 'lucide-react';
+import { Loader2, Ticket, ChevronLeft, ChevronRight, FileText, Search, PlusCircle, X, RotateCcw, Briefcase } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ export default function AdminBookingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [eventFilter, setEventFilter] = useState('all');
+  const [salesmanFilter, setSalesmanFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchBookings = useCallback(async () => {
@@ -78,6 +79,16 @@ export default function AdminBookingsPage() {
     fetchBookings();
   }, [fetchBookings]);
 
+  const uniqueSalesmen = useMemo(() => {
+    const set = new Set<string>();
+    bookings.forEach(b => {
+      if (b.salesman_name && b.salesman_name.trim() !== '' && b.salesman_name !== 'Direct') {
+        set.add(b.salesman_name.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [bookings]);
+
   // Bookings filtered by event and search query (before payment status filter)
   const eventFilteredBookings = useMemo(() => {
     let result = bookings;
@@ -90,6 +101,15 @@ export default function AdminBookingsPage() {
       });
     }
 
+    // Salesman filter
+    if (salesmanFilter !== 'all') {
+      if (salesmanFilter === 'direct') {
+        result = result.filter(booking => !booking.salesman_name || booking.salesman_name === 'Direct');
+      } else {
+        result = result.filter(booking => booking.salesman_name === salesmanFilter);
+      }
+    }
+
     // Search query filter (matches ID, customer name, email, phone, event)
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
@@ -99,17 +119,19 @@ export default function AdminBookingsPage() {
         const email = (booking.billingAddress?.email || '').toLowerCase();
         const phone = String(booking.billingAddress?.phone_number || '');
         const eventName = (booking.eventName || '').toLowerCase();
+        const salesman = (booking.salesman_name || '').toLowerCase();
         
         return idMatch || 
                userName.includes(q) || 
                email.includes(q) ||
                phone.includes(q) ||
-               eventName.includes(q);
+               eventName.includes(q) ||
+               salesman.includes(q);
       });
     }
 
     return result;
-  }, [bookings, eventFilter, searchQuery, bookingEventMap]);
+  }, [bookings, eventFilter, salesmanFilter, searchQuery, bookingEventMap]);
 
   // Payment status breakdown counts dynamically updated for the selected event!
   const statusCounts = useMemo(() => {
@@ -197,10 +219,11 @@ export default function AdminBookingsPage() {
     setSearchQuery('');
     setStatusFilter('all');
     setEventFilter('all');
+    setSalesmanFilter('all');
     setCurrentPage(1);
   };
 
-  const isFiltered = searchQuery.trim() !== '' || statusFilter !== 'all' || eventFilter !== 'all';
+  const isFiltered = searchQuery.trim() !== '' || statusFilter !== 'all' || eventFilter !== 'all' || salesmanFilter !== 'all';
 
   const getStatusDisplayTitle = (status: string) => {
     if (status === 'all') return 'All';
@@ -244,12 +267,12 @@ export default function AdminBookingsPage() {
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center justify-between">
         
-        {/* Left Search & Event Filter */}
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          <div className="relative flex-1">
+        {/* Left Search, Event & Salesman Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 flex-1 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search by ID, name, email, phone..."
+              placeholder="Search by ID, name, email, salesman..."
               value={searchQuery}
               onChange={handleSearchChange}
               className="pl-9 h-10 text-sm"
@@ -266,7 +289,7 @@ export default function AdminBookingsPage() {
           </div>
 
           <Select value={eventFilter} onValueChange={handleEventFilterChange}>
-            <SelectTrigger className="w-full sm:w-[240px] h-10">
+            <SelectTrigger className="w-full sm:w-[220px] h-10">
               <SelectValue placeholder="All Events" />
             </SelectTrigger>
             <SelectContent>
@@ -274,6 +297,21 @@ export default function AdminBookingsPage() {
               {events.map(event => (
                 <SelectItem key={event.id} value={event.id}>
                   {event.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={salesmanFilter} onValueChange={(val) => { setSalesmanFilter(val); setCurrentPage(1); }}>
+            <SelectTrigger className="w-full sm:w-[190px] h-10">
+              <SelectValue placeholder="All Sales Attribution" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sales Attribution</SelectItem>
+              <SelectItem value="direct">Direct (No Agent)</SelectItem>
+              {uniqueSalesmen.map(name => (
+                <SelectItem key={name} value={name}>
+                  {name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -370,6 +408,7 @@ export default function AdminBookingsPage() {
                     <TableHead className="w-[90px]">Booking ID</TableHead>
                     <TableHead>Event &amp; Tickets</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Sales Attribution</TableHead>
                     <TableHead className="w-[140px]">Payment Status</TableHead>
                     <TableHead>Event Date</TableHead>
                     <TableHead className="text-right">Total Price</TableHead>
@@ -411,6 +450,19 @@ export default function AdminBookingsPage() {
                           <div className="text-xs text-muted-foreground">
                             {booking.billingAddress?.email || (booking.billingAddress?.phone_number ? `Tel: ${booking.billingAddress.phone_number}` : '')}
                           </div>
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap">
+                          {booking.salesman_name && booking.salesman_name.toLowerCase() !== 'direct' ? (
+                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/30 font-medium text-xs py-0.5 px-2">
+                              <Briefcase className="h-3 w-3 mr-1 shrink-0 inline" />
+                              {booking.salesman_name}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {booking.booked_type === 'online' ? 'Online' : 'Direct'}
+                            </span>
+                          )}
                         </TableCell>
 
                         <TableCell className="whitespace-nowrap">

@@ -57,14 +57,20 @@ class Booking
         `userId`, `first_name`, `last_name`, `nic`, `contact_number`, `email`, `guest`,
         `totalPrice`, `amount_paid`, `balance_amount`, `payment_method`, `payment_slip`, `payment_notes`,
         `payment_status`, `bookingDate`, `eventName`, `eventDate`, `eventLocation`,
-        `qrCodeValue`, `booked_type`, `createdAt`, `updatedAt`
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        `qrCodeValue`, `booked_type`, `salesman_id`, `salesman_name`, `createdAt`, `updatedAt`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         $totalPrice = floatval($data['totalPrice']);
         $isComplimentary = isset($data['payment_method']) && strtolower(trim($data['payment_method'])) === 'complimentary';
         $amountPaid = $isComplimentary ? 0.00 : (isset($data['amount_paid']) ? floatval($data['amount_paid']) : 0.00);
         $balanceAmount = $isComplimentary ? 0.00 : (isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, $totalPrice - $amountPaid));
         $paymentStatus = $isComplimentary ? 'Paid' : ($data['payment_status'] ?? 'pending');
+
+        $salesmanId = !empty($data['salesman_id']) ? intval($data['salesman_id']) : null;
+        $salesmanName = !empty($data['salesman_name']) ? trim($data['salesman_name']) : 'Direct';
+        if ($salesmanId === null && empty($data['salesman_name'])) {
+            $salesmanName = 'Direct';
+        }
 
         $stmt->execute([
             $data['userId'],
@@ -87,6 +93,8 @@ class Booking
             $data['eventLocation'],
             $data['qrCodeValue'],
             $data['booked_type'] ?? 'online',
+            $salesmanId,
+            $salesmanName,
             $now,                         // createdAt
             $now                          // updatedAt
         ]);
@@ -106,10 +114,14 @@ class Booking
         $balanceAmount = $isComplimentary ? 0.00 : (isset($data['balance_amount']) ? floatval($data['balance_amount']) : max(0.00, $totalPrice - $amountPaid));
         $paymentStatus = $isComplimentary ? 'Paid' : ($data['payment_status'] ?? ($existing['payment_status'] ?? 'pending'));
 
+        $salesmanId = array_key_exists('salesman_id', $data) ? (!empty($data['salesman_id']) ? intval($data['salesman_id']) : null) : ($existing['salesman_id'] ?? null);
+        $salesmanName = array_key_exists('salesman_name', $data) ? ($data['salesman_name'] ?: 'Direct') : ($existing['salesman_name'] ?? 'Direct');
+
         $stmt = $this->pdo->prepare("UPDATE `booking` SET
             `userId` = ?, `first_name` = ?, `last_name` = ?, `nic` = ?, `contact_number` = ?, `email` = ?, `guest` = ?,
             `totalPrice` = ?, `amount_paid` = ?, `balance_amount` = ?, `payment_method` = ?, `payment_slip` = ?, `payment_notes` = ?,
-            `eventName` = ?, `eventDate` = ?, `eventLocation` = ?, `qrCodeValue` = ?, `payment_status` = ?, `updatedAt` = NOW()
+            `eventName` = ?, `eventDate` = ?, `eventLocation` = ?, `qrCodeValue` = ?, `payment_status` = ?,
+            `salesman_id` = ?, `salesman_name` = ?, `updatedAt` = NOW()
             WHERE `id` = ?");
 
         $stmt->execute([
@@ -131,6 +143,8 @@ class Booking
             $data['eventLocation'] ?? $existing['eventLocation'],
             $data['qrCodeValue'] ?? $existing['qrCodeValue'],
             $paymentStatus,
+            $salesmanId,
+            $salesmanName,
             $id
         ]);
     }

@@ -17,6 +17,7 @@ export const USER_LOGIN_API_URL = `${base}/users/login`;
 export const SHOWTIMES_API_URL = `${base}/showtimes`;
 export const SHOWTIMES_BY_EVENT_API_URL_BASE = `${base}/showtimes/event`;
 export const TICKET_TYPES_API_URL = `${base}/ticket-types`;
+export const SALESMEN_API_URL = `${base}/salesmen`;
 
 // Count URLs
 export const EVENTS_COUNT_API_URL = `${base}/events/get/count`;

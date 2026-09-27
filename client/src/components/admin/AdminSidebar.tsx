@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, TrendingUp, ChevronDown, Shield } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Ticket, LogOut, Users, Tag, QrCode, UserCog, FileText, ClipboardCheck, BookCopy, TrendingUp, ChevronDown, Shield, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,6 +18,7 @@ const adminNavItems = [
   { href: '/admin/roles', label: 'User Roles', icon: Shield },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
+  { href: '/admin/salesmen', label: 'Salesmen', icon: Briefcase },
   { href: '/admin/verifications', label: 'Verifications', icon: ClipboardCheck },
   { 
     label: 'Reports', 

@@ -302,6 +302,8 @@ export interface Booking {
   tickettype?: string;
   payment_status?: string;
   booked_type: 'online' | 'manualy'; // Added field
+  salesman_id?: number | string | null;
+  salesman_name?: string;
   scannedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -334,3 +336,28 @@ export interface VerificationLog {
     checking_by: string;
     eventName?: string;
 }
+
+// --- Salesman Related ---
+export interface Salesman {
+  id: string | number;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  code?: string | null;
+  status: 'active' | 'inactive';
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const SalesmanFormSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  name: z.string().min(2, "Salesman name must be at least 2 characters."),
+  phone: z.string().optional().or(z.literal('')),
+  email: z.string().email("Invalid email address.").optional().or(z.literal('')),
+  code: z.string().optional().or(z.literal('')),
+  status: z.enum(['active', 'inactive']).default('active'),
+  notes: z.string().optional().or(z.literal('')),
+});
+export type SalesmanFormData = z.infer<typeof SalesmanFormSchema>;
+
