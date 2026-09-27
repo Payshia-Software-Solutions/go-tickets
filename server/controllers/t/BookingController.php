@@ -16,7 +16,12 @@ use Dompdf\Options;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 
-require './vendor/autoload.php';
+$autoloadPath = dirname(__DIR__, 2) . '/vendor/autoload.php';
+if (file_exists($autoloadPath)) {
+    require_once $autoloadPath;
+} elseif (file_exists('./vendor/autoload.php')) {
+    require_once './vendor/autoload.php';
+}
 
 class BookingController
 {
