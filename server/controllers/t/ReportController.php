@@ -119,9 +119,11 @@ class ReportController
             $mail->addStringAttachment($pdfBytes, $pdfFilename, 'base64', 'application/pdf');
 
             // Set email subject & body
+            $subject = !empty($data['subject']) ? trim($data['subject']) : "Executive Event Report: {$eventName} - GoTickets.lk";
+            $mail->Subject = $subject;
             $mail->isHTML(true);
-            $mail->Subject = "Executive Event Report: {$eventName} - GoTickets.lk";
-            $mail->Body = $this->buildEmailBodyHtml($eventName, $pdfResult, $notes, $recipientName);
+            $mail->Body = $this->buildEmailBodyHtml($eventName, $pdfResult, $notes, $recipientName, $pdfFilename);
+            $mail->AltBody = "Executive Event Performance & Financial Report for {$eventName}. Please review the attached PDF document for full details.";
 
             $mail->send();
 
@@ -186,11 +188,36 @@ class ReportController
 
         $bookingTicketCountMap = [];
         $eventBookingIds = [];
+        $bookingTicketsDetailMap = [];
+
         foreach ($showtimes as $st) {
             $bId = $st['booking_id'];
             $eventBookingIds[$bId] = true;
             $qty = intval($st['ticket_count'] ?? 1);
             $bookingTicketCountMap[$bId] = ($bookingTicketCountMap[$bId] ?? 0) + $qty;
+
+            $ttId = $st['tickettype_id'] ?? 0;
+            $typeName = isset($ticketTypeMap[$ttId]) ? $ticketTypeMap[$ttId]['name'] : (!empty($st['ticket_type']) ? $st['ticket_type'] : "Tier #{$ttId}");
+            $price = isset($ticketTypeMap[$ttId]) ? floatval($ticketTypeMap[$ttId]['price']) : 0.0;
+
+            if (!isset($bookingTicketsDetailMap[$bId])) {
+                $bookingTicketsDetailMap[$bId] = [];
+            }
+            $bookingTicketsDetailMap[$bId][] = [
+                'type_id' => $ttId,
+                'name' => $typeName,
+                'count' => $qty,
+                'price' => $price,
+            ];
+        }
+
+        $bookingTicketsSummaryText = [];
+        foreach ($bookingTicketsDetailMap as $bId => $items) {
+            $parts = [];
+            foreach ($items as $item) {
+                $parts[] = "{$item['name']} (x{$item['count']})";
+            }
+            $bookingTicketsSummaryText[$bId] = implode(', ', $parts);
         }
 
         // 4. Fetch Bookings
@@ -214,12 +241,17 @@ class ReportController
         }
         $verifications = $vStmt->fetchAll(PDO::FETCH_ASSOC);
         $verifiedByTier = [];
+        $verifiedByBooking = [];
         $totalVerified = 0;
         foreach ($verifications as $v) {
             $qty = intval($v['ticket_count'] ?? 0);
             $totalVerified += $qty;
             $ttId = $v['tickettype_id'] ?? 0;
             $verifiedByTier[$ttId] = ($verifiedByTier[$ttId] ?? 0) + $qty;
+            $bId = $v['booking_id'] ?? 0;
+            if ($bId) {
+                $verifiedByBooking[$bId] = ($verifiedByBooking[$bId] ?? 0) + $qty;
+            }
         }
 
         // 7. Filter and categorize bookings
@@ -228,7 +260,7 @@ class ReportController
 
         foreach ($rawBookings as $b) {
             $bId = $b['id'];
-            $matchesEvent = $isAllEvents || isset($eventBookingIds[$bId]) || (isset($b['eventId']) && strval($b['eventId']) === strval($eventId));
+            $matchesEvent = $isAllEvents || isset($eventBookingIds[$bId]);
             if (!$matchesEvent) {
                 continue;
             }
@@ -271,18 +303,30 @@ class ReportController
                 $balance = 0.0; // Not a confirmed receivable at gate!
             }
 
+            $smId = $b['salesman_id'] ?? null;
+            $smRec = $smId && isset($salesmanMap[$smId]) ? $salesmanMap[$smId] : null;
+            $salesmanDisplayName = $bookedType === 'online'
+                ? 'Online Web'
+                : ($smRec ? $smRec['name'] . (!empty($smRec['code']) ? " ({$smRec['code']})" : "") : (!empty($b['salesman_name']) ? $b['salesman_name'] : 'Direct Counter'));
+
+            $ticketsSummary = $bookingTicketsSummaryText[$bId] ?? ($ticketCount > 0 ? "Standard Admission (x{$ticketCount})" : "General Admission");
+
             $enriched = [
                 'id' => $bId,
                 'customer_name' => trim(($b['first_name'] ?? '') . ' ' . ($b['last_name'] ?? '')) ?: ($b['userName'] ?? 'Guest'),
-                'contact' => $b['contact_number'] ?? $b['email'] ?? 'N/A',
+                'contact' => !empty($b['contact_number']) ? $b['contact_number'] : (!empty($b['email']) ? $b['email'] : 'N/A'),
+                'booking_date' => $b['bookingDate'] ?? $b['createdAt'] ?? 'N/A',
                 'category' => $category,
                 'booked_type' => $bookedType,
                 'gross' => $gross,
                 'collected' => $collected,
                 'balance' => $balance,
                 'ticket_count' => $ticketCount,
-                'salesman_id' => $b['salesman_id'] ?? null,
-                'salesman_name' => $b['salesman_name'] ?? null,
+                'verified_count' => $verifiedByBooking[$bId] ?? 0,
+                'salesman_id' => $smId,
+                'salesman_name' => $salesmanDisplayName,
+                'tickets_summary' => $ticketsSummary,
+                'tickets_detail' => $bookingTicketsDetailMap[$bId] ?? [],
             ];
 
             if ($category === 'online_incomplete') {
@@ -461,6 +505,8 @@ class ReportController
             'statusBreakdown' => $statusBreakdown,
             'salesAttribution' => $salesAttribution,
             'tierBreakdown' => $tierBreakdown,
+            'confirmedBookings' => $confirmedBookings,
+            'incompleteOnlineBookings' => $incompleteOnlineBookings,
         ]);
 
         // 10. Render with Dompdf
@@ -474,6 +520,13 @@ class ReportController
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
+        // Add dynamic page numbers across all pages!
+        $canvas = $dompdf->getCanvas();
+        $fontMetrics = $dompdf->getFontMetrics();
+        $font = $fontMetrics->get_font('Helvetica', 'normal');
+        $canvas->page_text(28, 818, "Official Event Performance & Financial Reconciliation Document • GoTickets.lk", $font, 7.5, [148/255, 163/255, 184/255]);
+        $canvas->page_text(515, 818, "Page {PAGE_NUM} of {PAGE_COUNT}", $font, 7.5, [148/255, 163/255, 184/255]);
+
         $pdfBytes = $dompdf->output();
 
         return [
@@ -481,16 +534,29 @@ class ReportController
             'event_name' => $eventName,
             'event_location' => $eventLocation,
             'event_date' => $eventDateStr,
+            'channel_filter' => $channelFilter,
+            'generated_at' => date('F j, Y, g:i A'),
             'totals' => [
                 'confirmedOrders' => $totConfirmedOrders,
+                'onlineConfirmed' => $totOnlineConfirmed,
+                'manualConfirmed' => $totManualConfirmed,
                 'confirmedTickets' => $totConfirmedTickets,
+                'commercialTickets' => $totCommercialTickets,
+                'compTickets' => $totCompTickets,
                 'grossRevenue' => $totGrossRevenue,
                 'collected' => $totCollected,
                 'haveToCollect' => $totHaveToCollect,
+                'waived' => $totWaived,
                 'collectionRate' => $collectionRate,
                 'totalVerified' => $totalVerified,
                 'checkInRate' => $checkInRate,
-            ]
+                'incompleteOrders' => $totIncompleteOnlineOrders,
+                'incompleteTickets' => $totIncompleteTickets,
+                'incompleteGross' => $totIncompleteGross,
+            ],
+            'statusBreakdown' => $statusBreakdown,
+            'salesAttribution' => $salesAttribution,
+            'tierBreakdown' => $tierBreakdown,
         ];
     }
 
@@ -509,6 +575,8 @@ class ReportController
         $sb = $data['statusBreakdown'];
         $sa = $data['salesAttribution'];
         $tb = $data['tierBreakdown'];
+        $confirmedBookings = $data['confirmedBookings'] ?? [];
+        $incompleteOnlineBookings = $data['incompleteOnlineBookings'] ?? [];
 
         ob_start();
         ?>
@@ -519,7 +587,7 @@ class ReportController
             <title>Event Performance & Financial Report - <?php echo $eventName; ?></title>
             <style>
                 @page {
-                    margin: 12mm 10mm 15mm 10mm;
+                    margin: 10mm 10mm 14mm 10mm;
                     size: a4 portrait;
                 }
                 body {
@@ -552,6 +620,23 @@ class ReportController
                     border-radius: 4px;
                     text-transform: uppercase;
                 }
+                .badge-blue { background-color: #dbeafe; color: #1e40af; }
+                .badge-gray { background-color: #f3f4f6; color: #374151; }
+                .badge-status {
+                    display: inline-block;
+                    padding: 1.5px 5px;
+                    border-radius: 3px;
+                    font-size: 7.5px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .status-paid { background-color: #dcfce7; color: #15803d; }
+                .status-partial { background-color: #dbeafe; color: #1e40af; }
+                .status-gate { background-color: #fef3c7; color: #b45309; }
+                .status-comp { background-color: #f3e8ff; color: #7e22ce; }
+                .status-incomplete { background-color: #f3f4f6; color: #6b7280; }
+
                 .doc-title {
                     font-size: 16px;
                     font-weight: bold;
@@ -603,12 +688,13 @@ class ReportController
                 }
 
                 .section-title {
-                    font-size: 12px;
+                    font-size: 11.5px;
                     font-weight: bold;
                     color: #1e293b;
                     margin: 12px 0 6px 0;
                     padding-bottom: 3px;
                     border-bottom: 1px solid #e2e8f0;
+                    page-break-after: avoid;
                 }
 
                 /* Standard Data Table */
@@ -616,7 +702,13 @@ class ReportController
                     width: 100%;
                     border-collapse: collapse;
                     margin-bottom: 12px;
-                    font-size: 10px;
+                    font-size: 9.5px;
+                }
+                .data-table thead {
+                    display: table-header-group;
+                }
+                .data-table tr {
+                    page-break-inside: avoid;
                 }
                 .data-table th {
                     background-color: #f1f5f9;
@@ -641,6 +733,23 @@ class ReportController
                     background-color: #fbfbfb;
                     color: #94a3b8;
                     font-style: italic;
+                }
+
+                /* Ledger Table Specifically for Page 2 */
+                .ledger-table {
+                    font-size: 8px;
+                }
+                .ledger-table th {
+                    background-color: #0f172a;
+                    color: #ffffff;
+                    font-size: 8px;
+                    padding: 4px 4px;
+                    border: 1px solid #1e293b;
+                }
+                .ledger-table td {
+                    padding: 3.5px 4px;
+                    font-size: 8px;
+                    border-bottom: 1px solid #e2e8f0;
                 }
 
                 .text-right { text-align: right; }
@@ -880,6 +989,204 @@ class ReportController
                 </tbody>
             </table>
 
+            <!-- Page 1 Document Footer -->
+            <table class="footer-table">
+                <tr>
+                    <td style="width: 60%;">
+                        Official Event Performance & Financial Reconciliation Document &bull; GoTickets.lk
+                    </td>
+                    <td style="width: 40%; text-align: right;">
+                        CONFIDENTIAL &bull; Page 1: Executive Audit Summary
+                    </td>
+                </tr>
+            </table>
+
+            <!-- ======================================================== -->
+            <!-- PAGE 2+: INDIVIDUAL BOOKING LEDGER & TICKET BREAKDOWN   -->
+            <!-- ======================================================== -->
+            <div style="page-break-before: always;"></div>
+
+            <!-- Page 2 Header Table -->
+            <table class="header-table">
+                <tr>
+                    <td style="width: 65%;">
+                        <span class="logo-text">GoTickets<span style="color: #2563eb;">.</span><span style="color: #f97316;">lk</span></span>
+                        &nbsp;<span class="badge" style="background-color: #f3e8ff; color: #7e22ce;">INDIVIDUAL BOOKING AUDIT</span>
+                        <div class="doc-title" style="font-size: 14px; margin-top: 3px;">
+                            Detailed Booking Ledger &bull; <?php echo $eventName; ?>
+                        </div>
+                        <div class="meta-text">
+                            <strong>Venue:</strong> <?php echo $eventLocation; ?> &nbsp;|&nbsp;
+                            <strong>Date:</strong> <?php echo $eventDateStr; ?>
+                        </div>
+                    </td>
+                    <td style="width: 35%; text-align: right; vertical-align: top;" class="meta-text">
+                        <div><strong>Scope:</strong> <?php echo $scope; ?> Channels</div>
+                        <div><strong>Confirmed Bookings:</strong> <?php echo count($confirmedBookings); ?> orders</div>
+                        <div><strong>Total Tickets:</strong> <?php echo number_format($t['confirmedTickets']); ?> admissions</div>
+                        <div><strong>Generated:</strong> <?php echo $generatedAt; ?></div>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="section-title">4. Individual Confirmed Booking Ledger (Booking-Wise Ticket Details)</div>
+            
+            <table class="data-table ledger-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#ID</th>
+                        <th style="width: 9%;">Date</th>
+                        <th style="width: 17%;">Customer Details</th>
+                        <th style="width: 12%;">Channel / Issuer</th>
+                        <th style="width: 23%;">Ticket Info (Tiers &amp; Qty)</th>
+                        <th class="text-center" style="width: 7%;">Gate</th>
+                        <th class="text-center" style="width: 8%;">Status</th>
+                        <th class="text-right" style="width: 7%;">Gross</th>
+                        <th class="text-right" style="width: 6%;">Paid</th>
+                        <th class="text-right" style="width: 6%;">Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($confirmedBookings)): ?>
+                    <tr>
+                        <td colspan="10" class="text-center" style="padding: 12px; color: #94a3b8;">
+                            No confirmed bookings found for the selected scope.
+                        </td>
+                    </tr>
+                    <?php else: ?>
+                        <?php foreach ($confirmedBookings as $b): 
+                            $statusStyle = 'status-paid';
+                            $statusText = 'PAID';
+                            if ($b['category'] === 'complimentary') {
+                                $statusStyle = 'status-comp';
+                                $statusText = 'COMP';
+                            } elseif ($b['category'] === 'partially_paid') {
+                                $statusStyle = 'status-partial';
+                                $statusText = 'PARTIAL';
+                            } elseif ($b['category'] === 'manual_pending') {
+                                $statusStyle = 'status-gate';
+                                $statusText = 'GATE PAY';
+                            }
+                            $dateFormatted = (!empty($b['booking_date']) && $b['booking_date'] !== 'N/A')
+                                ? date('M d, Y', strtotime($b['booking_date']))
+                                : '-';
+                            $scannedAll = ($b['verified_count'] >= $b['ticket_count'] && $b['ticket_count'] > 0);
+                        ?>
+                        <tr>
+                            <td><strong>#<?php echo $b['id']; ?></strong></td>
+                            <td style="color: #64748b; font-size: 8px;"><?php echo $dateFormatted; ?></td>
+                            <td>
+                                <strong><?php echo htmlspecialchars($b['customer_name']); ?></strong>
+                                <div style="font-size: 7.5px; color: #64748b;"><?php echo htmlspecialchars($b['contact']); ?></div>
+                            </td>
+                            <td>
+                                <span class="badge <?php echo $b['booked_type'] === 'online' ? 'badge-blue' : 'badge-gray'; ?>" style="font-size: 7.5px; padding: 1px 4px;">
+                                    <?php echo ucfirst($b['booked_type']); ?>
+                                </span>
+                                <div style="font-size: 7.5px; color: #475569; margin-top: 1px;"><?php echo htmlspecialchars($b['salesman_name']); ?></div>
+                            </td>
+                            <td>
+                                <div style="font-weight: bold; color: #0f172a; font-size: 8.5px;">
+                                    <?php echo htmlspecialchars($b['tickets_summary']); ?>
+                                </div>
+                                <div style="font-size: 7.5px; color: #64748b;">
+                                    Total: <?php echo $b['ticket_count']; ?> ticket<?php echo $b['ticket_count'] > 1 ? 's' : ''; ?>
+                                </div>
+                            </td>
+                            <td class="text-center" style="font-size: 8px; <?php echo $scannedAll ? 'color: #15803d; font-weight: bold;' : ($b['verified_count'] > 0 ? 'color: #2563eb; font-weight: bold;' : 'color: #94a3b8;'); ?>">
+                                <?php echo $b['verified_count']; ?> / <?php echo $b['ticket_count']; ?>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge-status <?php echo $statusStyle; ?>"><?php echo $statusText; ?></span>
+                            </td>
+                            <td class="text-right"><?php echo number_format($b['gross'], 2); ?></td>
+                            <td class="text-right text-green"><?php echo number_format($b['collected'], 2); ?></td>
+                            <td class="text-right <?php echo $b['balance'] > 0 ? 'text-amber' : ''; ?>">
+                                <?php echo $b['balance'] > 0 ? number_format($b['balance'], 2) : '-'; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <tr class="total-row">
+                            <td colspan="4">TOTAL CONFIRMED (<?php echo count($confirmedBookings); ?> BOOKINGS)</td>
+                            <td><strong><?php echo number_format($t['confirmedTickets']); ?> Tickets Issued</strong></td>
+                            <td class="text-center text-green"><?php echo number_format($t['totalVerified']); ?></td>
+                            <td class="text-center">-</td>
+                            <td class="text-right">LKR <?php echo number_format($t['grossRevenue'], 2); ?></td>
+                            <td class="text-right text-green">LKR <?php echo number_format($t['collected'], 2); ?></td>
+                            <td class="text-right <?php echo $t['haveToCollect'] > 0 ? 'text-amber' : ''; ?>">
+                                LKR <?php echo number_format($t['haveToCollect'], 2); ?>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+
+            <?php if (!empty($incompleteOnlineBookings)): ?>
+            <!-- ======================================================== -->
+            <!-- SECTION 5: INCOMPLETE / ABANDONED ONLINE CHECKOUTS AUDIT -->
+            <!-- ======================================================== -->
+            <div style="page-break-before: always;"></div>
+
+            <!-- Section 5 Header Table -->
+            <table class="header-table">
+                <tr>
+                    <td style="width: 65%;">
+                        <span class="logo-text">GoTickets<span style="color: #2563eb;">.</span><span style="color: #f97316;">lk</span></span>
+                        &nbsp;<span class="badge" style="background-color: #f1f5f9; color: #475569;">UNCONFIRMED CHECKOUTS AUDIT</span>
+                        <div class="doc-title" style="font-size: 14px; margin-top: 3px;">
+                            Abandoned Online Checkouts &bull; <?php echo $eventName; ?>
+                        </div>
+                        <div class="meta-text">
+                            <strong>Audit Scope:</strong> Web checkout sessions where customer initiated booking but payment was not completed.
+                        </div>
+                    </td>
+                    <td style="width: 35%; text-align: right; vertical-align: top;" class="meta-text">
+                        <div><strong>Total Incomplete Sessions:</strong> <?php echo count($incompleteOnlineBookings); ?> attempts</div>
+                        <div><strong>Attempted Tickets:</strong> <?php echo number_format($t['incompleteTickets']); ?> tickets</div>
+                        <div><strong>Attempted Gross:</strong> LKR <?php echo number_format($t['incompleteGross'], 2); ?></div>
+                        <div><strong>Status:</strong> Unconfirmed &bull; No Tickets Issued</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="section-title">5. Incomplete / Abandoned Online Checkouts (Payment Not Made &bull; Unconfirmed)</div>
+            
+            <table class="data-table ledger-table">
+                <thead>
+                    <tr style="background-color: #f8fafc;">
+                        <th style="width: 6%;">#ID</th>
+                        <th style="width: 11%;">Attempt Date</th>
+                        <th style="width: 24%;">Customer Details</th>
+                        <th style="width: 33%;">Attempted Ticket Types</th>
+                        <th class="text-center" style="width: 8%;">Tickets</th>
+                        <th class="text-right" style="width: 18%;">Attempted Gross</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($incompleteOnlineBookings as $ib): ?>
+                    <tr class="abandoned-row">
+                        <td>#<?php echo $ib['id']; ?></td>
+                        <td><?php echo (!empty($ib['booking_date']) && $ib['booking_date'] !== 'N/A') ? date('M d, Y', strtotime($ib['booking_date'])) : '-'; ?></td>
+                        <td><?php echo htmlspecialchars($ib['customer_name']); ?> (<?php echo htmlspecialchars($ib['contact']); ?>)</td>
+                        <td><?php echo htmlspecialchars($ib['tickets_summary']); ?></td>
+                        <td class="text-center"><?php echo $ib['ticket_count']; ?></td>
+                        <td class="text-right">LKR <?php echo number_format($ib['gross'], 2); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <tr class="total-row">
+                        <td colspan="4">TOTAL UNCONFIRMED ATTEMPTS (<?php echo count($incompleteOnlineBookings); ?> SESSIONS)</td>
+                        <td class="text-center"><?php echo number_format($t['incompleteTickets']); ?></td>
+                        <td class="text-right">LKR <?php echo number_format($t['incompleteGross'], 2); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Accounting note for Section 5 -->
+            <div class="notice-box" style="margin-top: 6px;">
+                <strong>Accounting & Admissions Note:</strong> The above incomplete online checkouts represent abandoned shopping carts. Payment was NOT settled by the customer, tickets and admission QR codes were NOT issued, and these amounts are NOT counted in confirmed event revenue or gate receivables.
+            </div>
+            <?php endif; ?>
+
             <!-- Document Footer -->
             <table class="footer-table">
                 <tr>
@@ -900,65 +1207,310 @@ class ReportController
     /**
      * Professional HTML email briefing for Directors & Management
      */
-    private function buildEmailBodyHtml($eventName, $pdfResult, $notes, $recipientName)
+    private function buildEmailBodyHtml($eventName, $pdfResult, $notes, $recipientName, $pdfFilename = '')
     {
         $t = $pdfResult['totals'];
-        $notesHtml = !empty($notes) ? "
-            <div style='background-color: #f1f5f9; border-left: 4px solid #2563eb; padding: 12px 16px; margin: 16px 0; border-radius: 4px; font-size: 13px; color: #334155;'>
-                <strong>Sender Note:</strong><br>" . nl2br(htmlspecialchars($notes)) . "
-            </div>" : "";
+        $sb = $pdfResult['statusBreakdown'] ?? [];
+        $sa = $pdfResult['salesAttribution'] ?? [];
+        $location = htmlspecialchars($pdfResult['event_location'] ?? 'Venue N/A');
+        $dateStr = htmlspecialchars($pdfResult['event_date'] ?? 'Date N/A');
+        $channelScope = ucfirst(htmlspecialchars($pdfResult['channel_filter'] ?? 'all'));
+        $generatedAt = htmlspecialchars($pdfResult['generated_at'] ?? date('F j, Y, g:i A'));
+
+        if (empty($pdfFilename)) {
+            $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $eventName);
+            $pdfFilename = "GoTickets_Report_{$safeName}_" . date('Y-m-d') . ".pdf";
+        }
+
+        $notesBlock = !empty($notes) ? "
+            <table width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f8fafc; border-left: 4px solid #2563eb; border-radius: 6px; margin: 18px 0; border: 1px solid #e2e8f0; border-left-width: 4px;'>
+                <tr>
+                    <td style='padding: 14px 18px;'>
+                        <div style='font-size: 11px; font-weight: 800; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;'>Message from Sender:</div>
+                        <div style='font-size: 13px; line-height: 1.6; color: #1e293b;'>" . nl2br(htmlspecialchars($notes)) . "</div>
+                    </td>
+                </tr>
+            </table>" : "";
+
+        // Status Breakdown Rows
+        $sbRowsHtml = '';
+        if (!empty($sb)) {
+            $statusLabels = [
+                'paid' => ['name' => 'Paid in Full', 'color' => '#16a34a'],
+                'partially_paid' => ['name' => 'Partially Paid (Advance)', 'color' => '#2563eb'],
+                'manual_pending' => ['name' => 'Manual Reserved (Gate Due)', 'color' => '#d97706'],
+                'complimentary' => ['name' => 'Complimentary Passes (Free)', 'color' => '#7c3aed'],
+            ];
+
+            foreach ($statusLabels as $sKey => $sMeta) {
+                if (isset($sb[$sKey])) {
+                    $row = $sb[$sKey];
+                    $sbRowsHtml .= "
+                    <tr>
+                        <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #1e293b;'>
+                            <strong style='color: {$sMeta['color']};'>&bull;</strong> <strong>{$sMeta['name']}</strong>
+                        </td>
+                        <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center; color: #334155;'>" . number_format($row['tickets']) . "</td>
+                        <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; color: #334155;'>LKR " . number_format($row['gross'], 2) . "</td>
+                        <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: 600; color: #16a34a;'>LKR " . number_format($row['collected'], 2) . "</td>
+                        <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: 600; color: " . ($row['balance'] > 0 ? '#d97706' : '#64748b') . ";'>LKR " . number_format($row['balance'], 2) . "</td>
+                    </tr>";
+                }
+            }
+
+            // Incomplete Online Checkouts
+            if (isset($sb['online_incomplete']) && $sb['online_incomplete']['count'] > 0) {
+                $row = $sb['online_incomplete'];
+                $sbRowsHtml .= "
+                <tr style='background-color: #fafaf9;'>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;'>
+                        <strong style='color: #94a3b8;'>&bull;</strong> Incomplete Web Checkouts <span style='font-size: 10px;'>(Abandoned)</span>
+                    </td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-align: center; color: #94a3b8;'>" . number_format($row['tickets']) . "</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-align: right; color: #94a3b8;'>LKR " . number_format($row['gross'], 2) . "</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-align: right; color: #94a3b8;'>LKR 0.00</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-align: right; font-style: italic; color: #94a3b8;'>Unconfirmed</td>
+                </tr>";
+            }
+        }
+
+        // Sales Attribution Rows
+        $saRowsHtml = '';
+        if (!empty($sa)) {
+            foreach ($sa as $agent) {
+                $channelBadge = ($agent['channel'] === 'Online')
+                    ? "<span style='background-color: #dbeafe; color: #1e40af; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold;'>ONLINE</span>"
+                    : "<span style='background-color: #f3f4f6; color: #374151; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold;'>COUNTER</span>";
+
+                $saRowsHtml .= "
+                <tr>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #1e293b;'>
+                        <strong>" . htmlspecialchars($agent['name']) . "</strong>
+                    </td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-align: center;'>{$channelBadge}</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center; color: #334155;'>" . number_format($agent['orders']) . "</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center; color: #334155;'>" . number_format($agent['tickets']) . "</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: 600; color: #16a34a;'>LKR " . number_format($agent['collected'], 2) . "</td>
+                    <td style='padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: right; font-weight: 600; color: " . ($agent['balance'] > 0 ? '#d97706' : '#64748b') . ";'>LKR " . number_format($agent['balance'], 2) . "</td>
+                </tr>";
+            }
+        }
 
         return "
-        <div style='font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;'>
-            <div style='background-color: #2563eb; padding: 24px; text-align: center; color: #ffffff;'>
-                <h1 style='margin: 0; font-size: 22px; font-weight: bold;'>GoTickets.lk</h1>
-                <p style='margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;'>Official Event Performance & Financial Audit</p>
-            </div>
-            <div style='padding: 24px; color: #1e293b;'>
-                <p style='font-size: 15px; margin-top: 0;'>Dear " . htmlspecialchars($recipientName) . ",</p>
-                <p style='font-size: 14px; line-height: 1.5;'>Please find attached the official <strong>Event Performance & Financial Audit Report</strong> for <strong>" . htmlspecialchars($eventName) . "</strong>.</p>
-                
-                {$notesHtml}
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Event Performance & Financial Briefing - {$eventName}</title>
+</head>
+<body style='margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; color: #1e293b; -webkit-font-smoothing: antialiased;'>
+    <table width='100%' border='0' cellspacing='0' cellpadding='0' style='background-color: #f1f5f9; padding: 32px 12px;'>
+        <tr>
+            <td align='center'>
+                <table width='100%' border='0' cellspacing='0' cellpadding='0' style='max-width: 650px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0;'>
+                    
+                    <!-- Header Obsidian Banner -->
+                    <tr>
+                        <td style='background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 28px 32px 24px 32px;'>
+                            <table width='100%' border='0' cellspacing='0' cellpadding='0'>
+                                <tr>
+                                    <td>
+                                        <div style='font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;'>
+                                            GoTickets<span style='color: #2563eb;'>.</span><span style='color: #f97316;'>lk</span>
+                                        </div>
+                                        <div style='color: #94a3b8; font-size: 11px; margin-top: 3px; letter-spacing: 0.6px; text-transform: uppercase;'>
+                                            Executive Financial &amp; Attendance Briefing
+                                        </div>
+                                    </td>
+                                    <td align='right' style='vertical-align: top;'>
+                                        <div style='display: inline-block; background-color: rgba(37,99,235,0.25); color: #93c5fd; border: 1px solid rgba(147,197,253,0.3); font-size: 9px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;'>
+                                            CONFIDENTIAL AUDIT
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-                <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;'>
-                    <h3 style='margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; color: #475569; letter-spacing: 0.5px;'>Executive Financial Snapshot</h3>
-                    <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Confirmed Orders:</td>
-                            <td style='padding: 6px 0; font-weight: bold; text-align: right;'>" . number_format($t['confirmedOrders']) . " orders</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Confirmed Tickets:</td>
-                            <td style='padding: 6px 0; font-weight: bold; text-align: right;'>" . number_format($t['confirmedTickets']) . " admissions</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Confirmed Gross Value:</td>
-                            <td style='padding: 6px 0; font-weight: bold; color: #2563eb; text-align: right;'>LKR " . number_format($t['grossRevenue'], 2) . "</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Revenue Collected:</td>
-                            <td style='padding: 6px 0; font-weight: bold; color: #16a34a; text-align: right;'>LKR " . number_format($t['collected'], 2) . " (" . number_format($t['collectionRate'], 1) . "% Realized)</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Have To Collect (Gate Due):</td>
-                            <td style='padding: 6px 0; font-weight: bold; color: #d97706; text-align: right;'>LKR " . number_format($t['haveToCollect'], 2) . "</td>
-                        </tr>
-                        <tr>
-                            <td style='padding: 6px 0; color: #64748b;'>Gate Check-in Progress:</td>
-                            <td style='padding: 6px 0; font-weight: bold; text-align: right;'>" . number_format($t['totalVerified']) . " / " . number_format($t['confirmedTickets']) . " (" . number_format($t['checkInRate'], 1) . "%)</td>
-                        </tr>
-                    </table>
-                </div>
+                    <!-- Event Title & Info Header Bar -->
+                    <tr>
+                        <td style='background-color: #f8fafc; padding: 18px 32px; border-bottom: 2px solid #2563eb;'>
+                            <div style='font-size: 21px; font-weight: 800; color: #0f172a; margin-bottom: 6px;'>
+                                {$eventName}
+                            </div>
+                            <table width='100%' border='0' cellspacing='0' cellpadding='0' style='font-size: 12px; color: #64748b; line-height: 1.6;'>
+                                <tr>
+                                    <td>📍 <strong>Venue:</strong> {$location}</td>
+                                    <td align='right'>📅 <strong>Date:</strong> {$dateStr}</td>
+                                </tr>
+                                <tr>
+                                    <td>🏷️ <strong>Channel Scope:</strong> {$channelScope}</td>
+                                    <td align='right'>⏱️ <strong>Audited:</strong> {$generatedAt}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-                <p style='font-size: 13px; color: #64748b;'>The full detailed reconciliation, payment category breakdown, salesman attribution, and ticket tier sales are available in the attached PDF document.</p>
-                
-                <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;'>
-                <p style='font-size: 12px; color: #94a3b8; margin: 0;'>
-                    Sent securely via GoTickets.lk Automated Event Reporting System.<br>
-                    Silver Ray, Dippitigala, Lellopitiya, Ratnapura, Sri Lanka. Hotline: +94 71 875 0770
-                </p>
-            </div>
-        </div>
-        ";
+                    <!-- Main Email Content -->
+                    <tr>
+                        <td style='padding: 28px 32px;'>
+                            <p style='font-size: 15px; margin: 0 0 12px 0; color: #0f172a;'>
+                                Dear <strong>" . htmlspecialchars($recipientName) . "</strong>,
+                            </p>
+                            
+                            <p style='font-size: 13px; line-height: 1.6; color: #334155; margin: 0 0 16px 0;'>
+                                Please find below the executive summary and financial performance briefing for <strong>{$eventName}</strong>. A complete, vector-quality official reconciliation report generated via Dompdf is attached to this email for your audit and archival.
+                            </p>
+
+                            {$notesBlock}
+
+                            <!-- 4 KPI Metrics Grid -->
+                            <div style='margin: 22px 0;'>
+                                <table width='100%' border='0' cellspacing='8' cellpadding='0'>
+                                    <tr>
+                                        <!-- KPI 1: Gross Sales -->
+                                        <td width='50%' style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;'>
+                                            <div style='font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;'>
+                                                Gross Confirmed Value
+                                            </div>
+                                            <div style='font-size: 18px; font-weight: 800; color: #0f172a; margin: 4px 0 2px 0;'>
+                                                LKR " . number_format($t['grossRevenue'], 2) . "
+                                            </div>
+                                            <div style='font-size: 11px; color: #64748b;'>
+                                                " . number_format($t['confirmedOrders']) . " orders &bull; " . number_format($t['confirmedTickets']) . " admissions
+                                            </div>
+                                        </td>
+                                        <!-- KPI 2: Revenue Collected -->
+                                        <td width='50%' style='background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px;'>
+                                            <div style='font-size: 10px; font-weight: 800; text-transform: uppercase; color: #166534; letter-spacing: 0.5px;'>
+                                                Revenue Realized (Collected)
+                                            </div>
+                                            <div style='font-size: 18px; font-weight: 800; color: #15803d; margin: 4px 0 2px 0;'>
+                                                LKR " . number_format($t['collected'], 2) . "
+                                            </div>
+                                            <div style='font-size: 11px; color: #166534; font-weight: 600;'>
+                                                " . number_format($t['collectionRate'], 1) . "% Cleared &amp; Realized
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <!-- KPI 3: Have To Collect -->
+                                        <td width='50%' style='background-color: " . ($t['haveToCollect'] > 0 ? '#fffbeb' : '#f0fdf4') . "; border: 1px solid " . ($t['haveToCollect'] > 0 ? '#fde68a' : '#bbf7d0') . "; border-radius: 8px; padding: 14px;'>
+                                            <div style='font-size: 10px; font-weight: 800; text-transform: uppercase; color: " . ($t['haveToCollect'] > 0 ? '#92400e' : '#166534') . "; letter-spacing: 0.5px;'>
+                                                Have To Collect (Gate Due)
+                                            </div>
+                                            <div style='font-size: 18px; font-weight: 800; color: " . ($t['haveToCollect'] > 0 ? '#b45309' : '#15803d') . "; margin: 4px 0 2px 0;'>
+                                                LKR " . number_format($t['haveToCollect'], 2) . "
+                                            </div>
+                                            <div style='font-size: 11px; color: " . ($t['haveToCollect'] > 0 ? '#92400e' : '#166534') . ";'>
+                                                " . ($t['haveToCollect'] > 0 ? 'Pending counter / gate collection' : '100% Fully Settled') . "
+                                            </div>
+                                        </td>
+                                        <!-- KPI 4: Gate Scanned -->
+                                        <td width='50%' style='background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px;'>
+                                            <div style='font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1e40af; letter-spacing: 0.5px;'>
+                                                Gate Admissions Scanned
+                                            </div>
+                                            <div style='font-size: 18px; font-weight: 800; color: #1d4ed8; margin: 4px 0 2px 0;'>
+                                                " . number_format($t['totalVerified']) . " / " . number_format($t['confirmedTickets']) . "
+                                            </div>
+                                            <div style='font-size: 11px; color: #1e40af; font-weight: 600;'>
+                                                " . number_format($t['checkInRate'], 1) . "% Attendance Turnout
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- Financial Breakdown Table -->
+                            <div style='margin: 26px 0 18px 0;'>
+                                <div style='font-size: 12px; font-weight: 800; text-transform: uppercase; color: #334155; letter-spacing: 0.5px; margin-bottom: 8px;'>
+                                    1. Payment Status &amp; Category Reconciliation
+                                </div>
+                                <table width='100%' border='0' cellspacing='0' cellpadding='0' style='border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;'>
+                                    <thead>
+                                        <tr style='background-color: #f1f5f9;'>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: left; color: #475569; border-bottom: 1px solid #cbd5e1;'>Category</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: center; color: #475569; border-bottom: 1px solid #cbd5e1;'>Tickets</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: right; color: #475569; border-bottom: 1px solid #cbd5e1;'>Gross Value</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: right; color: #475569; border-bottom: 1px solid #cbd5e1;'>Collected</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: right; color: #475569; border-bottom: 1px solid #cbd5e1;'>Gate Due</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {$sbRowsHtml}
+                                        <tr style='background-color: #f8fafc; font-weight: 700;'>
+                                            <td style='padding: 9px 10px; font-size: 12px; color: #0f172a; border-top: 2px solid #cbd5e1;'>TOTAL CONFIRMED</td>
+                                            <td style='padding: 9px 10px; font-size: 12px; text-align: center; color: #0f172a; border-top: 2px solid #cbd5e1;'>" . number_format($t['confirmedTickets']) . "</td>
+                                            <td style='padding: 9px 10px; font-size: 12px; text-align: right; color: #0f172a; border-top: 2px solid #cbd5e1;'>LKR " . number_format($t['grossRevenue'], 2) . "</td>
+                                            <td style='padding: 9px 10px; font-size: 12px; text-align: right; color: #16a34a; border-top: 2px solid #cbd5e1;'>LKR " . number_format($t['collected'], 2) . "</td>
+                                            <td style='padding: 9px 10px; font-size: 12px; text-align: right; color: " . ($t['haveToCollect'] > 0 ? '#d97706' : '#64748b') . "; border-top: 2px solid #cbd5e1;'>LKR " . number_format($t['haveToCollect'], 2) . "</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Sales Channel Attribution Table -->
+                            " . (!empty($saRowsHtml) ? "
+                            <div style='margin: 24px 0 18px 0;'>
+                                <div style='font-size: 12px; font-weight: 800; text-transform: uppercase; color: #334155; letter-spacing: 0.5px; margin-bottom: 8px;'>
+                                    2. Sales Channel &amp; Salesman Performance
+                                </div>
+                                <table width='100%' border='0' cellspacing='0' cellpadding='0' style='border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;'>
+                                    <thead>
+                                        <tr style='background-color: #f1f5f9;'>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: left; color: #475569; border-bottom: 1px solid #cbd5e1;'>Channel / Rep</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: center; color: #475569; border-bottom: 1px solid #cbd5e1;'>Type</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: center; color: #475569; border-bottom: 1px solid #cbd5e1;'>Orders</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: center; color: #475569; border-bottom: 1px solid #cbd5e1;'>Tickets</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: right; color: #475569; border-bottom: 1px solid #cbd5e1;'>Collected</th>
+                                            <th style='padding: 8px 10px; font-size: 11px; font-weight: 700; text-align: right; color: #475569; border-bottom: 1px solid #cbd5e1;'>Gate Due</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {$saRowsHtml}
+                                    </tbody>
+                                </table>
+                            </div>" : "") . "
+
+                            <!-- PDF Attachment Callout Box -->
+                            <table width='100%' border='0' cellspacing='0' cellpadding='0' style='background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #bfdbfe; border-radius: 8px; margin: 24px 0;'>
+                                <tr>
+                                    <td width='48' style='padding: 16px 0 16px 16px; vertical-align: middle;'>
+                                        <div style='background-color: #ef4444; color: #ffffff; font-size: 11px; font-weight: 800; padding: 10px 8px; border-radius: 6px; text-align: center; letter-spacing: 0.5px;'>PDF</div>
+                                    </td>
+                                    <td style='padding: 16px; vertical-align: middle;'>
+                                        <div style='font-size: 13px; font-weight: 700; color: #1e3a8a;'>Attached Document: {$pdfFilename}</div>
+                                        <div style='font-size: 11px; color: #2563eb; margin-top: 3px;'>Official Dompdf Vector Document &bull; Full Financial Reconciliation, Salesman Attribution &amp; Ticket Tier Audit</div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div style='border-top: 1px solid #e2e8f0; padding-top: 18px; font-size: 13px; color: #64748b; line-height: 1.5;'>
+                                <p style='margin: 0 0 2px 0;'>Sincerely,</p>
+                                <p style='margin: 0; font-weight: 700; color: #0f172a;'>GoTickets.lk Operations &amp; Finance</p>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style='background-color: #0f172a; padding: 22px 32px; text-align: center; color: #94a3b8; font-size: 11px; line-height: 1.6;'>
+                            <div style='color: #ffffff; font-weight: 700; font-size: 12px; margin-bottom: 4px;'>
+                                GoTickets.lk &bull; Grand Silver Ray
+                            </div>
+                            <div>Silver Ray, Dippitigala, Lellopitiya, Ratnapura, Sri Lanka</div>
+                            <div>Hotline: <strong style='color: #ffffff;'>+94 71 875 0770</strong> &nbsp;|&nbsp; Support: <strong style='color: #ffffff;'>support@gotickets.lk</strong></div>
+                            <div style='margin-top: 8px; color: #64748b; font-size: 10px;'>This email and attached audit document are confidential and intended solely for authorized management.</div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+";
     }
 }

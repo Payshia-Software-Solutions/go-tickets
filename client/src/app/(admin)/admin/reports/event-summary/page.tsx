@@ -105,6 +105,7 @@ export default function EventSummaryReportPage() {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('Director / Management');
+  const [emailSubject, setEmailSubject] = useState('');
   const [emailNotes, setEmailNotes] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
@@ -817,6 +818,7 @@ export default function EventSummaryReportPage() {
           channel: channelFilter,
           recipient_email: recipientEmail,
           recipient_name: recipientName,
+          subject: emailSubject || undefined,
           notes: emailNotes,
         }),
       });
@@ -875,7 +877,10 @@ export default function EventSummaryReportPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsEmailDialogOpen(true)}
+              onClick={() => {
+                setEmailSubject(`Executive Event Report: ${reportData?.event?.name || 'Consolidated Overview'} - GoTickets.lk`);
+                setIsEmailDialogOpen(true);
+              }}
               className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
             >
               <Mail className="mr-2 h-4 w-4 text-blue-600" />
@@ -1975,6 +1980,15 @@ export default function EventSummaryReportPage() {
                 >
                   + reservation@silverray.lk
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[11px] px-2 text-primary"
+                  onClick={() => setRecipientEmail('thilinaruwan112@gmail.com')}
+                >
+                  + thilinaruwan112@gmail.com
+                </Button>
               </div>
             </div>
 
@@ -1986,6 +2000,17 @@ export default function EventSummaryReportPage() {
                 placeholder="Director / Management"
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase text-muted-foreground">
+                Email Subject
+              </label>
+              <Input
+                placeholder="e.g. Executive Event Report: Oktoberfest 2026 - GoTickets.lk"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
               />
             </div>
 
