@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -41,11 +40,11 @@ import {
   Loader2,
   Calendar,
   MapPin,
-  RefreshCw,
   Percent,
   Briefcase,
   Receipt,
-  Layers,
+  XCircle,
+  Info,
 } from 'lucide-react';
 import { TICKET_TYPES_API_URL, API_BASE_URL } from '@/lib/constants';
 
@@ -53,11 +52,18 @@ const VERIFICATIONS_API_URL = `${API_BASE_URL}/tickets-verifications/`;
 const BOOKING_SHOWTIMES_API_URL = `${API_BASE_URL}/booking-showtimes`;
 const ITEMS_PER_PAGE = 10;
 
+export type ComputedBookingStatus =
+  | 'paid'
+  | 'partially_paid'
+  | 'manual_pending'
+  | 'online_incomplete'
+  | 'complimentary';
+
 // Enriched Booking with pre-computed financial and attribution fields
 export interface EnrichedBooking extends Booking {
   ticketCount: number;
   ticketTypeNames: string[];
-  computedStatus: 'paid' | 'partially_paid' | 'pending' | 'complimentary';
+  computedStatus: ComputedBookingStatus;
   grossAmount: number;
   collectedAmount: number;
   balanceAmount: number;
@@ -203,22 +209,31 @@ export default function EventSummaryReportPage() {
         return matchesEvent && matchesChannel;
       });
 
-      // 4. Enrich every booking with accurate financial & status calculations
+      // 4. Enrich every booking with accurate business logic:
+      // - Online pending bookings = Incomplete / abandoned checkout (customer never paid, no tickets issued, not a gate receivable)
+      // - Manual pending bookings = Reserved at counter / pay on arrival (real receivable for gate/counter)
+      // - Partially paid = Manual advance paid, balance due at gate
+      // - Paid = 100% Cleared
+      // - Complimentary = 100% Waived free pass
       const enrichedBookings: EnrichedBooking[] = filteredRawBookings.map((b) => {
         const isComp =
           (b.payment_method || '').toLowerCase() === 'complimentary' ||
           (b.payment_status || '').toLowerCase() === 'complimentary';
         const rawStatus = (b.payment_status || 'pending').toLowerCase();
 
-        let computedStatus: 'paid' | 'partially_paid' | 'pending' | 'complimentary' = 'pending';
+        let computedStatus: ComputedBookingStatus = 'online_incomplete';
         if (isComp) {
           computedStatus = 'complimentary';
         } else if (rawStatus === 'paid') {
           computedStatus = 'paid';
         } else if (rawStatus === 'partially_paid') {
           computedStatus = 'partially_paid';
+        } else if (b.booked_type === 'manualy') {
+          // Manual counter order pending payment (Pay on Arrival / Reserved at counter)
+          computedStatus = 'manual_pending';
         } else {
-          computedStatus = 'pending';
+          // Online checkout started by customer on web but payment was NOT completed
+          computedStatus = 'online_incomplete';
         }
 
         const showData = showtimeMap.get(String(b.id));
@@ -253,10 +268,14 @@ export default function EventSummaryReportPage() {
             b.balance_amount !== undefined && Number(b.balance_amount) > 0
               ? Number(b.balance_amount)
               : Math.max(0, gross - collected);
-        } else {
-          // pending / unpaid - full gross value minus any recorded deposit is to be collected
+        } else if (computedStatus === 'manual_pending') {
+          // Manual counter reservation to collect at the counter/gate
           collected = Number(b.amount_paid || 0);
           balance = Math.max(0, gross - collected);
+        } else {
+          // online_incomplete: Customer abandoned web payment; no funds received, not an active gate receivable!
+          collected = 0;
+          balance = 0;
         }
 
         // Salesman & channel resolution
@@ -348,16 +367,20 @@ export default function EventSummaryReportPage() {
   const reportTotals = useMemo(() => {
     if (!reportData) {
       return {
-        totalBookings: 0,
-        onlineBookings: 0,
+        confirmedBookings: 0,
+        onlineConfirmedBookings: 0,
         manualBookings: 0,
-        totalTickets: 0,
+        onlineIncompleteBookings: 0,
+        totalBookings: 0,
+        confirmedTickets: 0,
         paidTickets: 0,
         complimentaryTickets: 0,
+        incompleteTickets: 0,
         totalRevenue: 0,
         collectedRevenue: 0,
         haveToCollectRevenue: 0,
         waivedRevenue: 0,
+        incompleteAttemptedRevenue: 0,
         collectionRate: 0,
         totalVerified: 0,
         totalUnverified: 0,
@@ -365,32 +388,45 @@ export default function EventSummaryReportPage() {
       };
     }
 
-    let onlineBookings = 0;
+    let confirmedBookings = 0;
+    let onlineConfirmedBookings = 0;
     let manualBookings = 0;
-    let totalTickets = 0;
+    let onlineIncompleteBookings = 0;
+
+    let confirmedTickets = 0;
     let paidTickets = 0;
     let complimentaryTickets = 0;
-    let totalRevenue = 0;
+    let incompleteTickets = 0;
+
+    let totalRevenue = 0; // Confirmed gross commercial value
     let collectedRevenue = 0;
-    let haveToCollectRevenue = 0;
+    let haveToCollectRevenue = 0; // Real receivables at counter/gate
     let waivedRevenue = 0;
+    let incompleteAttemptedRevenue = 0; // Incomplete online checkouts value
 
     reportData.allBookings.forEach((b) => {
-      if (b.channelName === 'Online') {
-        onlineBookings++;
+      if (b.computedStatus === 'online_incomplete') {
+        onlineIncompleteBookings++;
+        incompleteTickets += b.ticketCount;
+        incompleteAttemptedRevenue += b.grossAmount;
       } else {
-        manualBookings++;
-      }
-      totalTickets += b.ticketCount;
+        confirmedBookings++;
+        if (b.channelName === 'Online') {
+          onlineConfirmedBookings++;
+        } else {
+          manualBookings++;
+        }
+        confirmedTickets += b.ticketCount;
 
-      if (b.computedStatus === 'complimentary') {
-        complimentaryTickets += b.ticketCount;
-        waivedRevenue += b.grossAmount;
-      } else {
-        paidTickets += b.ticketCount;
-        totalRevenue += b.grossAmount;
-        collectedRevenue += b.collectedAmount;
-        haveToCollectRevenue += b.balanceAmount;
+        if (b.computedStatus === 'complimentary') {
+          complimentaryTickets += b.ticketCount;
+          waivedRevenue += b.grossAmount;
+        } else {
+          paidTickets += b.ticketCount;
+          totalRevenue += b.grossAmount;
+          collectedRevenue += b.collectedAmount;
+          haveToCollectRevenue += b.balanceAmount;
+        }
       }
     });
 
@@ -398,21 +434,25 @@ export default function EventSummaryReportPage() {
       (sum, v) => sum + (v.ticket_count || 0),
       0
     );
-    const totalUnverified = Math.max(0, totalTickets - totalVerified);
-    const checkInRate = totalTickets > 0 ? (totalVerified / totalTickets) * 100 : 0;
+    const totalUnverified = Math.max(0, confirmedTickets - totalVerified);
+    const checkInRate = confirmedTickets > 0 ? (totalVerified / confirmedTickets) * 100 : 0;
     const collectionRate = totalRevenue > 0 ? (collectedRevenue / totalRevenue) * 100 : 0;
 
     return {
-      totalBookings: reportData.allBookings.length,
-      onlineBookings,
+      confirmedBookings,
+      onlineConfirmedBookings,
       manualBookings,
-      totalTickets,
+      onlineIncompleteBookings,
+      totalBookings: reportData.allBookings.length,
+      confirmedTickets,
       paidTickets,
       complimentaryTickets,
+      incompleteTickets,
       totalRevenue,
       collectedRevenue,
       haveToCollectRevenue,
       waivedRevenue,
+      incompleteAttemptedRevenue,
       collectionRate,
       totalVerified,
       totalUnverified,
@@ -426,22 +466,46 @@ export default function EventSummaryReportPage() {
   const paymentStatusSummary = useMemo(() => {
     if (!reportData) return [];
 
-    const statuses: Array<'paid' | 'partially_paid' | 'pending' | 'complimentary'> = [
-      'paid',
-      'partially_paid',
-      'pending',
-      'complimentary',
+    const configs: Array<{
+      status: ComputedBookingStatus;
+      label: string;
+      description: string;
+      isConfirmed: boolean;
+    }> = [
+      {
+        status: 'paid',
+        label: 'Paid in Full',
+        description: 'Confirmed & 100% Cleared',
+        isConfirmed: true,
+      },
+      {
+        status: 'partially_paid',
+        label: 'Partially Paid (Advance Deposit)',
+        description: 'Advance received; balance due at counter/gate',
+        isConfirmed: true,
+      },
+      {
+        status: 'manual_pending',
+        label: 'Manual Reserved / Pay on Arrival',
+        description: 'Reserved at counter; full payment due at gate',
+        isConfirmed: true,
+      },
+      {
+        status: 'complimentary',
+        label: 'Complimentary Free Passes',
+        description: 'Free VIP / Guest passes; 100% waived',
+        isConfirmed: true,
+      },
+      {
+        status: 'online_incomplete',
+        label: 'Incomplete Online Checkouts (Payment Not Done)',
+        description: 'Abandoned web payment; unconfirmed & no tickets issued',
+        isConfirmed: false,
+      },
     ];
 
-    const labels = {
-      paid: 'Paid in Full',
-      partially_paid: 'Partially Paid (Advance Deposit)',
-      pending: 'Pending / Not Paid',
-      complimentary: 'Complimentary Free Passes',
-    };
-
-    return statuses.map((st) => {
-      const subset = reportData.allBookings.filter((b) => b.computedStatus === st);
+    return configs.map((cfg) => {
+      const subset = reportData.allBookings.filter((b) => b.computedStatus === cfg.status);
       const count = subset.length;
       const tickets = subset.reduce((sum, b) => sum + b.ticketCount, 0);
       const grossAmount = subset.reduce((sum, b) => sum + b.grossAmount, 0);
@@ -449,8 +513,10 @@ export default function EventSummaryReportPage() {
       const balanceAmount = subset.reduce((sum, b) => sum + b.balanceAmount, 0);
 
       return {
-        status: st,
-        label: labels[st],
+        status: cfg.status,
+        label: cfg.label,
+        description: cfg.description,
+        isConfirmed: cfg.isConfirmed,
         count,
         tickets,
         grossAmount,
@@ -461,7 +527,7 @@ export default function EventSummaryReportPage() {
   }, [reportData]);
 
   // ==========================================
-  // 3. Sales Attribution & Salesman Breakdown
+  // 3. Sales Attribution & Salesman Breakdown (Confirmed only)
   // ==========================================
   const salesmanSummary = useMemo(() => {
     if (!reportData) return [];
@@ -481,6 +547,9 @@ export default function EventSummaryReportPage() {
     >();
 
     reportData.allBookings.forEach((b) => {
+      // Ignore online incomplete checkout sessions from sales performance
+      if (b.computedStatus === 'online_incomplete') return;
+
       const key =
         b.channelName === 'Online'
           ? 'online'
@@ -521,7 +590,7 @@ export default function EventSummaryReportPage() {
   }, [reportData]);
 
   // ==========================================
-  // 4. Ticket Tier Performance Breakdown
+  // 4. Ticket Tier Performance Breakdown (Confirmed only)
   // ==========================================
   const ticketTypeSummary = useMemo(() => {
     if (!reportData) return [];
@@ -552,8 +621,11 @@ export default function EventSummaryReportPage() {
     const bookingMap = new Map(reportData.allBookings.map((b) => [String(b.id), b]));
 
     reportData.bookedShowtimes.forEach((st) => {
-      const ttId = String(st.tickettype_id);
       const parentBooking = bookingMap.get(String(st.booking_id));
+      // Skip abandoned online checkouts from confirmed ticket type metrics
+      if (parentBooking?.computedStatus === 'online_incomplete') return;
+
+      const ttId = String(st.tickettype_id);
       const qty = parseInt(st.ticket_count, 10) || 0;
       let record = typeMap.get(ttId);
 
@@ -607,8 +679,12 @@ export default function EventSummaryReportPage() {
 
     return reportData.allBookings.filter((b) => {
       // Status filter
-      if (ledgerStatusFilter !== 'all' && b.computedStatus !== ledgerStatusFilter) {
-        return false;
+      if (ledgerStatusFilter !== 'all') {
+        if (ledgerStatusFilter === 'confirmed') {
+          if (b.computedStatus === 'online_incomplete') return false;
+        } else if (b.computedStatus !== ledgerStatusFilter) {
+          return false;
+        }
       }
       // Channel filter
       if (ledgerChannelFilter !== 'all' && b.booked_type !== ledgerChannelFilter) {
@@ -755,7 +831,7 @@ export default function EventSummaryReportPage() {
             <TrendingUp className="mr-3 h-8 w-8 text-primary" /> Event Performance & Financial Report
           </h1>
           <p className="text-muted-foreground text-sm">
-            Audited financial breakdown, salesman attribution, gate check-ins, and receivables.
+            Audited financial breakdown, confirmed admissions, gate receivables, and salesman performance.
           </p>
         </div>
 
@@ -793,7 +869,7 @@ export default function EventSummaryReportPage() {
           <CardTitle className="text-base font-semibold flex items-center">
             <Filter className="mr-2 h-4 w-4 text-primary" /> Report Scope & Criteria
           </CardTitle>
-          <CardDescription>Select an event and sales channel to compile real-time financials.</CardDescription>
+          <CardDescription>Select an event and channel to compile confirmed admissions and financials.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
@@ -853,7 +929,7 @@ export default function EventSummaryReportPage() {
         <div className="flex flex-col justify-center items-center py-20 bg-card rounded-xl border border-dashed">
           <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
           <p className="text-base font-semibold text-foreground">Compiling Event Financial Audit...</p>
-          <p className="text-xs text-muted-foreground">Reconciling bookings, admissions, gate scans, and salesmen data.</p>
+          <p className="text-xs text-muted-foreground">Reconciling confirmed admissions, gate scans, and salesman attribution.</p>
         </div>
       )}
 
@@ -907,29 +983,31 @@ export default function EventSummaryReportPage() {
                     <strong className="text-foreground">Generated:</strong> {format(new Date(), 'PPpp')}
                   </p>
                   <p>
-                    <strong className="text-foreground">Channel Scope:</strong>{' '}
+                    <strong className="text-foreground">Scope:</strong>{' '}
                     <span className="capitalize">{channelFilter === 'all' ? 'All Channels (Online + Counter)' : channelFilter}</span>
                   </p>
                   <p>
-                    <strong className="text-foreground">Audited Bookings:</strong> {reportData.allBookings.length.toLocaleString()} records
+                    <strong className="text-foreground">Confirmed Orders:</strong>{' '}
+                    <span className="font-bold text-foreground">{reportTotals.confirmedBookings}</span>{' '}
+                    <span className="text-muted-foreground">({reportTotals.onlineIncompleteBookings} uncompleted web sessions)</span>
                   </p>
                 </div>
               </div>
 
               {/* 6 Key Financial & Booking KPI Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {/* Total Bookings */}
+                {/* Confirmed Bookings */}
                 <div className="p-4 bg-muted/60 dark:bg-muted/30 border border-border rounded-lg flex flex-col justify-between">
                   <div className="flex items-center justify-between text-muted-foreground mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Bookings</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Confirmed Orders</span>
                     <Users className="h-4 w-4 text-primary" />
                   </div>
                   <p className="text-2xl font-bold font-mono text-foreground mt-1">
-                    {reportTotals.totalBookings.toLocaleString()}
+                    {reportTotals.confirmedBookings.toLocaleString()}
                   </p>
                   <div className="text-[11px] text-muted-foreground mt-2 space-y-0.5 border-t border-border/50 pt-1.5">
                     <p className="flex justify-between">
-                      <span>Online:</span> <strong className="text-foreground">{reportTotals.onlineBookings}</strong>
+                      <span>Online:</span> <strong className="text-foreground">{reportTotals.onlineConfirmedBookings}</strong>
                     </p>
                     <p className="flex justify-between">
                       <span>Counter:</span> <strong className="text-foreground">{reportTotals.manualBookings}</strong>
@@ -937,14 +1015,14 @@ export default function EventSummaryReportPage() {
                   </div>
                 </div>
 
-                {/* Total Tickets Issued */}
+                {/* Confirmed Tickets Issued */}
                 <div className="p-4 bg-muted/60 dark:bg-muted/30 border border-border rounded-lg flex flex-col justify-between">
                   <div className="flex items-center justify-between text-muted-foreground mb-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider">Tickets Issued</span>
                     <Ticket className="h-4 w-4 text-indigo-500" />
                   </div>
                   <p className="text-2xl font-bold font-mono text-foreground mt-1">
-                    {reportTotals.totalTickets.toLocaleString()}
+                    {reportTotals.confirmedTickets.toLocaleString()}
                   </p>
                   <div className="text-[11px] text-muted-foreground mt-2 space-y-0.5 border-t border-border/50 pt-1.5">
                     <p className="flex justify-between">
@@ -956,17 +1034,17 @@ export default function EventSummaryReportPage() {
                   </div>
                 </div>
 
-                {/* Gross Revenue */}
+                {/* Confirmed Gross Revenue */}
                 <div className="p-4 bg-muted/60 dark:bg-muted/30 border border-border rounded-lg flex flex-col justify-between">
                   <div className="flex items-center justify-between text-muted-foreground mb-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">Gross Value</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Confirmed Gross</span>
                     <DollarSign className="h-4 w-4 text-blue-500" />
                   </div>
                   <p className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 truncate" title={formatLKR(reportTotals.totalRevenue)}>
                     {formatLKR(reportTotals.totalRevenue)}
                   </p>
                   <div className="text-[11px] text-muted-foreground mt-2 border-t border-border/50 pt-1.5">
-                    <p>Total booking value of all orders.</p>
+                    <p>Total value of confirmed event orders.</p>
                   </div>
                 </div>
 
@@ -984,7 +1062,7 @@ export default function EventSummaryReportPage() {
                   </div>
                 </div>
 
-                {/* Have to Collect Amount (Pending Receivables) */}
+                {/* Have to Collect Amount (Real Gate/Counter Receivables) */}
                 <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg flex flex-col justify-between">
                   <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 mb-1">
                     <span className="text-[11px] font-bold uppercase tracking-wider">To Collect</span>
@@ -994,7 +1072,7 @@ export default function EventSummaryReportPage() {
                     {formatLKR(reportTotals.haveToCollectRevenue)}
                   </p>
                   <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-2 border-t border-amber-200/50 pt-1.5">
-                    <p className="font-semibold">Pending Receivables</p>
+                    <p className="font-semibold">Counter Receivables Due</p>
                   </div>
                 </div>
 
@@ -1006,7 +1084,7 @@ export default function EventSummaryReportPage() {
                   </div>
                   <p className="text-xl font-bold font-mono text-foreground mt-1">
                     {reportTotals.totalVerified.toLocaleString()}{' '}
-                    <span className="text-xs font-normal text-muted-foreground">/ {reportTotals.totalTickets}</span>
+                    <span className="text-xs font-normal text-muted-foreground">/ {reportTotals.confirmedTickets}</span>
                   </p>
                   <div className="text-[11px] text-muted-foreground mt-2 border-t border-border/50 pt-1.5 space-y-1">
                     <Progress value={reportTotals.checkInRate} className="h-1.5" />
@@ -1017,95 +1095,108 @@ export default function EventSummaryReportPage() {
                 </div>
               </div>
 
-              {/* SECTION: Payment Status Breakdown (Requested: Pending, Partially Paid, Complimentary, Not Paid) */}
+              {/* SECTION: Payment Status Breakdown (Clearly separating Confirmed Orders from Uncompleted Online Checkouts) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-bold flex items-center">
                     <Receipt className="mr-2 h-4 w-4 text-primary" /> Payment Status & Collections Breakdown
                   </h3>
-                  <span className="text-xs text-muted-foreground">Reconciliation by Settlement Status</span>
+                  <span className="text-xs text-muted-foreground">Financial Settlement & Receivables Reconciliation</span>
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow>
-                        <TableHead className="font-bold">Payment Status</TableHead>
-                        <TableHead className="text-center font-bold">Bookings</TableHead>
+                        <TableHead className="font-bold">Payment Status & Category</TableHead>
+                        <TableHead className="text-center font-bold">Orders</TableHead>
                         <TableHead className="text-center font-bold">Tickets</TableHead>
-                        <TableHead className="text-right font-bold">Gross Order Value</TableHead>
+                        <TableHead className="text-right font-bold">Order Value</TableHead>
                         <TableHead className="text-right font-bold">Amount Collected</TableHead>
                         <TableHead className="text-right font-bold">Have To Collect (Due)</TableHead>
-                        <TableHead className="text-center font-bold">Settlement Status</TableHead>
+                        <TableHead className="text-center font-bold">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paymentStatusSummary.map((row) => {
-                        const isPaid = row.status === 'paid';
-                        const isPartial = row.status === 'partially_paid';
-                        const isPending = row.status === 'pending';
-                        const isComp = row.status === 'complimentary';
+                      {/* Confirmed Order Rows */}
+                      {paymentStatusSummary
+                        .filter((r) => r.isConfirmed)
+                        .map((row) => {
+                          const isPaid = row.status === 'paid';
+                          const isPartial = row.status === 'partially_paid';
+                          const isManualPending = row.status === 'manual_pending';
+                          const isComp = row.status === 'complimentary';
 
-                        return (
-                          <TableRow key={row.status} className="hover:bg-muted/40">
-                            <TableCell className="font-semibold">
-                              <div className="flex items-center gap-2">
-                                {isPaid && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
-                                {isPartial && <Clock className="h-4 w-4 text-amber-600 shrink-0" />}
-                                {isPending && <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />}
-                                {isComp && <Gift className="h-4 w-4 text-purple-600 shrink-0" />}
-                                <span>{row.label}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center font-mono font-medium">
-                              {row.count.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-center font-mono">
-                              {row.tickets.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-medium">
-                              {formatLKR(row.grossAmount)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                              {formatLKR(row.collectedAmount)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-semibold text-amber-600 dark:text-amber-400">
-                              {formatLKR(row.balanceAmount)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {isPaid && (
-                                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200">
-                                  100% Cleared
-                                </Badge>
-                              )}
-                              {isPartial && (
-                                <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200">
-                                  Advance Paid
-                                </Badge>
-                              )}
-                              {isPending && (
-                                <Badge variant="destructive" className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200">
-                                  Payment Due
-                                </Badge>
-                              )}
-                              {isComp && (
-                                <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200">
-                                  Complimentary
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                          return (
+                            <TableRow key={row.status} className="hover:bg-muted/40">
+                              <TableCell className="font-semibold">
+                                <div className="flex items-center gap-2">
+                                  {isPaid && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
+                                  {isPartial && <Clock className="h-4 w-4 text-amber-600 shrink-0" />}
+                                  {isManualPending && <Building2 className="h-4 w-4 text-blue-600 shrink-0" />}
+                                  {isComp && <Gift className="h-4 w-4 text-purple-600 shrink-0" />}
+                                  <div>
+                                    <p className="font-medium text-foreground">{row.label}</p>
+                                    <p className="text-[11px] text-muted-foreground font-normal">{row.description}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center font-mono font-medium">
+                                {row.count.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-center font-mono">
+                                {row.tickets.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-medium">
+                                {formatLKR(row.grossAmount)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                                {formatLKR(row.collectedAmount)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-semibold text-amber-600 dark:text-amber-400">
+                                {formatLKR(row.balanceAmount)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {isPaid && (
+                                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200">
+                                    100% Cleared
+                                  </Badge>
+                                )}
+                                {isPartial && (
+                                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200">
+                                    Advance Paid
+                                  </Badge>
+                                )}
+                                {isManualPending && (
+                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200">
+                                    Collect at Gate
+                                  </Badge>
+                                )}
+                                {isComp && (
+                                  <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200">
+                                    Complimentary
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
 
-                      {/* Total Reconciliation Row */}
+                      {/* Subtotal of Confirmed Orders */}
                       <TableRow className="bg-muted/70 font-bold border-t-2 border-border">
-                        <TableCell>Consolidated Commercial Total</TableCell>
-                        <TableCell className="text-center font-mono font-bold">
-                          {reportTotals.totalBookings.toLocaleString()}
+                        <TableCell>
+                          <div>
+                            <span className="font-bold text-foreground">Total Confirmed Event Admissions</span>
+                            <span className="block text-[11px] font-normal text-muted-foreground">
+                              Orders cleared or officially reserved for admission
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-center font-mono font-bold">
-                          {reportTotals.totalTickets.toLocaleString()}
+                          {reportTotals.confirmedBookings.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-center font-mono font-bold">
+                          {reportTotals.confirmedTickets.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right font-mono font-bold text-foreground">
                           {formatLKR(reportTotals.totalRevenue + reportTotals.waivedRevenue)}
@@ -1117,11 +1208,59 @@ export default function EventSummaryReportPage() {
                           {formatLKR(reportTotals.haveToCollectRevenue)}
                         </TableCell>
                         <TableCell className="text-center font-semibold text-xs text-muted-foreground">
-                          {reportTotals.collectionRate.toFixed(1)}% Collected
+                          {reportTotals.collectionRate.toFixed(1)}% Realized
                         </TableCell>
                       </TableRow>
+
+                      {/* Incomplete / Abandoned Online Checkouts Row */}
+                      {paymentStatusSummary
+                        .filter((r) => !r.isConfirmed)
+                        .map((row) => (
+                          <TableRow key={row.status} className="bg-slate-50/70 dark:bg-slate-900/30 text-muted-foreground italic">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <XCircle className="h-4 w-4 text-slate-400 shrink-0" />
+                                <div>
+                                  <p className="font-medium text-slate-700 dark:text-slate-300 not-italic">
+                                    {row.label}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground font-normal not-italic">
+                                    {row.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center font-mono font-normal">
+                              {row.count.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-center font-mono font-normal text-muted-foreground">
+                              {row.tickets.toLocaleString()} (Attempted)
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-normal text-muted-foreground">
+                              {formatLKR(row.grossAmount)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-normal text-muted-foreground">
+                              LKR 0.00
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-normal text-slate-400">
+                              LKR 0.00 <span className="text-[10px] block not-italic">(Not Issued)</span>
+                            </TableCell>
+                            <TableCell className="text-center not-italic">
+                              <Badge variant="outline" className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 text-[11px]">
+                                Payment Not Completed
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                     </TableBody>
                   </Table>
+                </div>
+
+                <div className="flex items-start gap-2 p-3 bg-muted/40 rounded-lg text-xs text-muted-foreground">
+                  <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Accounting Note:</strong> Incomplete online checkouts represent shopping carts initiated on the web where customers did not complete payment. Because payment was never made, no tickets were issued, and they are intentionally excluded from active gate receivables and confirmed tickets.
+                  </p>
                 </div>
               </div>
 
@@ -1131,18 +1270,18 @@ export default function EventSummaryReportPage() {
                   <h3 className="text-base font-bold flex items-center">
                     <Briefcase className="mr-2 h-4 w-4 text-primary" /> Sales Representative Attribution & Channel Performance
                   </h3>
-                  <span className="text-xs text-muted-foreground">Revenue and Collections by Sales Agent</span>
+                  <span className="text-xs text-muted-foreground">Confirmed Revenue and Collections by Sales Agent</span>
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow>
-                        <TableHead className="font-bold">Representative / Sales Channel</TableHead>
+                        <TableHead className="font-bold">Representative / Channel</TableHead>
                         <TableHead className="font-bold">Channel</TableHead>
-                        <TableHead className="text-center font-bold">Bookings</TableHead>
+                        <TableHead className="text-center font-bold">Confirmed Orders</TableHead>
                         <TableHead className="text-center font-bold">Tickets Sold</TableHead>
-                        <TableHead className="text-right font-bold">Gross Revenue</TableHead>
+                        <TableHead className="text-right font-bold">Confirmed Gross</TableHead>
                         <TableHead className="text-right font-bold">Amount Collected</TableHead>
                         <TableHead className="text-right font-bold">Have To Collect (Due)</TableHead>
                         <TableHead className="text-center font-bold">Collection %</TableHead>
@@ -1152,7 +1291,7 @@ export default function EventSummaryReportPage() {
                       {salesmanSummary.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                            No sales data recorded for the selected scope.
+                            No confirmed sales recorded for the selected scope.
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -1196,11 +1335,18 @@ export default function EventSummaryReportPage() {
                               {formatLKR(agent.balanceDue)}
                             </TableCell>
                             <TableCell className="text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <span className="font-mono text-xs font-semibold">
-                                  {agent.collectionRate.toFixed(0)}%
-                                </span>
-                              </div>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  agent.collectionRate >= 99
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                    : agent.collectionRate > 0
+                                    ? 'bg-amber-50 text-amber-700 border-amber-300'
+                                    : 'bg-rose-50 text-rose-700 border-rose-300'
+                                }
+                              >
+                                {agent.collectionRate.toFixed(1)}%
+                              </Badge>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1209,7 +1355,7 @@ export default function EventSummaryReportPage() {
                       {/* Total Salesman Row */}
                       {salesmanSummary.length > 0 && (
                         <TableRow className="bg-muted/70 font-bold border-t-2 border-border">
-                          <TableCell colSpan={2}>Total Sales Channel Attribution</TableCell>
+                          <TableCell colSpan={2}>Total Confirmed Sales Attribution</TableCell>
                           <TableCell className="text-center font-mono">
                             {salesmanSummary.reduce((s, a) => s + a.bookingsCount, 0).toLocaleString()}
                           </TableCell>
@@ -1241,7 +1387,7 @@ export default function EventSummaryReportPage() {
                   <h3 className="text-base font-bold flex items-center">
                     <BarChart3 className="mr-2 h-4 w-4 text-primary" /> Ticket Tier Sales & Verification Progress
                   </h3>
-                  <span className="text-xs text-muted-foreground">Quota, complimentary allocation, and gate check-in rates</span>
+                  <span className="text-xs text-muted-foreground">Confirmed sold tickets, complimentary passes, and gate check-in rates</span>
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-border">
@@ -1310,7 +1456,7 @@ export default function EventSummaryReportPage() {
                             {ticketTypeSummary.reduce((s, t) => s + t.complimentaryCount, 0).toLocaleString()}
                           </TableCell>
                           <TableCell className="text-center font-mono">
-                            {reportTotals.totalTickets.toLocaleString()}
+                            {reportTotals.confirmedTickets.toLocaleString()}
                           </TableCell>
                           <TableCell className="text-center font-mono text-emerald-600 dark:text-emerald-400">
                             {reportTotals.totalVerified.toLocaleString()}
@@ -1349,7 +1495,7 @@ export default function EventSummaryReportPage() {
                   <Briefcase className="mr-2 h-5 w-5 text-primary" /> Sales Agent & Staff Performance Audit
                 </CardTitle>
                 <CardDescription>
-                  Detailed sales volume, tickets issued, collections, and remaining balances attributed to each salesman and direct counter sales.
+                  Detailed sales volume, confirmed tickets, collections, and remaining balances attributed to each salesman and direct counter sales.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1359,9 +1505,9 @@ export default function EventSummaryReportPage() {
                       <TableRow>
                         <TableHead>Sales Representative</TableHead>
                         <TableHead>Channel Type</TableHead>
-                        <TableHead className="text-center">Total Orders</TableHead>
+                        <TableHead className="text-center">Confirmed Orders</TableHead>
                         <TableHead className="text-center">Tickets Sold</TableHead>
-                        <TableHead className="text-right">Gross Booking Total</TableHead>
+                        <TableHead className="text-right">Confirmed Gross</TableHead>
                         <TableHead className="text-right">Amount Collected</TableHead>
                         <TableHead className="text-right">Have To Collect (Receivables)</TableHead>
                         <TableHead className="text-center">Collection %</TableHead>
@@ -1433,7 +1579,7 @@ export default function EventSummaryReportPage() {
                       <Receipt className="mr-2 h-5 w-5 text-primary" /> Event Bookings Ledger
                     </CardTitle>
                     <CardDescription>
-                      Full searchable ledger of all individual bookings with customer contacts, payment status, and salesman attribution.
+                      Full searchable ledger of all individual bookings with customer contacts, settlement status, and salesman attribution.
                     </CardDescription>
                   </div>
                   <div className="text-xs font-medium text-muted-foreground">
@@ -1467,11 +1613,13 @@ export default function EventSummaryReportPage() {
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Payment Statuses</SelectItem>
+                      <SelectItem value="all">All Records ({reportData.allBookings.length})</SelectItem>
+                      <SelectItem value="confirmed">All Confirmed Only ({reportTotals.confirmedBookings})</SelectItem>
                       <SelectItem value="paid">Paid in Full</SelectItem>
                       <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                      <SelectItem value="pending">Pending / Unpaid</SelectItem>
+                      <SelectItem value="manual_pending">Manual Reserved (Pay at Gate)</SelectItem>
                       <SelectItem value="complimentary">Complimentary Passes</SelectItem>
+                      <SelectItem value="online_incomplete">Incomplete Online Checkouts</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1526,7 +1674,7 @@ export default function EventSummaryReportPage() {
                         <TableHead>Channel & Salesman</TableHead>
                         <TableHead className="text-center">Tickets</TableHead>
                         <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-right">Total Price</TableHead>
+                        <TableHead className="text-right">Order Value</TableHead>
                         <TableHead className="text-right">Paid</TableHead>
                         <TableHead className="text-right">Have To Collect</TableHead>
                         <TableHead className="text-center">Action</TableHead>
@@ -1575,17 +1723,22 @@ export default function EventSummaryReportPage() {
                               )}
                               {b.computedStatus === 'partially_paid' && (
                                 <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 text-[10px]">
-                                  Partial
+                                  Partial Advance
                                 </Badge>
                               )}
-                              {b.computedStatus === 'pending' && (
-                                <Badge variant="destructive" className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 text-[10px]">
-                                  Pending
+                              {b.computedStatus === 'manual_pending' && (
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 text-[10px]">
+                                  Collect at Gate
                                 </Badge>
                               )}
                               {b.computedStatus === 'complimentary' && (
                                 <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 text-[10px]">
                                   Free Pass
+                                </Badge>
+                              )}
+                              {b.computedStatus === 'online_incomplete' && (
+                                <Badge variant="outline" className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 text-[10px]">
+                                  Incomplete Online
                                 </Badge>
                               )}
                             </TableCell>
@@ -1596,7 +1749,11 @@ export default function EventSummaryReportPage() {
                               {formatLKR(b.collectedAmount)}
                             </TableCell>
                             <TableCell className="text-right font-mono text-xs font-semibold text-amber-600 dark:text-amber-400">
-                              {formatLKR(b.balanceAmount)}
+                              {b.computedStatus === 'online_incomplete' ? (
+                                <span className="text-muted-foreground text-[10px] italic">LKR 0.00 (Unconfirmed)</span>
+                              ) : (
+                                formatLKR(b.balanceAmount)
+                              )}
                             </TableCell>
                             <TableCell className="text-center">
                               <Button variant="ghost" size="sm" asChild className="h-7 text-xs px-2">
