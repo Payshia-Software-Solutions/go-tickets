@@ -160,7 +160,11 @@ class EventController
                 'imageUrl' => "no_image.png", // Will be updated after image upload
                 'venueName' => $data['venueName'],
                 'venueAddress' => $data['venueAddress'] ?? null,
-                'organizerId' => $data['organizerId']
+                'organizerId' => $data['organizerId'],
+                'accept_booking' => isset($data['accept_booking']) ? (int)$data['accept_booking'] : 1,
+                'is_featured' => isset($data['is_featured']) ? (int)$data['is_featured'] : 0,
+                'featured_badge' => $data['featured_badge'] ?? null,
+                'featured_description' => $data['featured_description'] ?? null
             ]);
 
             // Handle image upload if provided
@@ -204,7 +208,7 @@ class EventController
                     unlink($localUploadPath); // Remove local file after successful FTP upload
                     
                     // Update the event with the image URL
-                    $this->model->updateEvent($newId, [
+                    $updatePayload = [
                         'name' => $data['name'],
                         'date' => $data['date'],
                         'location' => $data['location'],
@@ -214,7 +218,12 @@ class EventController
                         'venueName' => $data['venueName'],
                         'venueAddress' => $data['venueAddress'] ?? null,
                         'organizerId' => $data['organizerId']
-                    ]);
+                    ];
+                    if (isset($data['accept_booking'])) $updatePayload['accept_booking'] = $data['accept_booking'];
+                    if (isset($data['is_featured'])) $updatePayload['is_featured'] = $data['is_featured'];
+                    if (array_key_exists('featured_badge', $data)) $updatePayload['featured_badge'] = $data['featured_badge'];
+                    if (array_key_exists('featured_description', $data)) $updatePayload['featured_description'] = $data['featured_description'];
+                    $this->model->updateEvent($newId, $updatePayload);
                 } else {
                     http_response_code(500);
                     echo json_encode(['error' => 'FTP upload failed']);
@@ -238,7 +247,7 @@ class EventController
                 isset($data['date']) && isset($data['location']) && isset($data['category']) &&
                 isset($data['imageUrl']) && isset($data['venueName']) && isset($data['organizerId'])
             ) {
-                $newId = $this->model->createEvent([
+                $createPayload = [
                     'name' => $data['name'],
                     'date' => $data['date'],
                     'location' => $data['location'],
@@ -247,8 +256,13 @@ class EventController
                     'imageUrl' => $data['imageUrl'],
                     'venueName' => $data['venueName'],
                     'venueAddress' => $data['venueAddress'] ?? null,
-                    'organizerId' => $data['organizerId']
-                ]);
+                    'organizerId' => $data['organizerId'],
+                    'accept_booking' => isset($data['accept_booking']) ? (int)$data['accept_booking'] : 1,
+                    'is_featured' => isset($data['is_featured']) ? (int)$data['is_featured'] : 0,
+                    'featured_badge' => $data['featured_badge'] ?? null,
+                    'featured_description' => $data['featured_description'] ?? null
+                ];
+                $newId = $this->model->createEvent($createPayload);
 
                 http_response_code(201);
                 echo json_encode([
@@ -330,7 +344,7 @@ class EventController
             }
 
             // Update event in the database
-            $this->model->updateEvent($id, [
+            $updatePayload = [
                 'name' => $data['name'],
                 'date' => $data['date'],
                 'location' => $data['location'],
@@ -340,7 +354,13 @@ class EventController
                 'venueName' => $data['venueName'],
                 'venueAddress' => $data['venueAddress'] ?? null,
                 'organizerId' => $data['organizerId']
-            ]);
+            ];
+            if (isset($data['accept_booking'])) $updatePayload['accept_booking'] = $data['accept_booking'];
+            if (isset($data['is_featured'])) $updatePayload['is_featured'] = $data['is_featured'];
+            if (array_key_exists('featured_badge', $data)) $updatePayload['featured_badge'] = $data['featured_badge'];
+            if (array_key_exists('featured_description', $data)) $updatePayload['featured_description'] = $data['featured_description'];
+
+            $this->model->updateEvent($id, $updatePayload);
 
             echo json_encode([
                 'message' => 'Event updated successfully',
@@ -356,7 +376,7 @@ class EventController
                 isset($data['date']) && isset($data['location']) && isset($data['category']) &&
                 isset($data['imageUrl']) && isset($data['venueName']) && isset($data['organizerId'])
             ) {
-                $this->model->updateEvent($id, [
+                $updatePayload = [
                     'name' => $data['name'],
                     'date' => $data['date'],
                     'location' => $data['location'],
@@ -366,12 +386,100 @@ class EventController
                     'venueName' => $data['venueName'],
                     'venueAddress' => $data['venueAddress'] ?? null,
                     'organizerId' => $data['organizerId']
-                ]);
+                ];
+                if (isset($data['accept_booking'])) $updatePayload['accept_booking'] = $data['accept_booking'];
+                if (isset($data['is_featured'])) $updatePayload['is_featured'] = $data['is_featured'];
+                if (array_key_exists('featured_badge', $data)) $updatePayload['featured_badge'] = $data['featured_badge'];
+                if (array_key_exists('featured_description', $data)) $updatePayload['featured_description'] = $data['featured_description'];
+
+                $this->model->updateEvent($id, $updatePayload);
                 echo json_encode(['message' => 'Event updated successfully']);
             } else {
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid input']);
             }
+        }
+    }
+
+    // Get current featured banner event
+    public function getFeaturedEvent()
+    {
+        try {
+            $event = $this->model->getFeaturedEvent();
+            if ($event) {
+                echo json_encode($event);
+            } else {
+                http_response_code(404);
+                echo json_encode(['message' => 'No featured event found']);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    }
+
+    // Quick toggle / update accept_booking
+    public function toggleAcceptBooking($id)
+    {
+        try {
+            $event = $this->model->getEventById($id);
+            if (!$event) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Event not found']);
+                return;
+            }
+
+            $data = json_decode(file_get_contents("php://input"), true);
+            if (isset($data['accept_booking'])) {
+                $newStatus = (int)$data['accept_booking'];
+            } else {
+                $current = (int)($event['accept_booking'] ?? 1);
+                $newStatus = $current === 1 ? 0 : 1;
+            }
+
+            $this->model->updateAcceptBooking($id, $newStatus);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Booking status updated successfully',
+                'eventId' => $id,
+                'accept_booking' => $newStatus
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+    }
+
+    // Set or unset featured banner event
+    public function setFeatured($id)
+    {
+        try {
+            $event = $this->model->getEventById($id);
+            if (!$event) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Event not found']);
+                return;
+            }
+
+            $data = json_decode(file_get_contents("php://input"), true);
+            $is_featured = isset($data['is_featured']) ? (int)$data['is_featured'] : 1;
+            $badge = $data['featured_badge'] ?? ($is_featured ? 'Tickets Selling Fast!' : null);
+            $description = $data['featured_description'] ?? null;
+
+            $this->model->setFeaturedEvent($id, $is_featured, $badge, $description);
+
+            echo json_encode([
+                'success' => true,
+                'message' => $is_featured ? 'Event set as featured homepage banner' : 'Event removed from featured banner',
+                'eventId' => $id,
+                'is_featured' => $is_featured,
+                'featured_badge' => $badge,
+                'featured_description' => $description
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
         }
     }
 

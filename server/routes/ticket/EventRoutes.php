@@ -47,6 +47,11 @@ return [
  },
 
 
+    // ✅ Get current featured banner event
+    'GET /events/featured/' => function () use ($eventController) {
+        $eventController->getFeaturedEvent();
+    },
+
     // ✅ Put generic {id} route AFTER specific routes
     'GET /events/{id}/' => function ($id) use ($eventController) {
         $eventController->getRecordById($id);
@@ -58,6 +63,28 @@ return [
 
     'POST /events/{id}/' => function ($id) use ($eventController) {
         $eventController->updateRecord($id);
+    },
+
+    'PUT /events/{id}/' => function ($id) use ($eventController) {
+        $eventController->updateRecord($id);
+    },
+
+    // ✅ Quick toggle accept booking
+    'POST /events/{id}/accept-booking/' => function ($id) use ($eventController) {
+        $eventController->toggleAcceptBooking($id);
+    },
+
+    'PUT /events/{id}/accept-booking/' => function ($id) use ($eventController) {
+        $eventController->toggleAcceptBooking($id);
+    },
+
+    // ✅ Set / unset featured banner event
+    'POST /events/{id}/featured/' => function ($id) use ($eventController) {
+        $eventController->setFeatured($id);
+    },
+
+    'PUT /events/{id}/featured/' => function ($id) use ($eventController) {
+        $eventController->setFeatured($id);
     },
 
     'DELETE /events/{id}/' => function ($id) use ($eventController) {

@@ -21,7 +21,10 @@ interface ApiEventFlat {
   venueAddress?: string | null;
   organizerId: string | number;
   organizer?: Organizer;
-  accept_booking?: string;
+  accept_booking?: string | number;
+  is_featured?: number | string | boolean;
+  featured_badge?: string | null;
+  featured_description?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -53,6 +56,9 @@ const mapApiEventToAppEvent = (apiEvent: ApiEventFlat): Event => {
     venueAddress: apiEvent.venueAddress,
     organizerId: String(apiEvent.organizerId),
     accept_booking: apiEvent.accept_booking,
+    is_featured: apiEvent.is_featured ? Number(apiEvent.is_featured) : 0,
+    featured_badge: apiEvent.featured_badge || null,
+    featured_description: apiEvent.featured_description || null,
     organizer: apiEvent.organizer ? {
         ...apiEvent.organizer,
         id: String(apiEvent.organizer.id),
@@ -329,6 +335,10 @@ export const createEvent = async (data: CoreEventFormData, imageFile: File | nul
   formData.append('organizerId', data.organizerId);
   formData.append('venueName', data.venueName);
   formData.append('venueAddress', data.venueAddress || '');
+  if (data.accept_booking !== undefined) formData.append('accept_booking', String(data.accept_booking));
+  if (data.is_featured !== undefined) formData.append('is_featured', data.is_featured ? '1' : '0');
+  if (data.featured_badge !== undefined) formData.append('featured_badge', data.featured_badge || '');
+  if (data.featured_description !== undefined) formData.append('featured_description', data.featured_description || '');
 
   if (imageFile) {
     formData.append('image', imageFile);
@@ -399,6 +409,10 @@ export const updateEvent = async (
   coreFormData.append('organizerId', data.organizerId);
   coreFormData.append('venueName', data.venueName);
   coreFormData.append('venueAddress', data.venueAddress || '');
+  if (data.accept_booking !== undefined) coreFormData.append('accept_booking', String(data.accept_booking));
+  if (data.is_featured !== undefined) coreFormData.append('is_featured', data.is_featured ? '1' : '0');
+  if (data.featured_badge !== undefined) coreFormData.append('featured_badge', data.featured_badge || '');
+  if (data.featured_description !== undefined) coreFormData.append('featured_description', data.featured_description || '');
 
   if (imageFile) {
     coreFormData.append('image', imageFile);
@@ -534,3 +548,61 @@ export const getEventSuggestionsByName = async (nameQuery: string): Promise<Even
     return [];
   }
 };
+
+export const getFeaturedEvent = async (): Promise<Event | null> => {
+  if (!API_BASE_URL) throw new Error("API_BASE_URL is not defined");
+  const url = `${API_BASE_URL}/events/featured/`;
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      return null;
+    }
+    const apiEvent: ApiEventFlat = await response.json();
+    if (!apiEvent || !apiEvent.id) return null;
+    return mapApiEventToAppEvent(apiEvent);
+  } catch (error) {
+    console.error("Network error fetching featured event:", error);
+    return null;
+  }
+};
+
+export const toggleAcceptBooking = async (
+  eventId: string,
+  acceptBooking?: number
+): Promise<{ success: boolean; accept_booking: number }> => {
+  if (!API_BASE_URL) throw new Error("API_BASE_URL is not defined");
+  const url = `${API_BASE_URL}/events/${eventId}/accept-booking/`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(acceptBooking !== undefined ? { accept_booking: acceptBooking } : {}),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update booking status: ${response.status}`);
+  }
+  return await response.json();
+};
+
+export const setFeaturedEvent = async (
+  eventId: string,
+  isFeatured: boolean,
+  badge?: string,
+  description?: string
+): Promise<{ success: boolean; is_featured: number }> => {
+  if (!API_BASE_URL) throw new Error("API_BASE_URL is not defined");
+  const url = `${API_BASE_URL}/events/${eventId}/featured/`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      is_featured: isFeatured ? 1 : 0,
+      featured_badge: badge || '',
+      featured_description: description || '',
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update featured event: ${response.status}`);
+  }
+  return await response.json();
+};
+

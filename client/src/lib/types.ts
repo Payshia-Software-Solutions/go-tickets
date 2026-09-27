@@ -198,7 +198,10 @@ export interface Event {
   ticketTypes?: TicketType[];
   showTimes?: ShowTime[];
   mapLink?: string | null;
-  accept_booking?: string;
+  accept_booking?: string | number;
+  is_featured?: number | boolean;
+  featured_badge?: string | null;
+  featured_description?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -217,6 +220,10 @@ export const CoreEventFormSchema = z.object({
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
+  accept_booking: z.union([z.string(), z.number()]).optional(),
+  is_featured: z.union([z.number(), z.boolean()]).optional(),
+  featured_badge: z.string().optional(),
+  featured_description: z.string().optional(),
 });
 export type CoreEventFormData = z.infer<typeof CoreEventFormSchema>;
 
@@ -234,6 +241,10 @@ export const EventFormSchema = z.object({
   organizerId: z.string().min(1, "Organizer is required"),
   venueName: z.string().min(3, "Venue name is required"),
   venueAddress: z.string().optional(),
+  accept_booking: z.union([z.string(), z.number()]).optional(),
+  is_featured: z.union([z.number(), z.boolean()]).optional(),
+  featured_badge: z.string().optional(),
+  featured_description: z.string().optional(),
   ticketTypes: z.array(TicketTypeFormSchema),
   showTimes: z.array(ShowTimeFormSchema),
 });

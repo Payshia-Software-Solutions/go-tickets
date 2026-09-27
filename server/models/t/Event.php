@@ -33,41 +33,53 @@ class Event
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    // Get featured banner event
+    public function getFeaturedEvent()
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM `event` WHERE `is_featured` = 1 ORDER BY `id` DESC LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    // Toggle or update accept_booking
+    public function updateAcceptBooking($id, $accept_booking)
+    {
+        $stmt = $this->pdo->prepare("UPDATE `event` SET `accept_booking` = ? WHERE `id` = ?");
+        $stmt->execute([(int)$accept_booking, $id]);
+    }
+
+    // Set or unset featured event
+    public function setFeaturedEvent($id, $is_featured, $badge = null, $description = null)
+    {
+        if ($is_featured) {
+            // Unset all other events first so only one is featured
+            $this->pdo->exec("UPDATE `event` SET `is_featured` = 0");
+            $stmt = $this->pdo->prepare("UPDATE `event` SET `is_featured` = 1, `featured_badge` = ?, `featured_description` = ? WHERE `id` = ?");
+            $stmt->execute([$badge, $description, $id]);
+        } else {
+            $stmt = $this->pdo->prepare("UPDATE `event` SET `is_featured` = 0 WHERE `id` = ?");
+            $stmt->execute([$id]);
+        }
+    }
+
     // Create new event (auto-generate slug from name)
     public function createEvent($data)
     {
         $slug = $this->generateSlug($data['name']);
+        $accept_booking = isset($data['accept_booking']) ? (int)$data['accept_booking'] : 1;
+        $is_featured = isset($data['is_featured']) ? (int)$data['is_featured'] : 0;
+        $featured_badge = $data['featured_badge'] ?? null;
+        $featured_description = $data['featured_description'] ?? null;
+
+        if ($is_featured) {
+            $this->pdo->exec("UPDATE `event` SET `is_featured` = 0");
+        }
 
         $stmt = $this->pdo->prepare("INSERT INTO `event` (
             `name`, `slug`, `date`, `location`, `description`, `category`, 
-            `imageUrl`, `venueName`, `venueAddress`, `organizerId`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-        $stmt->execute([
-            $data['name'],
-            $slug,
-            $data['date'],
-            $data['location'],
-            $data['description'],
-            $data['category'],
-            $data['imageUrl'],
-            $data['venueName'],
-            $data['venueAddress'],
-            $data['organizerId']
-        ]);
-
-        return $this->pdo->lastInsertId();
-    }
-
-    // Update event
-    public function updateEvent($id, $data)
-    {
-        $slug = $this->generateSlug($data['name']);
-
-        $stmt = $this->pdo->prepare("UPDATE `event` SET 
-            `name` = ?, `slug` = ?, `date` = ?, `location` = ?, `description` = ?, 
-            `category` = ?, `imageUrl` = ?, `venueName` = ?, `venueAddress` = ?, `organizerId` = ?
-            WHERE `id` = ?");
+            `imageUrl`, `venueName`, `venueAddress`, `organizerId`,
+            `accept_booking`, `is_featured`, `featured_badge`, `featured_description`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         $stmt->execute([
             $data['name'],
@@ -80,8 +92,65 @@ class Event
             $data['venueName'],
             $data['venueAddress'],
             $data['organizerId'],
-            $id
+            $accept_booking,
+            $is_featured,
+            $featured_badge,
+            $featured_description
         ]);
+
+        return $this->pdo->lastInsertId();
+    }
+
+    // Update event
+    public function updateEvent($id, $data)
+    {
+        $slug = $this->generateSlug($data['name']);
+
+        $fields = [
+            "`name` = ?", "`slug` = ?", "`date` = ?", "`location` = ?", "`description` = ?", 
+            "`category` = ?", "`imageUrl` = ?", "`venueName` = ?", "`venueAddress` = ?", "`organizerId` = ?"
+        ];
+        $params = [
+            $data['name'],
+            $slug,
+            $data['date'],
+            $data['location'],
+            $data['description'],
+            $data['category'],
+            $data['imageUrl'],
+            $data['venueName'],
+            $data['venueAddress'],
+            $data['organizerId']
+        ];
+
+        if (isset($data['accept_booking'])) {
+            $fields[] = "`accept_booking` = ?";
+            $params[] = (int)$data['accept_booking'];
+        }
+
+        if (isset($data['is_featured'])) {
+            $is_featured = (int)$data['is_featured'];
+            if ($is_featured === 1) {
+                $this->pdo->exec("UPDATE `event` SET `is_featured` = 0");
+            }
+            $fields[] = "`is_featured` = ?";
+            $params[] = $is_featured;
+        }
+
+        if (array_key_exists('featured_badge', $data)) {
+            $fields[] = "`featured_badge` = ?";
+            $params[] = $data['featured_badge'];
+        }
+
+        if (array_key_exists('featured_description', $data)) {
+            $fields[] = "`featured_description` = ?";
+            $params[] = $data['featured_description'];
+        }
+
+        $params[] = $id;
+        $sql = "UPDATE `event` SET " . implode(", ", $fields) . " WHERE `id` = ?";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
     }
 
     // Delete event

@@ -73,7 +73,7 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
             <div className="flex items-center gap-2 mb-2 md:mb-3">
               <span className="inline-flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[11px] md:text-xs font-bold px-2.5 py-1 rounded-full">
                 <Zap className="h-3 w-3 md:h-3.5 md:w-3.5 animate-pulse" />
-                {canBook ? "Tickets Selling Fast!" : "Sold Out"}
+                {event.featured_badge || (canBook ? "Tickets Selling Fast!" : "Sold Out")}
               </span>
             </div>
 
@@ -98,8 +98,8 @@ const FeaturedEventModal: FC<FeaturedEventModalProps> = ({ isOpen, onOpenChange,
               </div>
             </div>
 
-            <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4 hidden sm:block">
-              Don&apos;t miss out on one of the hottest events of the year. Grab your tickets before they&apos;re all gone.
+            <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4 hidden sm:block whitespace-pre-line">
+              {event.featured_description || "Don't miss out on one of the hottest events of the year. Grab your tickets before they're all gone."}
             </p>
 
             {/* CTA Button */}

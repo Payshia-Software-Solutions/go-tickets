@@ -18,6 +18,7 @@ import { useEffect, useState, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RichTextEditor from '@/components/shared/RichTextEditor';
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 import { generateEventImage } from "@/ai/flows/generate-event-image-flow";
 import { suggestImageKeywords } from "@/ai/flows/suggest-image-keywords-flow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -107,6 +108,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       organizerId: initialData.organizerId,
       venueName: initialData.venueName,
       venueAddress: initialData.venueAddress || "",
+      accept_booking: initialData.accept_booking !== undefined ? (String(initialData.accept_booking) === '0' ? 0 : 1) : 1,
       ticketTypes: initialData.ticketTypes?.map(tt => ({
         id: tt.id,
         name: tt.name,
@@ -136,6 +138,7 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
       organizerId: "",
       venueName: "",
       venueAddress: "",
+      accept_booking: 1,
       ticketTypes: [],
       showTimes: [],
     },
@@ -786,6 +789,27 @@ export default function EventForm({ initialData, onSubmit, isSubmitting, submitB
                     <FormMessage />
                     </FormItem>
                 )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="accept_booking"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 bg-muted/20 shadow-xs">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm font-semibold">Accept Bookings</FormLabel>
+                        <FormDescription className="text-xs text-muted-foreground">
+                          When enabled, visitors can select tickets and book for this event. When disabled, bookings are marked as closed.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={String(field.value) === '1' || field.value === 1}
+                          onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
             </section>
           </TabsContent>

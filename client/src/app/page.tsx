@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUpcomingEvents, getEventCategories, getPopularEvents, getEventSuggestionsByName } from '@/lib/mockData';
+import { getUpcomingEvents, getEventCategories, getPopularEvents, getEventSuggestionsByName, getFeaturedEvent } from '@/lib/mockData';
 import type { Event, Category } from '@/lib/types';
 import EventCard from '@/components/events/EventCard';
 import {
@@ -71,9 +71,8 @@ export default function HomePage() {
       const viewCount = parseInt(viewCountString, 10);
       if (viewCount >= 100) return;
       try {
-        const latestEvents = await getUpcomingEvents(1);
-        if (latestEvents.length > 0) {
-          const event = latestEvents[0];
+        const event = await getFeaturedEvent();
+        if (event) {
           const eventDate = new Date(event.date);
           const now = new Date();
           now.setHours(0, 0, 0, 0);
