@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin, Phone, MapPin, Mail } from 'lucide-react';
 
 const Footer = () => {
   const pathname = usePathname();
@@ -23,9 +23,21 @@ const Footer = () => {
                 GoTickets<span className="text-accent">.lk</span>
               </span>
             </Link>
-            <p className="text-sm opacity-70 leading-relaxed">
+            <p className="text-sm opacity-70 leading-relaxed mb-4">
               Your ultimate destination for discovering and booking event tickets across Sri Lanka.
             </p>
+            <div className="space-y-2 text-xs opacity-80 pt-2 border-t border-[hsl(var(--footer-border))]">
+              <p className="flex items-start gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
+                <span>Grand Silver Ray, Dippitigala, Lellopitiya, Ratnapura</span>
+              </p>
+              <p className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-accent shrink-0" />
+                <a href="tel:0718750770" className="hover:text-accent font-semibold transition-colors">
+                  071 875 0770
+                </a>
+              </p>
+            </div>
           </div>
 
           {/* Events */}
