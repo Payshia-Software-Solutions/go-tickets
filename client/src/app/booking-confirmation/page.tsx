@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 
 interface BookingConfirmationPageProps {
-  searchParams: Promise<{ order_id?: string; token?: string }>;
+  searchParams: Promise<{ order_id?: string | string[]; token?: string | string[] }>;
 }
 
 export default function BookingConfirmationPage({ searchParams }: BookingConfirmationPageProps) {
@@ -37,8 +37,16 @@ export default function BookingConfirmationPage({ searchParams }: BookingConfirm
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
-  const bookingId = resolvedSearchParams.order_id;
-  const urlToken = resolvedSearchParams.token;
+  // Safely extract bookingId and token even if repeated in URL query parameters (e.g. from PayHere redirect)
+  const rawOrderId = resolvedSearchParams.order_id;
+  const bookingId = Array.isArray(rawOrderId)
+    ? rawOrderId[0]
+    : (typeof rawOrderId === 'string' ? rawOrderId.split(',')[0].trim() : undefined);
+
+  const rawToken = resolvedSearchParams.token;
+  const urlToken = Array.isArray(rawToken)
+    ? rawToken[0]
+    : (typeof rawToken === 'string' ? rawToken.split(',')[0].trim() : undefined);
 
   useEffect(() => {
     if (bookingId && typeof window !== 'undefined') {

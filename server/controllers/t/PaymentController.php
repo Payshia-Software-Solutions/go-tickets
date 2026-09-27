@@ -48,7 +48,7 @@ class PaymentController
         $totalAmount = number_format($totalAmount, 2, '.', '');
         $currency = "LKR";
         $token = $this->generateBookingToken($bookingId, $bookingInfo['qrCodeValue'] ?? '');
-        $return_url = $this->domainName . "/booking-confirmation?order_id=" . $bookingId . "&token=" . $token;
+        $return_url = $this->domainName . "/booking-confirmation?token=" . $token;
         $cancel_url = $this->domainName . "/checkout";
         $notify_url = $this->serverUrl . "/bookings/payment/notify";
 
