@@ -68,8 +68,14 @@ export default function AboutPage() {
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Our Mission</h2>
             </div>
+            <p className="text-base font-semibold text-primary mb-3">
+              To make event ticketing simple, secure, and accessible for everyone.
+            </p>
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-3">
+              GoTickets.lk is committed to connecting people with memorable events and experiences through a convenient, reliable, and user-friendly online ticket booking platform. We aim to provide organizers with an efficient way to reach their audiences, while giving customers a seamless booking experience from discovering events to securing their tickets.
+            </p>
             <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-              We strive to provide a seamless, secure, and comprehensive platform for discovering and booking tickets to a diverse range of events. We believe in the power of live events to create lasting memories and foster connections.
+              Through trusted technology, secure transactions, responsive customer support, and a commitment to service excellence, our mission is to make every ticket the beginning of a great experience.
             </p>
           </div>
 
