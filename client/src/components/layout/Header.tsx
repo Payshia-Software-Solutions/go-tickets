@@ -17,6 +17,7 @@ import { Menu, Search, Ticket, LogOut, ShoppingCart, ShieldCheck, Sun, Moon } fr
 import { useCart } from '@/contexts/CartContext';
 import { useTheme } from 'next-themes';
 import Image from 'next/image';
+import SearchModal from '@/components/events/SearchModal';
 
 const getInitial = (name?: string | null, email?: string): string => {
   if (name && name.trim().length > 0) {
@@ -35,6 +36,7 @@ const Header = () => {
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const { setTheme } = useTheme(); // Removed unused 'theme'
   const [mounted, setMounted] = useState(false);
 
@@ -43,9 +45,20 @@ const Header = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Global Ctrl+K / Cmd+K listener to open search modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // --- New useEffect for fetching suggestions ---
@@ -207,55 +220,34 @@ const Header = () => {
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4">
-          {/* --- Updated Desktop Search Form --- */}
-          <div ref={searchContainerRef} className="hidden md:block relative">
-            <form onSubmit={handleSearch} className="flex items-center">
-              <Input
-                type="search"
-                placeholder="Search events..."
-                className="h-9 md:w-[150px] lg:w-[250px] pr-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => {
-                  if (searchQuery.trim().length > 1 && suggestedEvents.length > 0) {
-                    setShowSuggestions(true);
-                  }
-                }}
-              />
-              <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
-                <Search className="h-4 w-4" />
-              </Button>
-            </form>
-            {showSuggestions && suggestedEvents.length > 0 && (
-              <Card className="absolute top-full mt-1 w-full max-h-80 overflow-y-auto z-20 shadow-lg text-left">
-                <CardContent className="p-1">
-                  <ul role="listbox">
-                    {suggestedEvents.map(event => (
-                      <li key={event.id} role="option" aria-selected="false">
-                        <Link
-                          href={`/events/${event.slug}`}
-                          className="flex items-center p-2 hover:bg-muted transition-colors rounded-md"
-                          onClick={handleSuggestionClick}
-                        >
-                          <Image
-                            src={event.imageUrl || 'https://placehold.co/40x40.png'}
-                            alt={event.name}
-                            width={40}
-                            height={40}
-                            className="h-10 w-10 rounded-md object-cover mr-3"
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-foreground truncate">{event.name}</p>
-                            <p className="text-xs text-muted-foreground">{event.category} &bull; {event.location}</p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {/* --- Desktop Search Trigger Button (TicketsMinistry style) --- */}
+          <button
+            type="button"
+            onClick={() => setIsSearchModalOpen(true)}
+            className="hidden md:flex items-center gap-2 h-9 px-3.5 rounded-full border border-border/80 bg-muted/30 hover:bg-muted/70 text-muted-foreground hover:text-foreground text-xs font-medium md:w-[170px] lg:w-[240px] transition-all justify-between shadow-xs cursor-pointer group"
+            title="Search events (Ctrl+K)"
+          >
+            <span className="flex items-center gap-2 truncate">
+              <Search className="h-3.5 w-3.5 text-primary group-hover:scale-110 transition-transform shrink-0" />
+              <span className="truncate">Search events...</span>
+            </span>
+            <kbd className="hidden lg:inline-flex items-center gap-0.5 pointer-events-none h-5 select-none rounded border border-border/80 bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
+
+          {/* Mobile Search Icon Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSearchModalOpen(true)}
+            className="md:hidden"
+            suppressHydrationWarning
+            title="Search events"
+          >
+            <Search className="h-5 w-5" />
+            <span className="sr-only">Search</span>
+          </Button>
 
           <Button variant="ghost" size="icon" onClick={() => router.push('/checkout')} className="relative" suppressHydrationWarning>
             <ShoppingCart className="h-5 w-5" />
@@ -290,20 +282,18 @@ const Header = () => {
                     <Link href="/" className="flex items-center mb-4" onClick={() => setIsMobileMenuOpen(false)}>
                        <span className="text-xl font-bold font-headline">GoTickets<span className="text-primary">.</span><span className="text-accent">lk</span></span>
                     </Link>
-                    {/* Mobile search is intentionally left without suggestions for simplicity */}
-                    <form onSubmit={handleSearch} className="flex items-center relative w-full">
-                      <Input
-                        type="search"
-                        placeholder="Search events..."
-                        className="h-9 pr-8 w-full"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                       <Button type="submit" variant="ghost" size="icon" className="absolute right-0 top-1/2 transform -translate-y-1/2 h-9 w-9" suppressHydrationWarning>
-                         <Search className="h-4 w-4" />
-                         <span className="sr-only">Search</span>
-                       </Button>
-                    </form>
+                    {/* Mobile search trigger */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        setIsSearchModalOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 h-10 px-3.5 rounded-xl border border-border bg-muted/40 text-muted-foreground hover:text-foreground text-sm font-medium w-full text-left transition-colors"
+                    >
+                      <Search className="h-4 w-4 text-primary shrink-0" />
+                      <span>Search events, venues...</span>
+                    </button>
                     <nav className="flex flex-col space-y-2 text-base">
                       <NavLinks inSheet />
                     </nav>
@@ -346,6 +336,12 @@ const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* --- Rich Interactive Search Modal --- */}
+      <SearchModal
+        isOpen={isSearchModalOpen}
+        onOpenChange={setIsSearchModalOpen}
+      />
     </header>
   );
 };
