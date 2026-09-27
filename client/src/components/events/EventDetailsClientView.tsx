@@ -424,70 +424,118 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
               )}
             </div>
 
+            {/* Location & Interactive Map Section */}
+            {(venueName || venueAddress || event.location) && (
+              <div className="bg-white dark:bg-card border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+                    <MapPin className="h-5 w-5 text-accent" /> Location
+                  </h2>
+                  <a
+                    href={venueMapLink || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(venueAddress || venueName || event.location)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={handleFindLocationClick}
+                    className="inline-flex items-center gap-1.5 text-xs md:text-sm font-bold text-accent hover:underline px-3 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-950/30 transition-colors"
+                  >
+                    <span>Navigate</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                      {venueName || event.location}
+                    </p>
+                    {venueAddress && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                        {venueAddress}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="w-full h-[320px] md:h-[380px] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 relative bg-slate-100 dark:bg-slate-900 shadow-inner">
+                    <iframe
+                      title="Event Venue Location Map"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(venueAddress || venueName || event.location)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      className="w-full h-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Right Sidebar Column (4 cols on desktop - STICKY) */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-24">
             
             {/* TicketsMinistry Style Hero Booking & Countdown Card */}
-            <div className="bg-[#0b0d17] text-white border border-[#1b1f33] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+            <div className="bg-white dark:bg-[#0b0d17] text-slate-900 dark:text-white border border-slate-200/90 dark:border-[#1b1f33] rounded-3xl p-6 shadow-xl dark:shadow-2xl relative overflow-hidden transition-colors">
               
               {/* Crown Icon / Featured Badge Row */}
               <div className="flex items-center justify-between mb-4">
-                <div className="w-9 h-9 rounded-full bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
-                  <Crown className="w-5 h-5 fill-emerald-400/20" />
+                <div className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-inner">
+                  <Crown className="w-5 h-5 fill-emerald-500/10 dark:fill-emerald-400/20" />
                 </div>
                 {event.is_featured ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-1 rounded-full">
                     Featured Event
                   </span>
                 ) : null}
               </div>
 
               {/* Event will start on label */}
-              <p className="text-xs font-medium text-slate-400 mb-3 tracking-wide">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-3 tracking-wide">
                 Event will start on
               </p>
 
               {/* Live Countdown Stat Boxes */}
               {timeLeft.isPast ? (
-                <div className="bg-[#141829] border border-emerald-500/25 rounded-2xl py-3 px-4 text-center mb-5 flex items-center justify-center gap-2">
+                <div className="bg-emerald-50 dark:bg-[#141829] border border-emerald-200 dark:border-emerald-500/25 rounded-2xl py-3 px-4 text-center mb-5 flex items-center justify-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
                     Event Started / Happening Now
                   </span>
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-2 mb-5">
-                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
-                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                  <div className="bg-slate-50 dark:bg-[#15192c] border border-slate-200/60 dark:border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">
                       {mounted ? timeLeft.days : "-"}
                     </span>
-                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Days</span>
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5">Days</span>
                   </div>
 
-                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
-                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                  <div className="bg-slate-50 dark:bg-[#15192c] border border-slate-200/60 dark:border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">
                       {mounted ? String(timeLeft.hours).padStart(2, '0') : "-"}
                     </span>
-                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Hours</span>
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5">Hours</span>
                   </div>
 
-                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
-                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                  <div className="bg-slate-50 dark:bg-[#15192c] border border-slate-200/60 dark:border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">
                       {mounted ? String(timeLeft.minutes).padStart(2, '0') : "-"}
                     </span>
-                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Mins</span>
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5">Mins</span>
                   </div>
 
-                  <div className="bg-[#15192c] border border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
-                    <span className="text-2xl md:text-3xl font-extrabold text-white tracking-tight tabular-nums leading-none">
+                  <div className="bg-slate-50 dark:bg-[#15192c] border border-slate-200/60 dark:border-white/5 rounded-2xl py-3 px-1.5 flex flex-col items-center justify-center text-center shadow-inner">
+                    <span className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">
                       {mounted ? String(timeLeft.seconds).padStart(2, '0') : "-"}
                     </span>
-                    <span className="text-[11px] font-medium text-slate-400 mt-1.5">Secs</span>
+                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5">Secs</span>
                   </div>
                 </div>
               )}
@@ -496,23 +544,23 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
               <div className="flex items-center gap-2.5 py-1 mb-5 flex-wrap">
                 <div className="flex items-center gap-1 text-sm">
                   <span className="text-orange-500 font-bold text-base">{formattedEventDay}</span>
-                  <span className="text-white font-semibold">{formattedEventMonth}</span>
+                  <span className="text-slate-800 dark:text-white font-semibold">{formattedEventMonth}</span>
                 </div>
                 <div className="flex items-center gap-1 text-sm">
                   <span className="text-orange-500 font-bold text-base">{formattedEventTime}</span>
-                  <span className="text-white font-semibold">{formattedEventAmPm}</span>
+                  <span className="text-slate-800 dark:text-white font-semibold">{formattedEventAmPm}</span>
                 </div>
-                <span className="text-slate-600 font-light">|</span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#22213d] text-indigo-300 border border-indigo-500/25">
+                <span className="text-slate-300 dark:text-slate-600 font-light">|</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-[#22213d] text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/25">
                   {event.category || "Concerts"}
                 </span>
               </div>
 
               {/* Price section */}
               <div className="mb-5">
-                <span className="text-xs font-medium text-slate-400 block mb-1">Price</span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">Price</span>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                  <span className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                     {minPrice === null
                       ? "TBD"
                       : minPrice === 0
@@ -520,7 +568,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                       : `LKR ${minPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </span>
                   {minPrice !== null && minPrice > 0 && (
-                    <span className="text-xs md:text-sm font-medium text-slate-400">Upwards</span>
+                    <span className="text-xs md:text-sm font-medium text-slate-500 dark:text-slate-400">Upwards</span>
                   )}
                 </div>
               </div>
@@ -538,7 +586,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
               ) : (
                 <Button
                   disabled
-                  className="w-full h-12 py-3 rounded-2xl bg-slate-800 text-slate-500 font-bold text-base cursor-not-allowed mb-4"
+                  className="w-full h-12 py-3 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold text-base cursor-not-allowed mb-4"
                 >
                   <Ban className="mr-2 h-5 w-5" /> Bookings Closed / Sold Out
                 </Button>
@@ -561,7 +609,7 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                     href={waLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-[#15192c] hover:bg-[#1d223c] transition-all border border-white/5 rounded-2xl p-3 flex items-center gap-3 mb-6 group cursor-pointer"
+                    className="bg-slate-50 hover:bg-slate-100 dark:bg-[#15192c] dark:hover:bg-[#1d223c] transition-all border border-slate-200/70 dark:border-white/5 rounded-2xl p-3 flex items-center gap-3 mb-6 group cursor-pointer"
                   >
                     <div className="w-9 h-9 rounded-full bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-md">
                       <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -569,14 +617,14 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs md:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
+                      <div className="text-xs md:text-sm font-bold text-slate-800 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                         Get updates for this event
                       </div>
-                      <div className="text-[11px] text-slate-400 leading-tight">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
                         Gate times, line-up changes and extra releases, on WhatsApp.
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white transition-colors shrink-0" />
                   </a>
                 );
               })()}
@@ -585,10 +633,10 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
               <div className="flex items-center justify-between pt-1">
                 {/* QR Code */}
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">
+                  <span className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase mb-2">
                     OPEN ON PHONE
                   </span>
-                  <div className="p-1.5 bg-white rounded-xl shadow-md inline-block w-[88px] h-[88px]">
+                  <div className="p-1.5 bg-slate-50 dark:bg-white border border-slate-200/80 dark:border-transparent rounded-xl shadow-sm inline-block w-[88px] h-[88px]">
                     <QRCode
                       data={currentUrl || `https://gotickets.lk/events/${event.slug}`}
                       size={76}
@@ -603,28 +651,28 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer group py-1"
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group py-1"
                       >
-                        <CalendarDays className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                        <CalendarDays className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                         <span>Add to Calendar</span>
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-[#15192c] border border-white/10 text-white rounded-xl p-1.5 min-w-[170px] shadow-2xl">
+                    <DropdownMenuContent align="end" className="bg-white dark:bg-[#15192c] border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white rounded-xl p-1.5 min-w-[170px] shadow-2xl">
                       <DropdownMenuItem
                         onClick={handleAddToGoogleCalendar}
-                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                        className="text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white flex items-center gap-2"
                       >
                         Google Calendar
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleAddToAppleCalendar}
-                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                        className="text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white flex items-center gap-2"
                       >
                         Apple Calendar (.ics)
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleAddToOutlookCalendar}
-                        className="text-xs cursor-pointer hover:bg-white/10 rounded-lg px-3 py-2 text-slate-200 hover:text-white flex items-center gap-2"
+                        className="text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white flex items-center gap-2"
                       >
                         Outlook Calendar
                       </DropdownMenuItem>
@@ -634,9 +682,9 @@ export default function EventDetailsClientView({ event }: { event: Event }) {
                   <button
                     type="button"
                     onClick={handleShareEvent}
-                    className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer group py-1"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer group py-1"
                   >
-                    <Share2 className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                    <Share2 className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                     <span>Share Event</span>
                   </button>
                 </div>
