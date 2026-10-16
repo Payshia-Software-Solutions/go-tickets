@@ -86,7 +86,8 @@ RUN cd /var/www/server && if [ -f composer.json ]; then composer install --no-de
 COPY --from=client-builder /app/client /var/www/client
 
 # Copy Nginx and Supervisor Configs
-COPY docker/nginx.conf /etc/nginx/sites-available/default
+RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /etc/nginx/conf.d/*
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Configure Permissions

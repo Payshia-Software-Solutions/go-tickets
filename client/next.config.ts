@@ -79,6 +79,18 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/server/:path*',
+        destination: 'http://127.0.0.1:80/server/:path*',
+      },
+      {
+        source: '/server',
+        destination: 'http://127.0.0.1:80/server',
+      },
+    ];
+  },
 };
 
 export default nextConfig;
