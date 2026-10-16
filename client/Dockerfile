@@ -9,7 +9,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
 # Install dependencies (prisma generate will be run via postinstall)
-RUN npm ci
+RUN npm install
 
 # Rebuild the source code only when needed
 FROM base AS builder

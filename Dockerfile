@@ -7,7 +7,7 @@ WORKDIR /app/client
 COPY client/package*.json ./
 COPY client/prisma ./prisma/
 
-RUN npm ci
+RUN npm install
 
 COPY client/ .
 
