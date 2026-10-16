@@ -1,8 +1,15 @@
 
-// API Base URL from environment variable
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://gotickets-server.payshia.com';
+let rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://gotickets.nebulync.com/server';
+if (rawApiBase.includes('api.gotickets.nebulync.com')) {
+  rawApiBase = 'https://gotickets.nebulync.com/server';
+}
+
+// When running server-side (Next.js SSR & API routes), prioritize INTERNAL_API_URL for direct internal container communication
+export const API_BASE_URL = (typeof window === 'undefined' && process.env.INTERNAL_API_URL)
+  ? process.env.INTERNAL_API_URL
+  : rawApiBase;
 export const CONTENT_PROVIDER_URL = "https://content-provider.gotickets.lk";
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://gotickets.nebulync.com';
 
 // Ensure base doesn't have a trailing slash for clean concatenation
 const base = API_BASE_URL.replace(/\/$/, "");
