@@ -61,12 +61,14 @@ import {
 const BOOKING_SHOWTIMES_API_URL = `${API_BASE_URL}/booking-showtimes/`;
 const BOOKING_EVENTS_API_URL = `${API_BASE_URL}/booking-events/`;
 
-export type ComputedStatus = 'paid' | 'partially_paid' | 'pending';
+export type ComputedStatus = 'paid' | 'partially_paid' | 'pending' | 'complimentary';
 
 export interface AttributedBooking extends Booking {
   ticketCount: number;
   ticketTypeNames: string[];
   computedStatus: ComputedStatus;
+  isComplimentary: boolean;
+  faceValue: number;
   grossAmount: number;
   collectedAmount: number;
   balanceAmount: number;
@@ -89,7 +91,11 @@ export interface SalesmanStat {
   email?: string;
   status: 'active' | 'inactive' | 'unassigned';
   totalOrders: number;
+  totalPaidOrders: number;
+  totalCompOrders: number;
   totalTickets: number;
+  totalPaidTickets: number;
+  totalCompTickets: number;
   grossSales: number;
   collectedRevenue: number;
   balanceDue: number;
@@ -251,15 +257,33 @@ export default function SalesmanPerformanceReportPage() {
       );
 
       const enriched: AttributedBooking[] = manualBookings.map((b) => {
-        const gross = Number(b.totalPrice || 0);
-        const paid = Number(b.amount_paid || 0);
-        const rawStatus = (b.payment_status || 'pending').toLowerCase();
+        const rawMethod = (b.payment_method || (b as any).paymentMethod || '').toLowerCase().trim();
+        const rawStatus = (b.payment_status || (b as any).paymentStatus || 'pending').toLowerCase().trim();
+        const rawNotes = ((b as any).payment_notes || (b as any).paymentNotes || (b as any).notes || '').toLowerCase();
+        
+        // Accurate detection of complimentary passes (waiver/free invitations)
+        const isComplimentary = 
+          rawMethod === 'complimentary' || 
+          rawStatus === 'complimentary' ||
+          (b as any).is_complimentary === 1 ||
+          (b as any).is_complimentary === '1' ||
+          (b as any).is_complimentary === true ||
+          rawNotes.includes('complimentary');
+
+        const originalFaceValue = Number(b.totalPrice || 0);
+        // If complimentary, it is NOT a cash sale (revenue charged = 0)
+        const gross = isComplimentary ? 0 : originalFaceValue;
+        const paid = isComplimentary ? 0 : Number(b.amount_paid || 0);
 
         let computedStatus: ComputedStatus = 'pending';
         let collected = 0;
         let balance = 0;
 
-        if (rawStatus === 'paid' || paid >= gross) {
+        if (isComplimentary) {
+          computedStatus = 'complimentary';
+          collected = 0;
+          balance = 0;
+        } else if (rawStatus === 'paid' || paid >= gross) {
           computedStatus = 'paid';
           collected = paid > 0 ? paid : gross;
           balance = 0;
@@ -350,6 +374,8 @@ export default function SalesmanPerformanceReportPage() {
           ticketCount,
           ticketTypeNames,
           computedStatus,
+          isComplimentary,
+          faceValue: originalFaceValue,
           grossAmount: gross,
           collectedAmount: collected,
           balanceAmount: balance,
@@ -456,8 +482,14 @@ export default function SalesmanPerformanceReportPage() {
     let totalCollected = 0;
     let totalBalance = 0;
     let totalTickets = 0;
+    let totalPaidTickets = 0;
+    let totalCompTickets = 0;
     let totalOrders = filteredBookings.length;
+    let totalPaidOrders = 0;
+    let compOrdersCount = 0;
+    let compFaceValue = 0;
     let fullyPaidCount = 0;
+    let partiallyPaidCount = 0;
     let pendingBalanceCount = 0;
 
     filteredBookings.forEach((b) => {
@@ -465,8 +497,18 @@ export default function SalesmanPerformanceReportPage() {
       totalCollected += b.collectedAmount;
       totalBalance += b.balanceAmount;
       totalTickets += b.ticketCount;
-      if (b.computedStatus === 'paid') fullyPaidCount++;
-      if (b.balanceAmount > 0) pendingBalanceCount++;
+
+      if (b.isComplimentary || b.computedStatus === 'complimentary') {
+        compOrdersCount++;
+        totalCompTickets += b.ticketCount;
+        compFaceValue += b.faceValue;
+      } else {
+        totalPaidOrders++;
+        totalPaidTickets += b.ticketCount;
+        if (b.computedStatus === 'paid') fullyPaidCount++;
+        else if (b.computedStatus === 'partially_paid') partiallyPaidCount++;
+        if (b.balanceAmount > 0) pendingBalanceCount++;
+      }
     });
 
     const realizationRate = totalGross > 0 ? (totalCollected / totalGross) * 100 : 0;
@@ -476,9 +518,15 @@ export default function SalesmanPerformanceReportPage() {
       totalCollected,
       totalBalance,
       totalTickets,
+      totalPaidTickets,
+      totalCompTickets,
       totalOrders,
+      totalPaidOrders,
+      compOrdersCount,
+      compFaceValue,
       realizationRate,
       fullyPaidCount,
+      partiallyPaidCount,
       pendingBalanceCount,
     };
   }, [filteredBookings]);
@@ -499,7 +547,11 @@ export default function SalesmanPerformanceReportPage() {
         email: s.email || undefined,
         status: s.status,
         totalOrders: 0,
+        totalPaidOrders: 0,
+        totalCompOrders: 0,
         totalTickets: 0,
+        totalPaidTickets: 0,
+        totalCompTickets: 0,
         grossSales: 0,
         collectedRevenue: 0,
         balanceDue: 0,
@@ -517,7 +569,11 @@ export default function SalesmanPerformanceReportPage() {
       code: 'DIRECT',
       status: 'unassigned',
       totalOrders: 0,
+      totalPaidOrders: 0,
+      totalCompOrders: 0,
       totalTickets: 0,
+      totalPaidTickets: 0,
+      totalCompTickets: 0,
       grossSales: 0,
       collectedRevenue: 0,
       balanceDue: 0,
@@ -540,7 +596,11 @@ export default function SalesmanPerformanceReportPage() {
           email: b.salesmanEmail,
           status: 'active',
           totalOrders: 0,
+          totalPaidOrders: 0,
+          totalCompOrders: 0,
           totalTickets: 0,
+          totalPaidTickets: 0,
+          totalCompTickets: 0,
           grossSales: 0,
           collectedRevenue: 0,
           balanceDue: 0,
@@ -554,19 +614,27 @@ export default function SalesmanPerformanceReportPage() {
       const stat = statsMap.get(key)!;
       stat.totalOrders += 1;
       stat.totalTickets += b.ticketCount;
-      stat.grossSales += b.grossAmount;
-      stat.collectedRevenue += b.collectedAmount;
-      stat.balanceDue += b.balanceAmount;
 
-      if (b.computedStatus === 'paid') stat.fullyPaidOrders += 1;
-      else if (b.computedStatus === 'partially_paid') stat.partiallyPaidOrders += 1;
-      else stat.pendingOrders += 1;
+      if (b.isComplimentary || b.computedStatus === 'complimentary') {
+        stat.totalCompOrders += 1;
+        stat.totalCompTickets += b.ticketCount;
+      } else {
+        stat.totalPaidOrders += 1;
+        stat.totalPaidTickets += b.ticketCount;
+        stat.grossSales += b.grossAmount;
+        stat.collectedRevenue += b.collectedAmount;
+        stat.balanceDue += b.balanceAmount;
+
+        if (b.computedStatus === 'paid') stat.fullyPaidOrders += 1;
+        else if (b.computedStatus === 'partially_paid') stat.partiallyPaidOrders += 1;
+        else stat.pendingOrders += 1;
+      }
     });
 
-    // Calculate rates and filter out registered salesmen with 0 orders if looking at filtered dates, unless 'all' is selected
+    // Calculate rates
     const list = Array.from(statsMap.values()).map((s) => ({
       ...s,
-      collectionRate: s.grossSales > 0 ? (s.collectedRevenue / s.grossSales) * 100 : 0,
+      collectionRate: s.grossSales > 0 ? (s.collectedRevenue / s.grossSales) * 100 : (s.totalCompOrders > 0 ? 100 : 0),
     }));
 
     // Sort based on sortBy
@@ -632,8 +700,11 @@ export default function SalesmanPerformanceReportPage() {
       'Status',
       'Phone',
       'Email',
-      'Orders Count',
-      'Tickets Sold',
+      'Paid Orders',
+      'Complimentary Orders',
+      'Total Orders',
+      'Paid Tickets Sold',
+      'Complimentary Tickets',
       'Gross Sales (LKR)',
       'Collected Revenue (LKR)',
       'Balance Due (LKR)',
@@ -647,8 +718,11 @@ export default function SalesmanPerformanceReportPage() {
       s.status,
       `"${s.phone || 'N/A'}"`,
       `"${s.email || 'N/A'}"`,
+      s.totalPaidOrders,
+      s.totalCompOrders,
       s.totalOrders,
-      s.totalTickets,
+      s.totalPaidTickets,
+      s.totalCompTickets,
       s.grossSales.toFixed(2),
       s.collectedRevenue.toFixed(2),
       s.balanceDue.toFixed(2),
@@ -682,6 +756,8 @@ export default function SalesmanPerformanceReportPage() {
       'Collected (LKR)',
       'Balance Due (LKR)',
       'Payment Status',
+      'Is Complimentary',
+      'Standard Face Value (LKR)',
     ];
 
     const rows = filteredBookings.map((b) => [
@@ -694,10 +770,12 @@ export default function SalesmanPerformanceReportPage() {
       `"${(b.customerPhone || 'N/A').replace(/"/g, '""')}"`,
       `"${b.ticketTypeNames.join('; ')}"`,
       b.ticketCount,
-      b.grossAmount.toFixed(2),
-      b.collectedAmount.toFixed(2),
-      b.balanceAmount.toFixed(2),
-      b.computedStatus.toUpperCase(),
+      b.isComplimentary ? '0.00' : b.grossAmount.toFixed(2),
+      b.isComplimentary ? '0.00' : b.collectedAmount.toFixed(2),
+      b.isComplimentary ? '0.00' : b.balanceAmount.toFixed(2),
+      b.isComplimentary ? 'COMPLIMENTARY' : b.computedStatus.toUpperCase(),
+      b.isComplimentary ? 'YES' : 'NO',
+      b.isComplimentary ? b.faceValue.toFixed(2) : '0.00',
     ]);
 
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -938,6 +1016,7 @@ export default function SalesmanPerformanceReportPage() {
                   <SelectItem value="paid">Fully Paid</SelectItem>
                   <SelectItem value="partially_paid">Partially Paid (Advance)</SelectItem>
                   <SelectItem value="pending">Pay on Arrival / Due</SelectItem>
+                  <SelectItem value="complimentary">Complimentary (Free Passes)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -970,11 +1049,19 @@ export default function SalesmanPerformanceReportPage() {
             <div className="text-2xl font-bold text-foreground">
               {formatLKR(overallKPIs.totalGross)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <span>{overallKPIs.totalOrders} total counter orders</span>
+            <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+              <span>{overallKPIs.totalPaidOrders} paid orders</span>
               <span>•</span>
-              <span className="font-semibold text-foreground">{overallKPIs.totalTickets} tickets</span>
-            </p>
+              <span className="font-semibold text-foreground">{overallKPIs.totalPaidTickets} paid tickets</span>
+              {overallKPIs.compOrdersCount > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-medium">
+                    +{overallKPIs.compOrdersCount} Comp ({overallKPIs.totalCompTickets} tickets)
+                  </span>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -1063,13 +1150,38 @@ export default function SalesmanPerformanceReportPage() {
         </Card>
       </div>
 
+      {/* Complimentary Pass Notice Banner */}
+      {overallKPIs.compOrdersCount > 0 && (
+        <div className="bg-purple-50/80 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print:hidden shadow-sm">
+          <div className="flex items-center gap-2.5 text-purple-900 dark:text-purple-200">
+            <Badge className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] px-2 py-0.5 font-semibold shrink-0">
+              Complimentary Notice
+            </Badge>
+            <span>
+              <strong>{overallKPIs.compOrdersCount} Complimentary Pass Orders ({overallKPIs.totalCompTickets} tickets)</strong> with standard face value of <strong>{formatLKR(overallKPIs.compFaceValue)}</strong> are recognized as free invitation waivers and excluded from gross counter sales.
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPaymentStatusFilter('complimentary');
+              setActiveTab('ledger');
+            }}
+            className="h-7 text-xs border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-950/50 shrink-0"
+          >
+            View Complimentary Ledger
+          </Button>
+        </div>
+      )}
+
       {/* Main Tabs: Leaderboard vs Detailed Orders Ledger */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-2 print:hidden">
           <TabsList className="grid w-full sm:w-auto grid-cols-2">
             <TabsTrigger value="leaderboard" className="gap-2">
               <Award className="h-4 w-4" />
-              Salesman Leaderboard ({salesmanStats.filter(s => s.grossSales > 0).length})
+              Salesman Leaderboard ({salesmanStats.filter(s => s.grossSales > 0 || s.totalCompOrders > 0).length})
             </TabsTrigger>
             <TabsTrigger value="ledger" className="gap-2">
               <Ticket className="h-4 w-4" />
@@ -1205,19 +1317,38 @@ export default function SalesmanPerformanceReportPage() {
 
                             {/* Orders Count */}
                             <TableCell className="text-center">
-                              <span className="font-medium text-sm">{stat.totalOrders}</span>
+                              <div className="flex flex-col items-center">
+                                <span className="font-semibold text-sm">{stat.totalPaidOrders}</span>
+                                {stat.totalCompOrders > 0 && (
+                                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
+                                    +{stat.totalCompOrders} Comp
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
 
                             {/* Tickets Count */}
                             <TableCell className="text-center">
-                              <Badge variant="secondary" className="font-semibold text-xs">
-                                {stat.totalTickets}
-                              </Badge>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <Badge variant="secondary" className="font-semibold text-xs">
+                                  {stat.totalPaidTickets}
+                                </Badge>
+                                {stat.totalCompTickets > 0 && (
+                                  <Badge variant="outline" className="text-[10px] py-0 px-1 text-purple-700 dark:text-purple-300 border-purple-500/30 bg-purple-500/10">
+                                    +{stat.totalCompTickets} Free
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
 
                             {/* Gross Sales */}
                             <TableCell className="text-right font-medium text-sm">
-                              {formatLKR(stat.grossSales)}
+                              <div className="font-semibold">{formatLKR(stat.grossSales)}</div>
+                              {stat.grossSales === 0 && stat.totalCompOrders > 0 && (
+                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-normal">
+                                  Complimentary Only
+                                </span>
+                              )}
                             </TableCell>
 
                             {/* Collected */}
@@ -1238,16 +1369,24 @@ export default function SalesmanPerformanceReportPage() {
 
                             {/* Collection Efficiency */}
                             <TableCell className="text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                <span className={cn(
-                                  "text-xs font-bold",
-                                  stat.collectionRate >= 90 ? "text-emerald-600 dark:text-emerald-400" :
-                                  stat.collectionRate >= 70 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"
-                                )}>
-                                  {stat.collectionRate.toFixed(1)}%
+                              {stat.grossSales > 0 ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className={cn(
+                                    "text-xs font-bold",
+                                    stat.collectionRate >= 90 ? "text-emerald-600 dark:text-emerald-400" :
+                                    stat.collectionRate >= 70 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"
+                                  )}>
+                                    {stat.collectionRate.toFixed(1)}%
+                                  </span>
+                                  <Progress value={stat.collectionRate} className="w-20 h-1.5" />
+                                </div>
+                              ) : stat.totalCompOrders > 0 ? (
+                                <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                                  Free Passes (100%)
                                 </span>
-                                <Progress value={stat.collectionRate} className="w-20 h-1.5" />
-                              </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs font-normal">0.0%</span>
+                              )}
                             </TableCell>
 
                             {/* Actions */}
@@ -1387,24 +1526,48 @@ export default function SalesmanPerformanceReportPage() {
 
                           {/* Qty */}
                           <TableCell className="text-center">
-                            <Badge variant="secondary" className="text-xs px-1.5 py-0 font-semibold">
-                              {b.ticketCount}
+                            <Badge
+                              variant={b.isComplimentary ? 'outline' : 'secondary'}
+                              className={`text-xs px-1.5 py-0 font-semibold ${
+                                b.isComplimentary
+                                  ? 'border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40'
+                                  : ''
+                              }`}
+                            >
+                              {b.ticketCount} {b.isComplimentary && 'Free'}
                             </Badge>
                           </TableCell>
 
                           {/* Gross */}
-                          <TableCell className="text-right font-medium">
-                            {formatLKR(b.grossAmount)}
+                          <TableCell className="text-right">
+                            {b.isComplimentary ? (
+                              <div className="flex flex-col items-end">
+                                <span className="font-semibold text-muted-foreground">{formatLKR(0)}</span>
+                                <span className="text-[10px] text-muted-foreground/70 line-through" title="Waived Face Value">
+                                  {formatLKR(b.faceValue || 0)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-medium">{formatLKR(b.grossAmount)}</span>
+                            )}
                           </TableCell>
 
                           {/* Collected */}
-                          <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatLKR(b.collectedAmount)}
+                          <TableCell className="text-right">
+                            {b.isComplimentary ? (
+                              <span className="text-muted-foreground text-xs font-medium">LKR 0.00</span>
+                            ) : (
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatLKR(b.collectedAmount)}
+                              </span>
+                            )}
                           </TableCell>
 
                           {/* Balance Due */}
                           <TableCell className="text-right font-semibold">
-                            {b.balanceAmount > 0 ? (
+                            {b.isComplimentary ? (
+                              <span className="text-purple-600 dark:text-purple-400 text-xs font-semibold">Free Pass</span>
+                            ) : b.balanceAmount > 0 ? (
                               <span className="text-amber-600 dark:text-amber-400">
                                 {formatLKR(b.balanceAmount)}
                               </span>
@@ -1415,7 +1578,11 @@ export default function SalesmanPerformanceReportPage() {
 
                           {/* Status Badge */}
                           <TableCell className="text-center">
-                            {b.computedStatus === 'paid' ? (
+                            {b.isComplimentary || b.computedStatus === 'complimentary' ? (
+                              <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-500/25 border-purple-500/30 text-[10px] px-1.5 py-0 font-semibold">
+                                Complimentary
+                              </Badge>
+                            ) : b.computedStatus === 'paid' ? (
                               <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border-emerald-500/30 text-[10px] px-1.5 py-0">
                                 Paid
                               </Badge>

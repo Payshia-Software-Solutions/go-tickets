@@ -58,6 +58,24 @@ const nextConfig: NextConfig = {
         hostname: 'content-provider.gotickets.lk',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'gotickets.nebulync.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.gotickets.nebulync.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'gotickets-api.nebulync.com',
+        port: '',
+        pathname: '/**',
       }
     ],
   },

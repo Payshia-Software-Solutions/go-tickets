@@ -20,7 +20,6 @@ client/yarn-error.log*
 
 # Server dependencies & dynamic assets
 server/vendor/
-server/config/database.php
 server/logs/*
 !server/logs/.gitkeep
 server/uploads/*
@@ -30,6 +29,7 @@ server/uploads/*
 .env
 .env.*
 !.env.example
+!.env.coolify.example
 *.env
 server/.env
 server/.env.*

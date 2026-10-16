@@ -1,0 +1,89 @@
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: gotickets-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password_change_me}
+      MYSQL_DATABASE: ${DB_NAME:-payshiac_gotickets}
+      MYSQL_USER: ${DB_USER:-gotickets_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-gotickets_password_change_me}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - gotickets-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+
+  # PHP 8.2 Apache Server (Backend API)
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: gotickets-server
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-payshiac_gotickets}
+      DB_USER: ${DB_USER:-gotickets_user}
+      DB_PASS: ${DB_PASSWORD:-gotickets_password_change_me}
+      DB_CHARSET: utf8mb4
+      PAYHERE_MODE: ${PAYHERE_MODE:-live}
+      PAYHERE_MERCHANT_ID: ${PAYHERE_MERCHANT_ID:-}
+      PAYHERE_MERCHANT_SECRET: ${PAYHERE_MERCHANT_SECRET:-}
+      PAYHERE_DOMAIN_NAME: https://gotickets.nebulync.com
+      PAYHERE_SERVER_URL: https://api.gotickets.nebulync.com
+      SMTP_HOST: ${SMTP_HOST:-mail.gotickets.lk}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USERNAME: ${SMTP_USERNAME:-no-reply@gotickets.lk}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@gotickets.lk}
+      SMTP_FROM_NAME: "GoTickets.lk"
+      SMTP_CC_EMAILS: ${SMTP_CC_EMAILS:-}
+    volumes:
+      - server_uploads:/var/www/html/uploads
+    ports:
+      - "8080:80"
+    networks:
+      - gotickets-network
+    labels:
+      - "coolify.managed=true"
+
+  # Next.js Frontend Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://api.gotickets.nebulync.com
+        NEXT_PUBLIC_SITE_URL: https://gotickets.nebulync.com
+        NEXT_PUBLIC_FACEBOOK_PIXEL_ID: ${NEXT_PUBLIC_FACEBOOK_PIXEL_ID:-724454870504742}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-G-XW1Q7R19PV}
+    container_name: gotickets-client
+    restart: always
+    depends_on:
+      - server
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: https://api.gotickets.nebulync.com
+      NEXT_PUBLIC_SITE_URL: https://gotickets.nebulync.com
+    ports:
+      - "3000:3000"
+    networks:
+      - gotickets-network
+    labels:
+      - "coolify.managed=true"
+
+networks:
+  gotickets-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  server_uploads:
